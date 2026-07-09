@@ -1,0 +1,12 @@
+[package]
+name = "ps-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+ps-sys = { path = "../ps-sys" }
+thiserror = { workspace = true }
+bitflags = { workspace = true }
+once_cell = { workspace = true }

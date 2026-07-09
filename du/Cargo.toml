@@ -1,0 +1,9 @@
+[package]
+name = "du"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows du clone — estimate file space usage, Linux-style"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }

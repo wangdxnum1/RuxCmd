@@ -1,0 +1,10 @@
+[package]
+name = "date"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows date clone — display or set date and time, Linux-style"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+chrono = "0.4"

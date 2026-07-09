@@ -1,0 +1,6 @@
+target/
+dist/
+*.exe
+*.pdb
+.idea/
+.vscode/

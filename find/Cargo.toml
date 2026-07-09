@@ -1,0 +1,10 @@
+[package]
+name = "find"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows find clone — search for files in a directory hierarchy, Linux-style"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+regex = "1"

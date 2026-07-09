@@ -1,0 +1,2 @@
+﻿package `ps-sys` depends on `windows` with feature `Win32_System_Threading_Name
+dObjects` but `windows` does not have that feature.

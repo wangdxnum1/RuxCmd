@@ -1,0 +1,9 @@
+[package]
+name = "touch"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows touch clone — create empty files or update file timestamps, Linux-style"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }

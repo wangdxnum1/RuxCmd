@@ -1,0 +1,9 @@
+[package]
+name = "pwd"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows pwd clone — print the current working directory, Linux-style"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }

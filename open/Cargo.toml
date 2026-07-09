@@ -1,0 +1,9 @@
+[package]
+name = "open"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows open clone — open files, directories, and URLs with their associated applications, Mac-style"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
