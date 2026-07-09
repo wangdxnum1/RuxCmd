@@ -1,0 +1,9 @@
+[package]
+name = "xargs"
+version = "0.1.0"
+edition = "2024"
+description = "Build and execute command lines from standard input — a Windows port of the Linux xargs command."
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }

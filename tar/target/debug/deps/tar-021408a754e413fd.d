@@ -1,0 +1,14 @@
+D:\Work\rust\tar\target\debug\deps\tar-021408a754e413fd.d: C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\lib.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\archive.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\builder.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\entry.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\entry_type.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\error.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\header.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\pax.rs
+
+D:\Work\rust\tar\target\debug\deps\libtar-021408a754e413fd.rlib: C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\lib.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\archive.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\builder.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\entry.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\entry_type.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\error.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\header.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\pax.rs
+
+D:\Work\rust\tar\target\debug\deps\libtar-021408a754e413fd.rmeta: C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\lib.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\archive.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\builder.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\entry.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\entry_type.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\error.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\header.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\pax.rs
+
+C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\lib.rs:
+C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\archive.rs:
+C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\builder.rs:
+C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\entry.rs:
+C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\entry_type.rs:
+C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\error.rs:
+C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\header.rs:
+C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tar-0.4.46\src\pax.rs:

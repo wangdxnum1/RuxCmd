@@ -1,0 +1,9 @@
+[package]
+name = "uname"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows uname clone — print system information"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }

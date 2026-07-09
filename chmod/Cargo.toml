@@ -1,0 +1,9 @@
+[package]
+name = "chmod"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows chmod clone — change file permissions, Linux-style"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }

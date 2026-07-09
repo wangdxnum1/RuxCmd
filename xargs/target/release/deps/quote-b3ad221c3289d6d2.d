@@ -1,0 +1,13 @@
+D:\Work\rust\xargs\target\release\deps\quote-b3ad221c3289d6d2.d: C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\lib.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\ext.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\format.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\ident_fragment.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\to_tokens.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\runtime.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\spanned.rs
+
+D:\Work\rust\xargs\target\release\deps\libquote-b3ad221c3289d6d2.rlib: C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\lib.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\ext.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\format.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\ident_fragment.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\to_tokens.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\runtime.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\spanned.rs
+
+D:\Work\rust\xargs\target\release\deps\libquote-b3ad221c3289d6d2.rmeta: C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\lib.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\ext.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\format.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\ident_fragment.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\to_tokens.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\runtime.rs C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\spanned.rs
+
+C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\lib.rs:
+C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\ext.rs:
+C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\format.rs:
+C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\ident_fragment.rs:
+C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\to_tokens.rs:
+C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\runtime.rs:
+C:\Users\Tim\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\quote-1.0.46\src\spanned.rs:

@@ -13,7 +13,7 @@ echo Building all Rust tools...
 echo ========================================
 echo.
 
-set "PROJECTS=cat ls open rm touch mkdir cp mv head tail wc grep date which sort cut find du df kill echo ln whoami"
+set "PROJECTS=cat ls open rm touch mkdir cp mv head tail wc grep date which sort cut find du df kill echo ln whoami chmod chown uname uptime env diff sed uniq tee xargs basename dirname tr cmp tar"
 set "BUILD_SUCCESS=true"
 
 for %%p in (%PROJECTS%) do (
