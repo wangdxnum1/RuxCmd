@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 /// Print newline, word, and byte counts for files — a Windows port of the Linux wc command.
 #[derive(Parser, Debug)]
-#[command(name = "wc", version, about)]
+#[command(name = "wc", version, about, disable_version_flag = true)]
 pub struct Args {
     /// Print the newline counts
     #[arg(short = 'l', long = "lines")]
@@ -28,4 +28,8 @@ pub struct Args {
     /// The file(s) to count
     #[arg(value_name = "FILE")]
     pub files: Vec<PathBuf>,
+
+    /// Show version information
+    #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
+    pub version: (),
 }

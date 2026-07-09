@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 /// Estimate file space usage — a Windows port of the Linux du command.
 #[derive(Parser, Debug)]
-#[command(name = "du", version, about)]
+#[command(name = "du", version, about, disable_version_flag = true)]
 pub struct Args {
     /// Show human-readable sizes (KB, MB, GB)
     #[arg(short = 'h', long = "human-readable")]
@@ -20,4 +20,8 @@ pub struct Args {
     /// Directory or file paths to calculate
     #[arg(value_name = "PATH")]
     pub paths: Vec<PathBuf>,
+
+    /// Show version information
+    #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
+    pub version: (),
 }

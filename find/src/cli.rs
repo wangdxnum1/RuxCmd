@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 /// Search for files in a directory hierarchy — a Windows port of the Linux find command.
 #[derive(Parser, Debug)]
-#[command(name = "find", version, about)]
+#[command(name = "find", version, about, disable_version_flag = true)]
 pub struct Args {
     /// Search paths (default: current directory)
     #[arg(value_name = "PATH")]
@@ -36,4 +36,8 @@ pub struct Args {
     /// Search case-insensitive
     #[arg(short = 'i', long = "ignore-case")]
     pub ignore_case: bool,
+
+    /// Show version information
+    #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
+    pub version: (),
 }

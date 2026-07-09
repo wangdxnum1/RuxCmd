@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 /// Create links — a Windows port of the Linux ln command.
 #[derive(Parser, Debug)]
-#[command(name = "ln", version, about)]
+#[command(name = "ln", version, about, disable_version_flag = true)]
 pub struct Args {
     /// Create symbolic links instead of hard links
     #[arg(short = 's', long = "symbolic")]
@@ -20,4 +20,8 @@ pub struct Args {
     /// Link name or directory
     #[arg(value_name = "LINK_NAME")]
     pub link_name: PathBuf,
+
+    /// Show version information
+    #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
+    pub version: (),
 }

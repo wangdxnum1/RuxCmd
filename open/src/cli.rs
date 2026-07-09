@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 /// Open files, directories, and URLs with their associated applications — a Windows port of the Mac open command.
 #[derive(Parser, Debug)]
-#[command(name = "open", version, about)]
+#[command(name = "open", version, about, disable_version_flag = true)]
 pub struct Args {
     /// Open the file(s) with the specified application
     #[arg(short = 'a', long = "application")]
@@ -24,4 +24,8 @@ pub struct Args {
     /// The file(s), directory, or URL to open
     #[arg(value_name = "PATH")]
     pub paths: Vec<PathBuf>,
+
+    /// Show version information
+    #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
+    pub version: (),
 }

@@ -2,7 +2,7 @@ use clap::Parser;
 
 /// Display or set date and time — a Windows port of the Linux date command.
 #[derive(Parser, Debug)]
-#[command(name = "date", version, about)]
+#[command(name = "date", version, about, disable_version_flag = true)]
 pub struct Args {
     /// Display date using the specified format
     #[arg(short = 'd', long = "date")]
@@ -27,4 +27,8 @@ pub struct Args {
     /// Format string
     #[arg(value_name = "FORMAT")]
     pub format: Option<String>,
+
+    /// Show version information
+    #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
+    pub version: (),
 }

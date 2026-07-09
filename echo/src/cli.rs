@@ -2,7 +2,7 @@ use clap::Parser;
 
 /// Display a line of text — a Windows port of the Linux echo command.
 #[derive(Parser, Debug)]
-#[command(name = "echo", version, about)]
+#[command(name = "echo", version, about, disable_version_flag = true)]
 pub struct Args {
     /// Do not output the trailing newline
     #[arg(short = 'n')]
@@ -19,4 +19,8 @@ pub struct Args {
     /// The text to display
     #[arg(value_name = "STRING")]
     pub strings: Vec<String>,
+
+    /// Show version information
+    #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
+    pub version: (),
 }

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 /// Remove sections from lines of files — a Windows port of the Linux cut command.
 #[derive(Parser, Debug)]
-#[command(name = "cut", version, about)]
+#[command(name = "cut", version, about, disable_version_flag = true)]
 pub struct Args {
     /// Select only these bytes
     #[arg(short = 'b', long = "bytes")]
@@ -32,4 +32,8 @@ pub struct Args {
     /// The file(s) to cut
     #[arg(value_name = "FILE")]
     pub files: Vec<PathBuf>,
+
+    /// Show version information
+    #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
+    pub version: (),
 }

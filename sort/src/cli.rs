@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 /// Sort lines of text — a Windows port of the Linux sort command.
 #[derive(Parser, Debug)]
-#[command(name = "sort", version, about)]
+#[command(name = "sort", version, about, disable_version_flag = true)]
 pub struct Args {
     /// Sort in reverse order
     #[arg(short = 'r', long = "reverse")]
@@ -40,4 +40,8 @@ pub struct Args {
     /// The file(s) to sort
     #[arg(value_name = "FILE")]
     pub files: Vec<PathBuf>,
+
+    /// Show version information
+    #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
+    pub version: (),
 }
