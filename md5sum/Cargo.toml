@@ -1,0 +1,10 @@
+[package]
+name = "md5sum"
+version = "0.1.0"
+edition = "2024"
+description = "Compute MD5 hash sums of files — a Windows port of the Linux md5sum command"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+md5 = "0.7"

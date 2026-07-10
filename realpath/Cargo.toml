@@ -1,0 +1,9 @@
+[package]
+name = "realpath"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows realpath clone — print the canonicalized absolute pathname"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }

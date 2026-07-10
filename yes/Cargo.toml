@@ -1,0 +1,9 @@
+[package]
+name = "yes"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows yes clone — repeat the same string, Linux-style"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }

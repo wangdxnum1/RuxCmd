@@ -1,0 +1,9 @@
+[package]
+name = "nl"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows nl clone — number lines of files, Linux-style"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }

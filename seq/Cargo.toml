@@ -1,0 +1,9 @@
+[package]
+name = "seq"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows seq clone — print a sequence of numbers"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }

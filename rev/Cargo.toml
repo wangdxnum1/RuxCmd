@@ -1,0 +1,9 @@
+[package]
+name = "rev"
+version = "0.1.0"
+edition = "2024"
+description = "Reverse lines of a file or input"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
