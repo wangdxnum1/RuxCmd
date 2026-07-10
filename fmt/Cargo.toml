@@ -1,0 +1,9 @@
+[package]
+name = "fmt"
+version = "0.1.0"
+edition = "2024"
+description = "Format lines of text"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }

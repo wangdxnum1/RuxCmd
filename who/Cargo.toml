@@ -1,0 +1,9 @@
+[package]
+name = "who"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows who clone — print information about users who are currently logged in"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }

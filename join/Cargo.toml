@@ -1,0 +1,9 @@
+[package]
+name = "join"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows join clone — join lines of two files on a common field"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
