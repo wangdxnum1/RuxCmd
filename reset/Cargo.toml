@@ -1,0 +1,10 @@
+[package]
+name = "reset"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows reset utility — reset terminal state"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+winapi = { version = "0.3", features = ["consoleapi", "processenv", "winbase"] }

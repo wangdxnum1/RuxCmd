@@ -1,0 +1,9 @@
+[package]
+name = "strings"
+version = "0.1.0"
+edition = "2024"
+description = "Print the sequences of printable characters in files — a Windows port of the Linux strings command."
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }

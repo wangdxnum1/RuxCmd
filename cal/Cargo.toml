@@ -1,0 +1,10 @@
+[package]
+name = "cal"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows cal clone — display calendar, Linux-style"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+chrono = "0.4"

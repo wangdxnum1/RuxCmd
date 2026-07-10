@@ -1,0 +1,9 @@
+[package]
+name = "clear"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows clear clone — clear the screen"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
