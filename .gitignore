@@ -5,3 +5,6 @@
 target/
 Cargo.lock
 .env
+**/target/
+**/*.exe
+**/*.pdb
