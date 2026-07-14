@@ -1,5 +1,4 @@
 use clap::{Parser, ValueEnum};
-use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(name = "numfmt", version, about = "Reformat NUMBER(s), or the numbers from FILE", disable_version_flag = true)]

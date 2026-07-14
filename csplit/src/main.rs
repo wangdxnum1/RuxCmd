@@ -31,8 +31,8 @@ fn main() {
     let mut pat_idx: usize = 0;
     while pat_idx < args.patterns.len() {
         let p = &args.patterns[pat_idx];
-        if let Some(repeat) = try_repeat_tail(p) {
-            let base = p[..p.len()-1].to_string();
+        if let Some((digit_idx, repeat)) = try_repeat_tail(p) {
+            let base = p[..digit_idx].to_string();
             for _ in 0..repeat {
                 let (end, offset) = match next_match(&base, &lines, cur) {
                     Some(v) => v,
@@ -137,11 +137,12 @@ fn read_input(p: &Option<PathBuf>) -> Result<Vec<String>, String> {
     Ok(out)
 }
 
-fn try_repeat_tail(p: &str) -> Option<usize> {
+fn try_repeat_tail(p: &str) -> Option<(usize, usize)> {
     if let Some(idx) = p.rfind(|c: char| !c.is_ascii_digit()) {
-        if idx + 1 < p.len() {
-            let n: usize = p[idx+1..].parse().ok()?;
-            if n > 0 { Some(n) } else { None }
+        let digit_start = idx + 1;
+        if digit_start < p.len() {
+            let n: usize = p[digit_start..].parse().ok()?;
+            if n > 0 { Some((digit_start, n)) } else { None }
         } else { None }
     } else { None }
 }
