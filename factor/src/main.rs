@@ -71,9 +71,6 @@ fn factor_one(raw: &str) -> Result<(), String> {
             x /= d;
         }
         d = d.saturating_add(2);
-        if d < 3 {
-            break;
-        }
     }
     if x > 1 {
         factors.push(x);
