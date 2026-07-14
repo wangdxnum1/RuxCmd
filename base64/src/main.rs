@@ -25,7 +25,7 @@ fn main() {
     } else {
         let mut ok = true;
         for p in &args.files {
-            let r = if p.to_string_lossy() == "-" {
+            let r = if p.as_os_str() == "-" {
                 read_all_stdin(&mut data)
             } else {
                 read_all_file(p, &mut data)
@@ -66,7 +66,7 @@ fn read_all_stdin(buf: &mut Vec<u8>) -> Result<(), ()> {
     Ok(())
 }
 
-fn read_all_file(p: &PathBuf, buf: &mut Vec<u8>) -> Result<(), ()> {
+fn read_all_file(p: &std::path::Path, buf: &mut Vec<u8>) -> Result<(), ()> {
     match File::open(p) {
         Ok(mut f) => {
             if let Err(e) = f.read_to_end(buf) {
