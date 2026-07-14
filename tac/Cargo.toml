@@ -1,0 +1,9 @@
+[package]
+name = "tac"
+version = "0.1.0"
+edition = "2024"
+description = "Concatenate and print files in reverse line order"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
