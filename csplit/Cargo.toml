@@ -1,0 +1,9 @@
+[package]
+name = "csplit"
+version = "0.1.0"
+edition = "2024"
+description = "Split a file into sections determined by context lines"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
