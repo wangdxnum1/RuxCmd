@@ -1,0 +1,165 @@
+﻿# Review package: 1e181deec9ca048208cd9ee49df998fe83f696aa..aa478ffd1171da52ffeaffae5ea203e92f799ee0
+
+## Commits
+aa478ff feat: add tac reverse-line printer with -b/-s flags (preflight -b fix) - round 7
+
+## Files changed
+ tac/Cargo.toml  |   9 +++++
+ tac/src/cli.rs  |  18 ++++++++++
+ tac/src/main.rs | 108 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 135 insertions(+)
+
+## Diff
+diff --git a/tac/Cargo.toml b/tac/Cargo.toml
+new file mode 100644
+index 0000000..9e8812a
+--- /dev/null
++++ b/tac/Cargo.toml
+@@ -0,0 +1,9 @@
++[package]
++name = "tac"
++version = "0.1.0"
++edition = "2024"
++description = "Concatenate and print files in reverse line order"
++authors = ["Tim"]
++
++[dependencies]
++clap = { version = "4", features = ["derive"] }
+diff --git a/tac/src/cli.rs b/tac/src/cli.rs
+new file mode 100644
+index 0000000..d7594b4
+--- /dev/null
++++ b/tac/src/cli.rs
+@@ -0,0 +1,18 @@
++use clap::Parser;
++use std::path::PathBuf;
++
++#[derive(Parser, Debug)]
++#[command(name = "tac", version, about = "Write FILE(s) to stdout, last line first", disable_version_flag = true)]
++pub struct Args {
++    #[arg(short = 'v', long = "version", action = clap::ArgAction::SetTrue)]
++    pub version: bool,
++
++    #[arg(short = 'b', long = "before", action = clap::ArgAction::SetTrue)]
++    pub before: bool,
++
++    #[arg(short = 's', long = "separator", default_value_t = String::from("\n"))]
++    pub separator: String,
++
++    #[arg(value_name = "FILE")]
++    pub files: Vec<PathBuf>,
++}
+diff --git a/tac/src/main.rs b/tac/src/main.rs
+new file mode 100644
+index 0000000..bbea781
+--- /dev/null
++++ b/tac/src/main.rs
+@@ -0,0 +1,108 @@
++mod cli;
++
++use clap::Parser;
++use std::fs::File;
++use std::io::{Read, Write};
++use std::path::PathBuf;
++
++fn main() {
++    let args = cli::Args::parse();
++
++    if args.version {
++        println!("tac 0.1.0");
++        return;
++    }
++
++    let sep: Vec<char> = if args.separator.is_empty() {
++        vec!['\n']
++    } else {
++        args.separator.chars().collect()
++    };
++
++    let mut lines: Vec<Vec<char>> = Vec::new();
++    let mut exit_code = 0i32;
++
++    if args.files.is_empty() {
++        let stdin = std::io::stdin();
++        if let Err(e) = read_file_reader(stdin.lock(), &sep, &mut lines) {
++            eprintln!("tac: error reading stdin: {}", e);
++            exit_code = 1;
++        }
++    } else {
++        for p in &args.files {
++            if p.to_string_lossy() == "-" {
++                let stdin = std::io::stdin();
++                if let Err(e) = read_file_reader(stdin.lock(), &sep, &mut lines) {
++                    eprintln!("tac: error reading stdin: {}", e);
++                    exit_code = 1;
++                }
++            } else {
++                match File::open(p) {
++                    Ok(f) => {
++                        if let Err(e) = read_file_reader(f, &sep, &mut lines) {
++                            eprintln!("tac: {}: {}", p.display(), e);
++                            exit_code = 1;
++                        }
++                    }
++                    Err(e) => {
++                        eprintln!("tac: {}: {}", p.display(), e);
++                        exit_code = 1;
++                    }
++                }
++            }
++        }
++    }
++
++    let stdout = std::io::stdout();
++    let mut out = stdout.lock();
++
++    let sep_bytes: Vec<u8> = sep.iter().flat_map(|c| {
++        let mut b = [0u8; 4];
++        c.encode_utf8(&mut b).bytes().collect::<Vec<u8>>()
++    }).collect();
++
++    lines.reverse();
++
++    for line in &lines {
++        let line_bytes: Vec<u8> = line.iter().flat_map(|c| {
++            let mut b = [0u8; 4];
++            c.encode_utf8(&mut b).bytes().collect::<Vec<u8>>()
++        }).collect();
++
++        if args.before {
++            // separator is BEFORE current line's body
++            let _ = out.write_all(&sep_bytes);
++            let _ = out.write_all(&line_bytes);
++        } else {
++            // separator is AFTER current line's body (FIXED: was duplicate BEFORE)
++            let _ = out.write_all(&line_bytes);
++            let _ = out.write_all(&sep_bytes);
++        }
++    }
++
++    std::process::exit(exit_code);
++}
++
++fn read_file_reader<R: Read>(reader: R, sep: &[char], lines: &mut Vec<Vec<char>>) -> Result<(), std::io::Error> {
++    let mut buf = String::new();
++    let mut r = reader;
++    r.read_to_string(&mut buf)?;
++    let chars: Vec<char> = buf.chars().collect();
++    let sep_len = sep.len();
++
++    let mut start = 0usize;
++    let mut i = 0usize;
++    while i + sep_len <= chars.len() {
++        if chars[i..i + sep_len] == sep[..] {
++            lines.push(chars[start..i].to_vec());
++            i += sep_len;
++            start = i;
++        } else {
++            i += 1;
++        }
++    }
++    if start <= chars.len() {
++        lines.push(chars[start..].to_vec());
++    }
++    Ok(())
++}

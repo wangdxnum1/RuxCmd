@@ -1,0 +1,37 @@
+﻿# Review package: c42e99731df7d0414dc408fc565d778c8d369849..5176afb58ce51e718a627817ecc6b11e1b88944b
+
+## Commits
+5176afb chore(build): add round 7 tools to build-all.bat PROJECTS list
+
+## Files changed
+ build-all.bat | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+## Diff
+diff --git a/build-all.bat b/build-all.bat
+index 98e76ee..e92d942 100644
+--- a/build-all.bat
++++ b/build-all.bat
+@@ -6,21 +6,21 @@ set "PROJECT_DIR=D:\Work\rust"
+ 
+ echo Creating output directory...
+ mkdir "%OUTPUT_DIR%" 2>nul
+ 
+ echo.
+ echo ========================================
+ echo Building all Rust tools...
+ echo ========================================
+ echo.
+ 
+-set "PROJECTS=cat ls open rm touch mkdir cp mv head tail wc grep date which sort cut find du df kill echo ln whoami chmod chown uname uptime env diff sed uniq tee xargs basename dirname tr cmp tar rev split paste nl file md5sum sha256sum stat readlink realpath seq yes sleep id free fmt fold comm join who w hostname groups gunzip unzip zcat patch od strings tty mkfifo true false test printf cal clear reset pkill pgrep shred sync bc zip time timeout nice whereis"
++set "PROJECTS=cat ls open rm touch mkdir cp mv head tail wc grep date which sort cut find du df kill echo ln whoami chmod chown uname uptime env diff sed uniq tee xargs basename dirname tr cmp tar rev split paste nl file md5sum sha256sum stat readlink realpath seq yes sleep id free fmt fold comm join who w hostname groups gunzip unzip zcat patch od strings tty mkfifo true false test printf cal clear reset pkill pgrep shred sync bc zip time timeout nice whereis base64 expand unexpand tac column shuf csplit pr numfmt factor"
+ set "BUILD_SUCCESS=true"
+ 
+ for %%p in (%PROJECTS%) do (
+     set "PROJECT_PATH=%PROJECT_DIR%\%%p"
+     echo Building %%p...
+     
+     pushd "!PROJECT_PATH!"
+     cargo build --release --offline 2>&1
+     if !errorlevel! neq 0 (
+         echo ERROR: Failed to build %%p

@@ -1,0 +1,348 @@
+﻿# Review package: af184d29ec94ae613fd697e87896e34087020e20..1e181deec9ca048208cd9ee49df998fe83f696aa
+
+## Commits
+1e181de feat: add expand + unexpand (tab<->space converters) - round 7
+
+## Files changed
+ expand/Cargo.toml    |   9 ++++
+ expand/src/cli.rs    |  18 +++++++
+ expand/src/main.rs   | 137 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ unexpand/Cargo.toml  |   9 ++++
+ unexpand/src/cli.rs  |  18 +++++++
+ unexpand/src/main.rs | 106 +++++++++++++++++++++++++++++++++++++++
+ 6 files changed, 297 insertions(+)
+
+## Diff
+diff --git a/expand/Cargo.toml b/expand/Cargo.toml
+new file mode 100644
+index 0000000..77663e0
+--- /dev/null
++++ b/expand/Cargo.toml
+@@ -0,0 +1,9 @@
++[package]
++name = "expand"
++version = "0.1.0"
++edition = "2024"
++description = "Convert tabs to spaces"
++authors = ["Tim"]
++
++[dependencies]
++clap = { version = "4", features = ["derive"] }
+diff --git a/expand/src/cli.rs b/expand/src/cli.rs
+new file mode 100644
+index 0000000..ed12aa1
+--- /dev/null
++++ b/expand/src/cli.rs
+@@ -0,0 +1,18 @@
++use clap::Parser;
++use std::path::PathBuf;
++
++#[derive(Parser, Debug)]
++#[command(name = "expand", version, about = "Convert tabs in FILE(s) to spaces", disable_version_flag = true)]
++pub struct Args {
++    #[arg(short = 'v', long = "version", action = clap::ArgAction::SetTrue)]
++    pub version: bool,
++
++    #[arg(short = 't', long = "tabs", default_value = "8")]
++    pub tabs: String,
++
++    #[arg(short = 'i', long = "initial", action = clap::ArgAction::SetTrue)]
++    pub initial: bool,
++
++    #[arg(value_name = "FILE")]
++    pub files: Vec<PathBuf>,
++}
+diff --git a/expand/src/main.rs b/expand/src/main.rs
+new file mode 100644
+index 0000000..7d69b5f
+--- /dev/null
++++ b/expand/src/main.rs
+@@ -0,0 +1,137 @@
++mod cli;
++
++use clap::Parser;
++use std::fs::File;
++use std::io::{BufRead, BufReader, Write};
++use std::path::PathBuf;
++
++fn main() {
++    let args = cli::Args::parse();
++
++    if args.version {
++        println!("expand 0.1.0");
++        return;
++    }
++
++    let stops = parse_tabs(&args.tabs);
++    if stops.is_err() {
++        eprintln!("expand: invalid tabs value '{}'", args.tabs);
++        std::process::exit(1);
++    }
++    let stops = stops.unwrap();
++
++    let mut exit_code = 0i32;
++
++    if args.files.is_empty() {
++        let stdin = std::io::stdin();
++        if let Err(e) = process(BufReader::new(stdin.lock()), &stops, args.initial) {
++            eprintln!("expand: error reading stdin: {}", e);
++            exit_code = 1;
++        }
++    } else {
++        for p in &args.files {
++            let r: Result<(), std::io::Error> = if p.to_string_lossy() == "-" {
++                let stdin = std::io::stdin();
++                process(BufReader::new(stdin.lock()), &stops, args.initial)
++            } else {
++                match File::open(p) {
++                    Ok(f) => process(BufReader::new(f), &stops, args.initial),
++                    Err(e) => {
++                        eprintln!("expand: {}: {}", p.display(), e);
++                        exit_code = 1;
++                        continue;
++                    }
++                }
++            };
++            if let Err(e) = r {
++                eprintln!("expand: {}: {}", p.display(), e);
++                exit_code = 1;
++            }
++        }
++    }
++
++    std::process::exit(exit_code);
++}
++
++enum Stops {
++    Periodic(usize),
++    Explicit(Vec<usize>),
++}
++
++fn parse_tabs(s: &str) -> Result<Stops, ()> {
++    if let Ok(n) = s.parse::<usize>() {
++        if n > 0 {
++            return Ok(Stops::Periodic(n));
++        }
++    }
++    let mut v: Vec<usize> = Vec::new();
++    for part in s.split(|c: char| c == ',' || c.is_whitespace()) {
++        if part.is_empty() {
++            continue;
++        }
++        match part.parse::<usize>() {
++            Ok(x) if x > 0 => v.push(x),
++            _ => return Err(()),
++        }
++    }
++    if v.is_empty() {
++        Err(())
++    } else {
++        v.sort();
++        v.dedup();
++        Ok(Stops::Explicit(v))
++    }
++}
++
++fn next_stop(stops: &Stops, col: usize) -> usize {
++    match stops {
++        Stops::Periodic(n) => {
++            if *n == 0 {
++                col + 1
++            } else {
++                (col / n + 1) * n
++            }
++        }
++        Stops::Explicit(v) => {
++            for s in v {
++                if *s > col {
++                    return *s;
++                }
++            }
++            col + 1
++        }
++    }
++}
++
++fn process<R: BufRead>(reader: R, stops: &Stops, initial: bool) -> Result<(), std::io::Error> {
++    let stdout = std::io::stdout();
++    let mut out = stdout.lock();
++    for line in reader.lines() {
++        let line = line?;
++        let mut col = 0usize;
++        let mut past_init = false;
++        for ch in line.chars() {
++            match ch {
++                '\t' if !past_init || !initial => {
++                    let ns = next_stop(stops, col);
++                    let n = if ns > col { ns - col } else { 1 };
++                    for _ in 0..n {
++                        out.write_all(b" ")?;
++                    }
++                    col = ns;
++                }
++                c => {
++                    if c != ' ' && c != '\t' {
++                        past_init = true;
++                    }
++                    let mut b = [0u8; 4];
++                    let s = c.encode_utf8(&mut b);
++                    out.write_all(s.as_bytes())?;
++                    col += 1;
++                }
++            }
++        }
++        out.write_all(b"\n")?;
++    }
++    Ok(())
++}
+diff --git a/unexpand/Cargo.toml b/unexpand/Cargo.toml
+new file mode 100644
+index 0000000..04deece
+--- /dev/null
++++ b/unexpand/Cargo.toml
+@@ -0,0 +1,9 @@
++[package]
++name = "unexpand"
++version = "0.1.0"
++edition = "2024"
++description = "Convert spaces to tabs"
++authors = ["Tim"]
++
++[dependencies]
++clap = { version = "4", features = ["derive"] }
+diff --git a/unexpand/src/cli.rs b/unexpand/src/cli.rs
+new file mode 100644
+index 0000000..1839d85
+--- /dev/null
++++ b/unexpand/src/cli.rs
+@@ -0,0 +1,18 @@
++use clap::Parser;
++use std::path::PathBuf;
++
++#[derive(Parser, Debug)]
++#[command(name = "unexpand", version, about = "Convert spaces in FILE(s) to tabs", disable_version_flag = true)]
++pub struct Args {
++    #[arg(short = 'v', long = "version", action = clap::ArgAction::SetTrue)]
++    pub version: bool,
++
++    #[arg(short = 't', long = "tabs", default_value_t = 8usize)]
++    pub tabs: usize,
++
++    #[arg(short = 'a', long = "all", action = clap::ArgAction::SetTrue)]
++    pub all: bool,
++
++    #[arg(value_name = "FILE")]
++    pub files: Vec<PathBuf>,
++}
+diff --git a/unexpand/src/main.rs b/unexpand/src/main.rs
+new file mode 100644
+index 0000000..0fa2198
+--- /dev/null
++++ b/unexpand/src/main.rs
+@@ -0,0 +1,106 @@
++mod cli;
++
++use clap::Parser;
++use std::fs::File;
++use std::io::{BufRead, BufReader, Write};
++use std::path::PathBuf;
++
++fn main() {
++    let args = cli::Args::parse();
++
++    if args.version {
++        println!("unexpand 0.1.0");
++        return;
++    }
++
++    let n = if args.tabs == 0 { 8 } else { args.tabs };
++
++    let mut exit_code = 0i32;
++
++    if args.files.is_empty() {
++        let stdin = std::io::stdin();
++        if let Err(e) = process(BufReader::new(stdin.lock()), n, args.all) {
++            eprintln!("unexpand: error reading stdin: {}", e);
++            exit_code = 1;
++        }
++    } else {
++        for p in &args.files {
++            let r: Result<(), std::io::Error> = if p.to_string_lossy() == "-" {
++                let stdin = std::io::stdin();
++                process(BufReader::new(stdin.lock()), n, args.all)
++            } else {
++                match File::open(p) {
++                    Ok(f) => process(BufReader::new(f), n, args.all),
++                    Err(e) => {
++                        eprintln!("unexpand: {}: {}", p.display(), e);
++                        exit_code = 1;
++                        continue;
++                    }
++                }
++            };
++            if let Err(e) = r {
++                eprintln!("unexpand: {}: {}", p.display(), e);
++                exit_code = 1;
++            }
++        }
++    }
++
++    std::process::exit(exit_code);
++}
++
++fn process<R: BufRead>(reader: R, n: usize, all: bool) -> Result<(), std::io::Error> {
++    let stdout = std::io::stdout();
++    let mut out = stdout.lock();
++    for line in reader.lines() {
++        let line = line?;
++        let mut col = 0usize;
++        let mut space_run = 0usize;
++        let mut in_leading = true;
++        for ch in line.chars() {
++            match ch {
++                ' ' => {
++                    if in_leading || all {
++                        space_run += 1;
++                        let next_col = col + 1;
++                        if next_col % n == 0 && space_run >= 1 {
++                            out.write_all(b"\t")?;
++                            col = next_col;
++                            space_run = 0;
++                        } else {
++                            col = next_col;
++                        }
++                    } else {
++                        flush_spaces(&mut out, &mut space_run)?;
++                        out.write_all(b" ")?;
++                        col += 1;
++                    }
++                }
++                '\t' => {
++                    flush_spaces(&mut out, &mut space_run)?;
++                    out.write_all(b"\t")?;
++                    let ns = ((col / n) + 1) * n;
++                    col = ns;
++                }
++                c => {
++                    in_leading = false;
++                    flush_spaces(&mut out, &mut space_run)?;
++                    let mut b = [0u8; 4];
++                    let s = c.encode_utf8(&mut b);
++                    out.write_all(s.as_bytes())?;
++                    col += 1;
++                }
++            }
++        }
++        flush_spaces(&mut out, &mut space_run)?;
++        out.write_all(b"\n")?;
++    }
++    Ok(())
++}
++
++fn flush_spaces<W: Write>(out: &mut W, n: &mut usize) -> Result<(), std::io::Error> {
++    for _ in 0..*n {
++        out.write_all(b" ")?;
++    }
++    *n = 0;
++    Ok(())
++}
