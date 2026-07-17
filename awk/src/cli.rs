@@ -10,7 +10,7 @@ pub struct Args {
     #[arg(short = 'F', long = "field-separator", default_value = " ")]
     pub field_separator: String,
 
-    #[arg(short = 'v', long = "assign", value_parser = parse_var_value, action = clap::ArgAction::Append)]
+    #[arg(long = "assign", value_parser = parse_var_value, action = clap::ArgAction::Append)]
     pub vars: Vec<(String, String)>,
 
     #[arg(short = 'f', long = "file")]
