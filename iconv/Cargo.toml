@@ -1,0 +1,10 @@
+[package]
+name = "iconv"
+version = "0.1.0"
+edition = "2024"
+description = "Character encoding conversion"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+encoding_rs = "0.8"

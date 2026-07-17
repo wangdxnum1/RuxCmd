@@ -6,6 +6,7 @@ pub enum AddressBase {
     Octal,
     Decimal,
     Hexadecimal,
+    None,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -41,6 +42,21 @@ pub struct Args {
     #[arg(short = 'c', long = "ascii", conflicts_with = "format")]
     pub ascii: bool,
 
+    #[arg(short = 'd', long = "decimal", conflicts_with = "format")]
+    pub decimal: bool,
+
+    #[arg(short = 'o', long = "octal", conflicts_with = "format")]
+    pub octal: bool,
+
+    #[arg(short = 'j', long = "skip-bytes")]
+    pub skip_bytes: Option<usize>,
+
+    #[arg(short = 'N', long = "read-bytes")]
+    pub read_bytes: Option<usize>,
+
+    #[arg(short = 'w', long = "width")]
+    pub width: Option<usize>,
+
     #[arg(short = 'v', long = "version")]
     pub version: bool,
 
@@ -53,6 +69,7 @@ impl Args {
         match self.address_radix.as_str() {
             "d" => AddressBase::Decimal,
             "x" => AddressBase::Hexadecimal,
+            "n" => AddressBase::None,
             _ => AddressBase::Octal,
         }
     }
@@ -60,6 +77,12 @@ impl Args {
     pub fn get_display_type(&self) -> DisplayType {
         if self.ascii {
             return DisplayType::Char;
+        }
+        if self.decimal {
+            return DisplayType::Decimal;
+        }
+        if self.octal {
+            return DisplayType::Octal;
         }
         if self.hexadecimal {
             return DisplayType::Hexadecimal;
@@ -101,11 +124,28 @@ impl Args {
     }
 
     pub fn get_words_per_line(&self) -> usize {
+        if let Some(w) = self.width {
+            let size = match self.get_word_size() {
+                WordSize::Byte => 1,
+                WordSize::TwoBytes => 2,
+                WordSize::FourBytes => 4,
+                WordSize::EightBytes => 8,
+            };
+            return w / size;
+        }
         match self.get_word_size() {
             WordSize::Byte => 16,
             WordSize::TwoBytes => 8,
             WordSize::FourBytes => 4,
             WordSize::EightBytes => 2,
         }
+    }
+
+    pub fn get_skip_bytes(&self) -> usize {
+        self.skip_bytes.unwrap_or(0)
+    }
+
+    pub fn get_read_bytes(&self) -> Option<usize> {
+        self.read_bytes
     }
 }

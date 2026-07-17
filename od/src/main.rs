@@ -16,6 +16,8 @@ fn main() {
     let display_type = args.get_display_type();
     let word_size = args.get_word_size();
     let words_per_line = args.get_words_per_line();
+    let skip_bytes = args.get_skip_bytes();
+    let read_bytes = args.get_read_bytes();
 
     let mut exit_code = 0i32;
 
@@ -23,7 +25,7 @@ fn main() {
         let path_str = path.to_string_lossy();
         if path_str == "-" {
             let stdin = std::io::stdin();
-            if let Err(e) = dump_reader(stdin, address_base, display_type, word_size, words_per_line) {
+            if let Err(e) = dump_reader(stdin, address_base, display_type, word_size, words_per_line, skip_bytes, read_bytes) {
                 eprintln!("od: error reading stdin: {}", e);
                 exit_code = 1;
             }
@@ -31,7 +33,7 @@ fn main() {
             match File::open(path) {
                 Ok(file) => {
                     let reader = BufReader::new(file);
-                    if let Err(e) = dump_reader(reader, address_base, display_type, word_size, words_per_line) {
+                    if let Err(e) = dump_reader(reader, address_base, display_type, word_size, words_per_line, skip_bytes, read_bytes) {
                         eprintln!("od: {}: {}", path.display(), e);
                         exit_code = 1;
                     }
@@ -44,7 +46,7 @@ fn main() {
         }
     } else {
         let stdin = std::io::stdin();
-        if let Err(e) = dump_reader(stdin, address_base, display_type, word_size, words_per_line) {
+        if let Err(e) = dump_reader(stdin, address_base, display_type, word_size, words_per_line, skip_bytes, read_bytes) {
             eprintln!("od: error reading stdin: {}", e);
             exit_code = 1;
         }
@@ -58,6 +60,7 @@ fn format_address(addr: usize, base: &cli::AddressBase) -> String {
         cli::AddressBase::Octal => format!("{:07o}", addr),
         cli::AddressBase::Decimal => format!("{:08}", addr),
         cli::AddressBase::Hexadecimal => format!("{:06x}", addr),
+        cli::AddressBase::None => String::new(),
     }
 }
 
@@ -153,9 +156,21 @@ fn dump_reader<R: Read>(
     display_type: cli::DisplayType,
     word_size: cli::WordSize,
     words_per_line: usize,
+    skip_bytes: usize,
+    read_bytes: Option<usize>,
 ) -> Result<(), std::io::Error> {
     let mut buffer = Vec::new();
     reader.read_to_end(&mut buffer)?;
+
+    if skip_bytes > buffer.len() {
+        return Ok(());
+    }
+
+    let buffer = &buffer[skip_bytes..];
+    let buffer = match read_bytes {
+        Some(n) => &buffer[..std::cmp::min(n, buffer.len())],
+        None => buffer,
+    };
 
     let mut offset = 0;
     let total = buffer.len();
@@ -170,24 +185,27 @@ fn dump_reader<R: Read>(
         let line_size = std::cmp::min(words_per_line * size, total - offset);
         let line_data = &buffer[offset..offset + line_size];
 
-        print!("{} ", format_address(offset, &address_base));
+        let addr_str = format_address(offset + skip_bytes, &address_base);
+        if !addr_str.is_empty() {
+            print!("{} ", addr_str);
+        }
 
         let mut word_offset = 0;
         while word_offset < line_size {
             let word_end = std::cmp::min(word_offset + size, line_size);
             let word_data = &line_data[word_offset..word_end];
             let formatted = format_word(word_data, &word_size, &display_type);
-            
+
             print!("{}", formatted);
-            
+
             if word_offset + size < line_size {
                 print!(" ");
             }
-            
+
             word_offset += size;
         }
 
-        if display_type != cli::DisplayType::Char {
+        if display_type != cli::DisplayType::Char && !matches!(address_base, cli::AddressBase::None) {
             print!("  ");
             for &byte in line_data {
                 if byte.is_ascii_graphic() {
