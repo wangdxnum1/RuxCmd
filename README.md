@@ -1,12 +1,18 @@
 # RuxCmd
 
-用 Rust 实现的 Linux 风格 Windows 命令集。当前包含 111 个独立 `.exe`，覆盖文件、文本、进程、网络和系统信息工具。
+[![CI](https://github.com/wangdxnum1/RuxCmd/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/wangdxnum1/RuxCmd/actions/workflows/ci.yml)
 
-目标平台：Windows x64，MSVC。命令功能和 Windows 差异见 [兼容性说明](docs/compatibility.md)。
+**English** | [简体中文](README-zh.md)
 
-## 使用发行包
+Linux-style command-line tools for Windows, written in Rust. RuxCmd currently builds **111 standalone executables** for Windows x64 with MSVC, covering files, text, processes, networking, and system information.
 
-解压 `ruxcmd-<版本>-x86_64-pc-windows-msvc.zip`，将 `bin` 加入用户 PATH，重新打开终端。也可以直接指定路径：
+The project is under active development. Familiar command names and options do not imply full GNU/POSIX compatibility. See the [command compatibility table](docs/compatibility.md) for supported options and known differences.
+
+## Use the tools
+
+Open a successful [CI run](https://github.com/wangdxnum1/RuxCmd/actions/workflows/ci.yml) and download the `ruxcmd-windows-x64-ci` artifact. Extract the Actions download, then extract the `ruxcmd-<version>-x86_64-pc-windows-msvc.zip` inside it.
+
+Run the executables directly, or add the extracted `bin` directory to your user `PATH` and reopen your terminal:
 
 ```powershell
 .\bin\cat.exe example.txt
@@ -14,36 +20,44 @@
 .\bin\ps.exe --list-columns
 ```
 
-PowerShell 对 `cat`、`ls`、`cp`、`rm` 等名称有 alias。使用 `cat.exe` 或完整路径可明确调用 RuxCmd；不需要修改全局 alias。
+PowerShell defines aliases such as `cat`, `ls`, `cp`, and `rm`. Use the `.exe` suffix or a full path to call RuxCmd explicitly.
 
-发行包包含 `manifest.json`、`SHA256SUMS` 和使用说明。ZIP 旁的 `.sha256` 文件用于核对整个下载文件：
+Packages contain a source/build manifest, per-file SHA256 checksums, and documentation. Compare the ZIP checksum in the companion `.zip.sha256` file with:
 
 ```powershell
 Get-FileHash .\ruxcmd-0.1.0-x86_64-pc-windows-msvc.zip -Algorithm SHA256
 ```
 
-套件版本在根 `Cargo.toml` 的 `workspace.metadata.ruxcmd.version` 中管理。各命令的 `--version` 保留自己的版本，可能与套件版本不同。
+CI artifacts are retained for 7 days; tagged Release workflow artifacts for 30 days. The workflows currently generate artifacts without publishing a GitHub Release.
 
-## 从源码构建
+## Build locally
 
-需要：
+### Prerequisites
 
-- Windows x64。
-- Rustup；仓库的 `rust-toolchain.toml` 固定 Rust 1.99.0、rustfmt 和 Clippy。
-- Visual Studio 或 Build Tools 的 **Desktop development with C++** 工作负载，含 MSVC x64 工具与 Windows SDK。
-- PowerShell 7，用于测试和打包脚本。
-- Git；首次构建需要下载 Cargo 依赖。
+- Windows x64.
+- Git and [Rustup](https://rustup.rs/). `rust-toolchain.toml` pins Rust **1.99.0**, rustfmt, Clippy, and the `x86_64-pc-windows-msvc` target.
+- Visual Studio or Build Tools with **Desktop development with C++**, including MSVC x64 tools and the Windows SDK.
+- PowerShell 7 (`pwsh`) for verification and packaging scripts.
+- Network access for the initial toolchain and dependency downloads.
 
-在仓库根执行：
+Run the commands below in **PowerShell from the repository root**. Rustup automatically selects the pinned toolchain.
+
+### Clone and compile
 
 ```powershell
+git clone https://github.com/wangdxnum1/RuxCmd.git
+cd RuxCmd
 cargo build --workspace --bins --release --target x86_64-pc-windows-msvc --locked
 .\target\x86_64-pc-windows-msvc\release\cat.exe --help
 ```
 
-也可运行 `build-all.bat`。构建输出统一位于根 `target/`，脚本不依赖固定机器路径。
+Executables are written to `target/x86_64-pc-windows-msvc/release/`. `--locked` uses the committed dependency lockfile. The wrapper runs the same release build:
 
-单个命令：
+```powershell
+.\build-all.bat
+```
+
+Develop or test one command:
 
 ```powershell
 cargo run -p cat -- example.txt
@@ -51,35 +65,103 @@ cargo test -p cat --locked
 cargo run -p ps-bin -- --list-columns
 ```
 
-## 验证与打包
+### Verify
+
+Run these checks in order; resolve any failure before continuing:
 
 ```powershell
 cargo fmt --all --check
 cargo check --workspace --all-targets --locked
 cargo clippy --workspace --all-targets --locked
 cargo test --workspace --all-targets --locked
+
+# Requires the release build above.
 pwsh -File scripts/smoke-test.ps1 -BinDir target/x86_64-pc-windows-msvc/release
+pwsh -File scripts/verify-behavior.ps1 -BinDir target/x86_64-pc-windows-msvc/release
 pwsh -File scripts/tests/package-tests.ps1
+```
+
+Smoke checks verify every command's startup/help entry point with bounded execution. Behavior checks cover selected commands, not complete compatibility. Historical Clippy warnings are reported; the current gate fails when Clippy returns an error.
+
+### Package
+
+```powershell
 pwsh -File scripts/package.ps1
 ```
 
-打包脚本执行 release 构建、PE DLL 依赖检查、111 个命令冒烟测试、校验和生成及解压后验证。输出在 `dist/`；相同发行文件已存在时拒绝覆盖。再次生成本地包可指定新目录：
+The script builds release binaries, checks DLL dependencies, runs smoke checks, generates the manifest and checksums, then extracts and verifies the ZIP and reruns smoke/behavior checks. Verified output is written to:
+
+```text
+dist/ruxcmd-0.1.0-x86_64-pc-windows-msvc.zip
+dist/ruxcmd-0.1.0-x86_64-pc-windows-msvc.zip.sha256
+```
+
+The suite version comes from `workspace.metadata.ruxcmd.version` in `Cargo.toml`; individual command versions may differ. Local packages record the source commit and whether the checkout has uncommitted files (`dirty`). Existing files are never overwritten; choose a new directory for another build of the same version:
 
 ```powershell
 pwsh -File scripts/package.ps1 -OutputDir dist/local-check
 ```
 
-本地包在清单记录未提交状态。正式发行从干净 tag 检出构建，使用 `-RequireClean -ExpectedTag v0.1.0`。GitHub Actions 的 Release workflow 手动接收已存在的 tag，生成 workflow artifact；当前不自动创建 GitHub Release。
+## Build in GitHub Actions
 
-## 开发
+### CI: pushes and pull requests
 
-- [开发说明](docs/development.md)
-- [贡献规范](CONTRIBUTING.md)
-- [变更记录](CHANGELOG.md)
-- [ps 文档](docs/ps/README-zh.md)
+[CI](.github/workflows/ci.yml) runs on pushes, pull requests, and manual dispatch, using `windows-2025` and PowerShell:
 
-正式 crate 位于 `crates/`，`ps-sys`、`ps-core`、`ps-bin` 同属根 workspace。独立非命令项目不属于发行包。
+1. Check out the requested commit and install the pinned Rust toolchain.
+2. Restore cached Cargo dependencies and build outputs.
+3. Check formatting; run `cargo check`, Clippy, and workspace tests.
+4. Build all Windows x64 release executables.
+5. Run all-command smoke checks, representative behavior checks, and packaging failure-path tests.
+6. Build and verify the ZIP, checksums, DLL dependencies, and extracted executables.
+7. Upload ZIP and checksum files as `ruxcmd-windows-x64-ci` (7-day retention).
 
-## 许可证
+To start CI manually, open **Actions → CI → Run workflow**, select a branch, and run it. Inspect individual step logs in the run and download its artifact after success.
 
-整个仓库尚未统一指定许可证；`ps` 的三个 crate 保留已有 MIT 元数据声明。在维护者明确整体授权之前，不将本项目视为已采用统一开源许可证。
+### Release: an existing version tag
+
+[Release](.github/workflows/release.yml) is started manually and builds an **existing tag**, such as `v0.1.0`:
+
+1. Update the suite version in `Cargo.toml` and [CHANGELOG](CHANGELOG.md), then commit and push.
+2. After CI succeeds, create and push a matching tag at that commit. For version `0.1.0`:
+
+   ```powershell
+   git tag -a v0.1.0 -m "RuxCmd 0.1.0"
+   git push origin v0.1.0
+   ```
+
+3. Open **Actions → Release → Run workflow** on `main`, enter `v0.1.0` in the `tag` input, and start it. Pushing a tag alone does not trigger Release.
+4. The workflow checks out the tag, installs Rust, runs formatting/check/Clippy/tests, and packages with `-RequireClean -ExpectedTag <tag>`.
+5. Download `ruxcmd-v0.1.0-windows-x64` after success (30-day retention). Publishing these files as a GitHub Release is a separate maintainer action.
+
+The tag must match the suite version and point to the checked-out commit. Formal packaging rejects a dirty checkout. To package locally with the same checks, check out the tag in a clean clone and run:
+
+```powershell
+pwsh -File scripts/package.ps1 -RequireClean -ExpectedTag v0.1.0
+```
+
+## Project layout
+
+```text
+crates/                  Command and library packages
+scripts/                 Smoke, behavior, and packaging checks
+.github/workflows/       CI and tagged release builds
+docs/                    Development and compatibility documentation
+Cargo.toml               Root workspace and suite version
+Cargo.lock               Shared, committed dependency lockfile
+rust-toolchain.toml      Pinned Rust toolchain
+```
+
+**113 packages produce 111 commands**: 110 commands each have one package; `ps` uses two libraries (`ps-sys`, `ps-core`) and one executable package (`ps-bin`, producing `ps.exe`). Independent non-command projects are outside the suite.
+
+## Contributing and documentation
+
+- [Contribution guidelines](CONTRIBUTING.md) (Chinese)
+- [Development notes](docs/development.md) (Chinese)
+- [Command compatibility](docs/compatibility.md) (Chinese)
+- [Changelog](CHANGELOG.md)
+- [ps documentation](docs/ps/README.md)
+
+## License
+
+A repository-wide license has not yet been selected. The three `ps` packages retain their existing MIT metadata declarations. Public repository visibility does not establish a uniform open-source license for the whole project.

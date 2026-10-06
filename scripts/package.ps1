@@ -45,7 +45,7 @@ try {
         }
     )
     & (Join-Path $PSScriptRoot 'smoke-test.ps1') -BinDir (Join-Path $stage 'bin')
-    foreach ($doc in @('README.md', 'CHANGELOG.md')) { Copy-Item -LiteralPath (Join-Path $script:RepositoryRoot $doc) -Destination $stage }
+    foreach ($doc in @('README.md', 'README-zh.md', 'CHANGELOG.md')) { Copy-Item -LiteralPath (Join-Path $script:RepositoryRoot $doc) -Destination $stage }
     Copy-Item -LiteralPath (Join-Path $script:RepositoryRoot 'docs/compatibility.md') -Destination $stage
     $files = @(Get-ChildItem -LiteralPath $stage -File -Recurse | Sort-Object FullName | ForEach-Object {
         [ordered]@{ path = [IO.Path]::GetRelativePath($stage, $_.FullName).Replace('\', '/'); sha256 = Get-FileDigest $_.FullName }
