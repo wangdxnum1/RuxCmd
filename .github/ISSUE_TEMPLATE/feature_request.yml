@@ -1,0 +1,17 @@
+name: Feature request
+description: Propose a command, option or Windows compatibility improvement
+body:
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Intended use
+      description: What task should this make possible?
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Command example and desired output
+      description: Include the corresponding Linux behavior and Windows constraints
+    validations:
+      required: true

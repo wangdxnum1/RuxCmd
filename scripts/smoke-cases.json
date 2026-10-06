@@ -1,0 +1,775 @@
+[
+  {
+    "name": "awk",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "base64",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "basename",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "bc",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "cal",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "cat",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "chmod",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "chown",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "clear",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "cmp",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "column",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "comm",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "cp",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "csplit",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "curl",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "cut",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "date",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "df",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "diff",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "dirname",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "du",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "echo",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "env",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "expand",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "factor",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "false",
+    "arguments": [],
+    "exitCode": 1
+  },
+  {
+    "name": "file",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "find",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "fmt",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "fold",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "free",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "grep",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "groups",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "gunzip",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "head",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "hexdump",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "hostname",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "iconv",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "id",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "iostat",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "join",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "kill",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "ln",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "ls",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "md5sum",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "mkdir",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "mkfifo",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "mpstat",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "mv",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "netstat",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "nice",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "nl",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "nslookup",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "numfmt",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "od",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "open",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "paste",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "patch",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "pgrep",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "ping",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "pkill",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "pr",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "printf",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "ps",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "pwd",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "readlink",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "realpath",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "reset",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "rev",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "rm",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "sar",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "sed",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "seq",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "sha256sum",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "shred",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "shuf",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "sleep",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "sort",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "split",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "stat",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "strings",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "sync",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "tac",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "tail",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "tar",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "tee",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "test",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "time",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "timeout",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "top",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "touch",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "tr",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "true",
+    "arguments": [],
+    "exitCode": 0
+  },
+  {
+    "name": "tty",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "uname",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "unexpand",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "uniq",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "unzip",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "uptime",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "vmstat",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "w",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "wc",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "wget",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "whereis",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "which",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "who",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "whoami",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "xargs",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "yes",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "zcat",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "zip",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  }
+]
