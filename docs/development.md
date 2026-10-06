@@ -10,7 +10,7 @@ Cargo 命令可在根使用 `--workspace`，也可在单个 crate 目录运行�
 
 ## 检查与测试
 
-完整命令见根 README。Rust 集成测试覆盖 cat、echo、wc、grep、cp、mv、rm、true、false 和现有 ps 行为。文件测试使用 tempfile；没有测试依赖联网或终止真实进程。
+统一入口为 `scripts/build.ps1`；`-Task Verify` 执行与 CI 相同的完整流程，参数见 [脚本说明](../scripts/README.md)。Rust 集成测试覆盖 cat、echo、wc、grep、cp、mv、rm、true、false 和现有 ps 行为。文件测试使用 tempfile；没有测试依赖联网或终止真实进程。
 
 发布冒烟只运行经过源码检查的帮助入口，以及 true/false 的退出码。每个进程有超时，异步读取输出和错误，超时终止本次进程树。帮助通过说明启动/参数入口能工作，不证明全部业务行为正确。
 
@@ -20,7 +20,7 @@ Cargo 命令可在根使用 `--workspace`，也可在单个 crate 目录运行�
 
 ## 打包实现
 
-`scripts/package.ps1` 解析 Cargo JSON compiler-artifact 消息，只收集与 workspace binary target 精确对应的 exe。每次使用唯一暂存目录，不从旧 target 或 dist 模糊匹配文件。
+用户入口为 `scripts/release.ps1`，默认生成本地包，只有 `-Publish` 执行 GitHub 发布。底层 `scripts/package.ps1` 解析 Cargo JSON compiler-artifact 消息，只收集与 workspace binary target 精确对应的 exe。每次使用唯一暂存目录，不从旧 target 或 dist 模糊匹配文件。
 
 通过 MSVC dumpbin 检查 PE 导入依赖，拒绝非系统 DLL 或动态 VC runtime 依赖；每个 exe 的依赖记录写入 manifest。静态 CRT 配置保留在 `.cargo/config.toml`，但实际检查结果才是发行依据。
 

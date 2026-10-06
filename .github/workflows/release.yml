@@ -42,17 +42,9 @@ jobs:
             target
           key: ${{ runner.os }}-msvc-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', '.cargo/config.toml') }}
       - name: Validate source
-        run: |
-          cargo fmt --all --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo check --workspace --all-targets --locked
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo clippy --workspace --all-targets --locked
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo test --workspace --all-targets --locked
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        run: ./scripts/build.ps1 -Task Verify
       - name: Build and verify tagged release
-        run: ./scripts/package.ps1 -RequireClean -ExpectedTag $env:RELEASE_TAG
+        run: ./scripts/release.ps1 -RequireClean -Tag $env:RELEASE_TAG
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ruxcmd-${{ inputs.tag }}-windows-x64

@@ -47,14 +47,18 @@ CI artifact 保留 7 天，按 tag 构建的 Release workflow artifact 保留 30
 ```powershell
 git clone https://github.com/wangdxnum1/RuxCmd.git
 cd RuxCmd
-cargo build --workspace --bins --release --target x86_64-pc-windows-msvc --locked
+pwsh -File scripts/build.ps1
 .\target\x86_64-pc-windows-msvc\release\cat.exe --help
 ```
 
-所有可执行文件输出到 `target/x86_64-pc-windows-msvc/release/`。`--locked` 使用已提交的依赖锁文件。快捷入口执行同样的 release 构建：
+所有可执行文件输出到 `target/x86_64-pc-windows-msvc/release/`。脚本始终使用已提交的依赖锁文件，支持任务、配置、命令/包、并行数及离线模式：
 
 ```powershell
-.\build-all.bat
+pwsh -File scripts/build.ps1 -Package cat -Configuration Debug -Jobs 4
+pwsh -File scripts/build.ps1 -Package ps -Offline
+pwsh -File scripts/build.ps1 -Task Check
+pwsh -File scripts/build.ps1 -Task Test -Package cat
+pwsh -File scripts/build.ps1 -Task Clean -Configuration Debug -WhatIf
 ```
 
 开发或测试单个命令：
@@ -67,18 +71,10 @@ cargo run -p ps-bin -- --list-columns
 
 ### 验证
 
-依次执行以下检查；任何一步失败，先处理问题再继续：
+执行与 CI 相同的完整验证入口：
 
 ```powershell
-cargo fmt --all --check
-cargo check --workspace --all-targets --locked
-cargo clippy --workspace --all-targets --locked
-cargo test --workspace --all-targets --locked
-
-# 以下检查需要先完成上面的 release 编译。
-pwsh -File scripts/smoke-test.ps1 -BinDir target/x86_64-pc-windows-msvc/release
-pwsh -File scripts/verify-behavior.ps1 -BinDir target/x86_64-pc-windows-msvc/release
-pwsh -File scripts/tests/package-tests.ps1
+pwsh -File scripts/build.ps1 -Task Verify
 ```
 
 冒烟检查以有超时限制的方式验证所有命令的启动或帮助入口。行为检查覆盖部分代表性命令，不代表每个命令都已实现完整兼容。历史 Clippy warning 会显示，当前只有 Clippy 返回错误时才使构建失败。
@@ -86,7 +82,7 @@ pwsh -File scripts/tests/package-tests.ps1
 ### 打包
 
 ```powershell
-pwsh -File scripts/package.ps1
+pwsh -File scripts/release.ps1
 ```
 
 脚本编译 release 可执行文件，检查 DLL 依赖，执行冒烟检查，生成清单与校验和，再解压 ZIP 核对文件并重新运行冒烟和行为检查。验证完成的产物写入：
@@ -99,7 +95,7 @@ dist/ruxcmd-0.1.0-x86_64-pc-windows-msvc.zip.sha256
 套件版本取自 `Cargo.toml` 的 `workspace.metadata.ruxcmd.version`，各命令自身版本可以不同。本地包记录源码提交及是否存在未提交文件（`dirty`）。脚本不覆盖已有文件；再次生成相同版本时指定新目录：
 
 ```powershell
-pwsh -File scripts/package.ps1 -OutputDir dist/local-check
+pwsh -File scripts/release.ps1 -OutputDir dist/local-check
 ```
 
 ## GitHub Actions 编译
@@ -110,11 +106,9 @@ pwsh -File scripts/package.ps1 -OutputDir dist/local-check
 
 1. 检出指定提交，安装固定 Rust 工具链。
 2. 恢复 Cargo 依赖及编译产物缓存。
-3. 检查格式，运行 `cargo check`、Clippy 和 workspace 测试。
-4. 编译全部 Windows x64 release 可执行文件。
-5. 执行所有命令的冒烟检查、代表性行为检查及打包失败路径测试。
-6. 生成并验证 ZIP、校验和、DLL 依赖及解压后的可执行文件。
-7. 上传 ZIP 和校验文件，artifact 名为 `ruxcmd-windows-x64-ci`，保留 7 天。
+3. 执行 `scripts/build.ps1 -Task Verify`：格式、check、Clippy、测试、release 编译、冒烟/行为检查及脚本失败路径测试。
+4. 执行 `scripts/release.ps1`：生成并验证 ZIP、校验和、DLL 依赖及解压后的可执行文件。
+5. 上传 ZIP 和校验文件，artifact 名为 `ruxcmd-windows-x64-ci`，保留 7 天。
 
 手动运行：打开 **Actions → CI → Run workflow**，选择分支后启动。进入运行详情查看各步骤日志；成功后下载 artifact。
 
@@ -131,14 +125,27 @@ pwsh -File scripts/package.ps1 -OutputDir dist/local-check
    ```
 
 3. 打开 **Actions → Release → Run workflow**，选择 `main`，在 `tag` 输入框填入 `v0.1.0` 并启动。仅推送 tag 不会触发 Release。
-4. workflow 检出 tag，安装 Rust，运行格式/check/Clippy/测试，再用 `-RequireClean -ExpectedTag <tag>` 打包。
+4. workflow 检出 tag，安装 Rust，执行 `scripts/build.ps1 -Task Verify`，再用 `scripts/release.ps1 -RequireClean -Tag <tag>` 打包。
 5. 成功后下载 `ruxcmd-v0.1.0-windows-x64` artifact，保留 30 天。将文件发布到 GitHub Release，需要维护者另行操作。
 
 tag 必须与套件版本一致，并指向当前检出的提交。正式打包拒绝含未提交文件的工作目录。若需本地执行相同检查，在干净克隆中检出 tag 后运行：
 
 ```powershell
-pwsh -File scripts/package.ps1 -RequireClean -ExpectedTag v0.1.0
+pwsh -File scripts/release.ps1 -RequireClean -Tag v0.1.0
 ```
+
+### 从本机发布 GitHub Release
+
+安装 GitHub CLI 并执行 `gh auth login`。发布前提交或移开所有本地修改（包括未跟踪文件），并更新套件版本和变更记录：
+
+```powershell
+pwsh -File scripts/release.ps1 -Publish -WhatIf
+pwsh -File scripts/release.ps1 -Publish
+```
+
+只有 `-Publish` 才会联系 GitHub 执行发布。它从 `origin` 确定仓库，执行完整验证，在 HEAD 创建缺失的对应版本 tag（或使用指向该提交的已有 tag），生成干净的发布包，推送 tag 并上传 ZIP 和校验文件。已存在的 GitHub Release 和冲突 tag 都会被拒绝。使用 `-Draft` 创建草稿，或通过 `-NotesFile` 指定发布说明；默认使用已提交的 CHANGELOG。上传失败时保留本地文件和已推送的 tag，供排查及手动恢复。
+
+完整参数、示例及输出路径见[脚本使用说明](scripts/README.md)。可以从其他目录通过完整路径运行脚本；相对 `-OutputDir` 和 `-NotesFile` 按当前 PowerShell 目录解析。
 
 ## 项目结构
 

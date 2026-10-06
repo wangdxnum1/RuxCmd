@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- 用 PowerShell 构建入口替代 build-all.bat，支持任务、单包、Debug/Release、离线、并行数及只读预览。
+- 增加本地与 GitHub 发布入口，复用清单、校验和及解压验证，拒绝冲突 tag 和覆盖已有 Release。
+- CI 与 Release workflow 复用统一入口，补充入口失败路径测试及中英文使用说明。
+
 ## 0.1.0 — 基础设施基线
 
 - 将 111 个 Windows 命令归入根 Cargo workspace，固定工具链并统一依赖锁定。

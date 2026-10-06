@@ -77,7 +77,10 @@ function Assert-ToolSuccess {
 }
 
 function Get-WorkspaceInfo {
-    $result = Invoke-ToolProcess cargo @('metadata', '--no-deps', '--format-version', '1', '--locked')
+    param([switch]$Offline)
+    $metadataArguments = @('metadata', '--no-deps', '--format-version', '1', '--locked')
+    if ($Offline) { $metadataArguments += '--offline' }
+    $result = Invoke-ToolProcess cargo $metadataArguments
     Assert-ToolSuccess $result 'cargo metadata'
     $metadata = $result.Output | ConvertFrom-Json
     $bins = @(
@@ -85,14 +88,14 @@ function Get-WorkspaceInfo {
             if ($package.id -notin $metadata.workspace_members) { continue }
             foreach ($target in $package.targets) {
                 if ('bin' -in $target.kind) {
-                    [pscustomobject]@{ Name = $target.name; PackageId = $package.id; PackageVersion = $package.version }
+                    [pscustomobject]@{ Name = $target.name; PackageName = $package.name; PackageId = $package.id; PackageVersion = $package.version }
                 }
             }
         }
     )
     if ($bins.Count -eq 0 -or @($bins.Name | Sort-Object -Unique).Count -ne $bins.Count) { throw 'No binaries or duplicate binary names in workspace.' }
     $suite = $metadata.metadata.ruxcmd
-    [pscustomobject]@{ Version = $suite.version; Target = $suite.target; Binaries = @($bins | Sort-Object Name) }
+    [pscustomobject]@{ Version = $suite.version; Target = $suite.target; TargetDirectory = $metadata.target_directory; Packages = @($metadata.packages | Where-Object { $_.id -in $metadata.workspace_members } | ForEach-Object name); Binaries = @($bins | Sort-Object Name) }
 }
 
 function Assert-ReleaseVersion {

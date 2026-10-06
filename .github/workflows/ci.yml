@@ -35,24 +35,10 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-msvc-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', '.cargo/config.toml') }}
-      - name: Formatting
-        run: cargo fmt --all --check
-      - name: Check
-        run: cargo check --workspace --all-targets --locked
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets --locked
-      - name: Tests
-        run: cargo test --workspace --all-targets --locked
-      - name: Release build
-        run: cargo build --workspace --bins --release --target x86_64-pc-windows-msvc --locked
-      - name: All command smoke checks
-        run: ./scripts/smoke-test.ps1 -BinDir target/x86_64-pc-windows-msvc/release
-      - name: Extracted binary behavior checks
-        run: ./scripts/verify-behavior.ps1 -BinDir target/x86_64-pc-windows-msvc/release
-      - name: Packaging failure-path tests
-        run: ./scripts/tests/package-tests.ps1
+      - name: Verify workspace and build release binaries
+        run: ./scripts/build.ps1 -Task Verify
       - name: Build and verify ZIP
-        run: ./scripts/package.ps1
+        run: ./scripts/release.ps1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ruxcmd-windows-x64-ci

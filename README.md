@@ -47,14 +47,18 @@ Run the commands below in **PowerShell from the repository root**. Rustup automa
 ```powershell
 git clone https://github.com/wangdxnum1/RuxCmd.git
 cd RuxCmd
-cargo build --workspace --bins --release --target x86_64-pc-windows-msvc --locked
+pwsh -File scripts/build.ps1
 .\target\x86_64-pc-windows-msvc\release\cat.exe --help
 ```
 
-Executables are written to `target/x86_64-pc-windows-msvc/release/`. `--locked` uses the committed dependency lockfile. The wrapper runs the same release build:
+Executables are written to `target/x86_64-pc-windows-msvc/release/`. The script always uses the committed lockfile. Select a task, configuration, command/package, concurrency or offline mode:
 
 ```powershell
-.\build-all.bat
+pwsh -File scripts/build.ps1 -Package cat -Configuration Debug -Jobs 4
+pwsh -File scripts/build.ps1 -Package ps -Offline
+pwsh -File scripts/build.ps1 -Task Check
+pwsh -File scripts/build.ps1 -Task Test -Package cat
+pwsh -File scripts/build.ps1 -Task Clean -Configuration Debug -WhatIf
 ```
 
 Develop or test one command:
@@ -67,18 +71,10 @@ cargo run -p ps-bin -- --list-columns
 
 ### Verify
 
-Run these checks in order; resolve any failure before continuing:
+Run the same complete verification entry point used by CI:
 
 ```powershell
-cargo fmt --all --check
-cargo check --workspace --all-targets --locked
-cargo clippy --workspace --all-targets --locked
-cargo test --workspace --all-targets --locked
-
-# Requires the release build above.
-pwsh -File scripts/smoke-test.ps1 -BinDir target/x86_64-pc-windows-msvc/release
-pwsh -File scripts/verify-behavior.ps1 -BinDir target/x86_64-pc-windows-msvc/release
-pwsh -File scripts/tests/package-tests.ps1
+pwsh -File scripts/build.ps1 -Task Verify
 ```
 
 Smoke checks verify every command's startup/help entry point with bounded execution. Behavior checks cover selected commands, not complete compatibility. Historical Clippy warnings are reported; the current gate fails when Clippy returns an error.
@@ -86,7 +82,7 @@ Smoke checks verify every command's startup/help entry point with bounded execut
 ### Package
 
 ```powershell
-pwsh -File scripts/package.ps1
+pwsh -File scripts/release.ps1
 ```
 
 The script builds release binaries, checks DLL dependencies, runs smoke checks, generates the manifest and checksums, then extracts and verifies the ZIP and reruns smoke/behavior checks. Verified output is written to:
@@ -99,7 +95,7 @@ dist/ruxcmd-0.1.0-x86_64-pc-windows-msvc.zip.sha256
 The suite version comes from `workspace.metadata.ruxcmd.version` in `Cargo.toml`; individual command versions may differ. Local packages record the source commit and whether the checkout has uncommitted files (`dirty`). Existing files are never overwritten; choose a new directory for another build of the same version:
 
 ```powershell
-pwsh -File scripts/package.ps1 -OutputDir dist/local-check
+pwsh -File scripts/release.ps1 -OutputDir dist/local-check
 ```
 
 ## Build in GitHub Actions
@@ -110,11 +106,9 @@ pwsh -File scripts/package.ps1 -OutputDir dist/local-check
 
 1. Check out the requested commit and install the pinned Rust toolchain.
 2. Restore cached Cargo dependencies and build outputs.
-3. Check formatting; run `cargo check`, Clippy, and workspace tests.
-4. Build all Windows x64 release executables.
-5. Run all-command smoke checks, representative behavior checks, and packaging failure-path tests.
-6. Build and verify the ZIP, checksums, DLL dependencies, and extracted executables.
-7. Upload ZIP and checksum files as `ruxcmd-windows-x64-ci` (7-day retention).
+3. Run `scripts/build.ps1 -Task Verify`: formatting, check, Clippy, tests, release compilation, smoke/behavior checks and script failure-path tests.
+4. Run `scripts/release.ps1`: build and verify the ZIP, checksums, DLL dependencies, and extracted executables.
+5. Upload ZIP and checksum files as `ruxcmd-windows-x64-ci` (7-day retention).
 
 To start CI manually, open **Actions → CI → Run workflow**, select a branch, and run it. Inspect individual step logs in the run and download its artifact after success.
 
@@ -131,14 +125,27 @@ To start CI manually, open **Actions → CI → Run workflow**, select a branch,
    ```
 
 3. Open **Actions → Release → Run workflow** on `main`, enter `v0.1.0` in the `tag` input, and start it. Pushing a tag alone does not trigger Release.
-4. The workflow checks out the tag, installs Rust, runs formatting/check/Clippy/tests, and packages with `-RequireClean -ExpectedTag <tag>`.
+4. The workflow checks out the tag, installs Rust, runs `scripts/build.ps1 -Task Verify`, and packages with `scripts/release.ps1 -RequireClean -Tag <tag>`.
 5. Download `ruxcmd-v0.1.0-windows-x64` after success (30-day retention). Publishing these files as a GitHub Release is a separate maintainer action.
 
 The tag must match the suite version and point to the checked-out commit. Formal packaging rejects a dirty checkout. To package locally with the same checks, check out the tag in a clean clone and run:
 
 ```powershell
-pwsh -File scripts/package.ps1 -RequireClean -ExpectedTag v0.1.0
+pwsh -File scripts/release.ps1 -RequireClean -Tag v0.1.0
 ```
+
+### Publish a GitHub Release from your computer
+
+Install GitHub CLI and run `gh auth login`. Commit or set aside all local changes, including untracked files, and update the suite version and changelog before publishing:
+
+```powershell
+pwsh -File scripts/release.ps1 -Publish -WhatIf
+pwsh -File scripts/release.ps1 -Publish
+```
+
+Only `-Publish` contacts GitHub to publish. It derives the repository from `origin`, runs full verification, creates a missing matching tag at HEAD (or uses an existing tag at that commit), packages a clean build, pushes the tag and uploads the ZIP and checksum. Existing GitHub releases and conflicting tags are refused. Use `-Draft` to create a draft or `-NotesFile` for custom release notes; by default the committed changelog supplies the notes. If upload fails, the local files and any pushed tag are retained for diagnosis and manual recovery.
+
+See [script usage](scripts/README.md) for all parameters, examples, and output paths. Commands can be invoked from another directory using the script's full path; relative `-OutputDir` and `-NotesFile` paths follow your current PowerShell directory.
 
 ## Project layout
 

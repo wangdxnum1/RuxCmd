@@ -4,7 +4,7 @@ param([string]$OutputDir, [switch]$RequireClean, [string]$ExpectedTag)
 . (Join-Path $PSScriptRoot 'common.ps1')
 $workspace = Get-WorkspaceInfo
 Assert-ReleaseVersion $workspace.Version $ExpectedTag
-$status = Invoke-ToolProcess git @('status', '--porcelain', '--untracked-files=normal')
+$status = Invoke-ToolProcess git @('-c', 'core.fsmonitor=false', '-c', 'core.untrackedCache=false', 'status', '--porcelain', '--untracked-files=normal')
 Assert-ToolSuccess $status 'git status'
 $dirty = -not [string]::IsNullOrWhiteSpace($status.Output)
 if ($RequireClean -and $dirty) { throw 'Formal releases require a clean checkout.' }

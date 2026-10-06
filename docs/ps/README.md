@@ -16,7 +16,7 @@ cargo build -p ps-bin --release --target x86_64-pc-windows-msvc --locked
 .\target\x86_64-pc-windows-msvc\release\ps.exe
 
 # or build the complete verified suite ZIP
-pwsh -File scripts/package.ps1
+pwsh -File scripts/release.ps1
 ```
 
 ```bash
