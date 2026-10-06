@@ -1,0 +1,10 @@
+[package]
+name = "ping"
+version = "0.1.0"
+edition = "2024"
+description = "Send ICMP echo requests"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_NetworkManagement_IpHelper"] }

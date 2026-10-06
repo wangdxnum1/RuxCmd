@@ -1,0 +1,10 @@
+[package]
+name = "vmstat"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows vmstat clone — virtual memory statistics"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+windows-sys = { version = "0.61", features = ["Win32_System_Performance", "Win32_System_SystemInformation", "Win32_System_Diagnostics_ToolHelp", "Win32_Foundation"] }

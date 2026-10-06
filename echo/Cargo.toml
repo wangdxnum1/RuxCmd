@@ -1,9 +1,0 @@
-[package]
-name = "echo"
-version = "0.1.0"
-edition = "2024"
-description = "A Windows echo clone — display a line of text, Linux-style"
-authors = ["Tim"]
-
-[dependencies]
-clap = { version = "4", features = ["derive"] }

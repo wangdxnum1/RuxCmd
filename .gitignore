@@ -3,8 +3,9 @@
 *.lib
 *.pdb
 target/
-Cargo.lock
 .env
 **/target/
 **/*.exe
 **/*.pdb
+/dist/
+/.infrastructure-work/
