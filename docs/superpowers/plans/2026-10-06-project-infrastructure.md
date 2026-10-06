@@ -45,12 +45,12 @@
 
 **Interfaces:** Produces Cargo metadata：113 个 workspace package、111 个唯一 binary target；根 metadata.ruxcmd.version = "0.1.0"。
 
-- [ ] 记录 git status、当前命令清单及源码/样例文件 SHA-256，保存在本次临时目录，供迁移后比对；确认全部目标路径在仓库内且不存在。旧构建缓存不进入发布源。
-- [ ] 将 110 个单 crate 命令整体迁移到 crates/<原名>；将 ps-sys、ps-core、ps-bin 移到 crates/ 下，ps 文档移到 docs/ps/。使用 PowerShell 原生 Move-Item -LiteralPath，逐一验证源和目标绝对路径。
-- [ ] 创建 virtual workspace：members = ["crates/*"]、resolver = "3"；转移 ps workspace.dependencies，成员显式保留原 version/edition/rust-version/license。
-- [ ] 创建固定工具链文件，取消 Cargo.lock 忽略；保留静态 CRT 配置。build-all.bat 用 %~dp0 定位仓库并运行 locked release 构建，直接传播退出码。
-- [ ] 运行 cargo metadata --no-deps --format-version 1，断言 package = 113、binary = 111 且没有重复 bin 名；逐一比较迁移前后源码及样例 SHA-256，允许列出的 manifest 修改。
-- [ ] 将本任务所需的迁移及配置变更单独提交；不包含无关日志、历史进度修改或其他新文档。
+- [x] 记录 git status、当前命令清单及源码/样例文件 SHA-256，保存在本次临时目录，供迁移后比对；确认全部目标路径在仓库内且不存在。旧构建缓存不进入发布源。
+- [x] 将 110 个单 crate 命令整体迁移到 crates/<原名>；将 ps-sys、ps-core、ps-bin 移到 crates/ 下，ps 文档移到 docs/ps/。使用 PowerShell 原生 Move-Item -LiteralPath，逐一验证源和目标绝对路径。
+- [x] 创建 virtual workspace：members = ["crates/*"]、resolver = "3"；转移 ps workspace.dependencies，成员显式保留原 version/edition/rust-version/license。
+- [x] 创建固定工具链文件，取消 Cargo.lock 忽略；保留静态 CRT 配置。build-all.bat 用 %~dp0 定位仓库并运行 locked release 构建，直接传播退出码。
+- [x] 运行 cargo metadata --no-deps --format-version 1，断言 package = 113、binary = 111 且没有重复 bin 名；逐一比较迁移前后源码及样例 SHA-256，允许列出的 manifest 修改。
+- [x] 将本任务所需的迁移及配置变更单独提交；不包含无关日志、历史进度修改或其他新文档。
 
 ### Task 2: 建立真实的全量编译基线
 
@@ -58,12 +58,12 @@
 
 **Interfaces:** Consumes Task 1 metadata；Produces 可通过 locked check/test/build 的 workspace 和真实 warning 清单。
 
-- [ ] 运行 cargo generate-lockfile，再运行 cargo check --workspace --all-targets --locked，记录实际失败命令或依赖问题。
-- [ ] 对编译失败先定位根因。只修复构建必需问题；保留依赖版本范围，并为涉及行为的必要修复补最小复现测试。
-- [ ] 运行 cargo fmt --all，复核只改变格式；格式化与必要功能修复分别提交。
-- [ ] 运行 cargo fmt --all --check、cargo clippy --workspace --all-targets --locked、cargo test --workspace --all-targets --locked，退出码均为 0；记录现存 warning，不批量添加 allow。
-- [ ] 运行 cargo build --workspace --bins --release --target x86_64-pc-windows-msvc --locked，确认 111 个二进制存在；使用 MSVC 的 dumpbin /DEPENDENTS 或可用 PE 工具核查非系统 DLL 依赖。
-- [ ] 提交根锁文件与本任务改动。
+- [x] 运行 cargo generate-lockfile，再运行 cargo check --workspace --all-targets --locked，记录实际失败命令或依赖问题。
+- [x] 对编译失败先定位根因。只修复构建必需问题；保留依赖版本范围，并为涉及行为的必要修复补最小复现测试。
+- [x] 运行 cargo fmt --all，复核只改变格式；格式化与必要功能修复分别提交。
+- [x] 运行 cargo fmt --all --check、cargo clippy --workspace --all-targets --locked、cargo test --workspace --all-targets --locked，退出码均为 0；记录现存 warning，不批量添加 allow。
+- [x] 运行 cargo build --workspace --bins --release --target x86_64-pc-windows-msvc --locked，确认 111 个二进制存在；使用 MSVC 的 dumpbin /DEPENDENTS 或可用 PE 工具核查非系统 DLL 依赖。
+- [x] 提交根锁文件与本任务改动。
 
 ### Task 3: 行为测试与发布冒烟策略
 
@@ -71,12 +71,12 @@
 
 **Interfaces:** smoke-test.ps1 -BinDir <绝对或相对目录> -TimeoutSeconds 10；成功返回 0，失败抛错并返回非零。测试策略集合与 Cargo metadata 的 binary target 集合完全一致。
 
-- [ ] 先添加有实际断言的集成测试：cat 文件/stdin/缺失文件、echo 文本、wc 行数、grep 匹配/未匹配、cp/mv/rm 临时文件变化、true=0/false=1。使用 assert_cmd、predicates 和 tempfile；复用仓库已用的测试依赖版本范围。
-- [ ] 逐个阅读所有发布命令的启动与参数解析路径，列出不会修改系统或无限运行的冒烟参数；false/true 采用对应退出码。无法安全运行的例外必须记录原因且仍核对 exe 存在。
-- [ ] 实现 smoke-test.ps1：验证覆盖集合、以 ProcessStartInfo 的参数数组启动显式 exe、异步读取 stdout/stderr、等待超时并终止本次子进程；包含命令名、参数及错误输出的失败报告。
-- [ ] 在 package-tests.ps1 增加断言：目录含空格时成功；缺失 ps.exe 或策略缺失时失败；false 的预期退出码 1 通过；传入超时测试进程时失败且结束进程。
-- [ ] 运行 cargo test --workspace --all-targets --locked 和 pwsh -File scripts/tests/package-tests.ps1，并对当前 release 目录运行 smoke-test.ps1；所有预期正常检查退出码为 0。
-- [ ] 提交测试和冒烟入口。
+- [x] 先添加有实际断言的集成测试：cat 文件/stdin/缺失文件、echo 文本、wc 行数、grep 匹配/未匹配、cp/mv/rm 临时文件变化、true=0/false=1。使用 assert_cmd、predicates 和 tempfile；复用仓库已用的测试依赖版本范围。
+- [x] 逐个阅读所有发布命令的启动与参数解析路径，列出不会修改系统或无限运行的冒烟参数；false/true 采用对应退出码。无法安全运行的例外必须记录原因且仍核对 exe 存在。
+- [x] 实现 smoke-test.ps1：验证覆盖集合、以 ProcessStartInfo 的参数数组启动显式 exe、异步读取 stdout/stderr、等待超时并终止本次子进程；包含命令名、参数及错误输出的失败报告。
+- [x] 在 package-tests.ps1 增加断言：目录含空格时成功；缺失 ps.exe 或策略缺失时失败；false 的预期退出码 1 通过；传入超时测试进程时失败且结束进程。
+- [x] 运行 cargo test --workspace --all-targets --locked 和 pwsh -File scripts/tests/package-tests.ps1，并对当前 release 目录运行 smoke-test.ps1；所有预期正常检查退出码为 0。
+- [x] 提交测试和冒烟入口。
 
 ### Task 4: 可追溯且可验证的 ZIP 发行包
 
@@ -84,15 +84,15 @@
 
 **Interfaces:** package.ps1 -OutputDir <默认根 dist> [-RequireClean] [-ExpectedTag v0.1.0]。清单 schemaVersion=1、suiteVersion、target、rustcVersion、sourceCommit、dirty、binaries；binaries 项为 name、packageVersion、file、sha256。
 
-- [ ] 实现版本检查：读取 suiteVersion，ExpectedTag 必须等于 v<suiteVersion>；RequireClean 下 git 工作目录有修改则拒绝。常规本地构建必须标记 dirty。
-- [ ] 执行固定 target 的 locked release build，使用 --message-format=json-render-diagnostics，将 compiler-artifact 中的 executable 与 workspace binary target 精确对应；检查退出码、缺失、重复和未知产物。
-- [ ] 在 OutputDir 下创建唯一暂存目录，复制仅本次确认的 111 个 exe；不递归删除外部目录，不从 dist 或 glob 查找可执行文件。
-- [ ] 调用 Task 3 冒烟入口，创建 manifest.json、SHA256SUMS，加入 README、CHANGELOG、compatibility.md。内部校验覆盖 exe 和随包文档，不循环包含校验文件自身。
-- [ ] 生成 ruxcmd-0.1.0-x86_64-pc-windows-msvc.zip 和外部 .sha256，文件已存在时明确失败，避免覆盖历史包；失败时清理由本次创建且已经验证属于 OutputDir 的暂存或不完整归档。
-- [ ] 解压到独立临时目录，比对完整文件集合、manifest、所有校验值，执行 cat/echo/wc/grep/true/false/ps 代表性验证后报告成功。
-- [ ] 扩展 package-tests.ps1：伪造旧额外 exe 不进入 archive；篡改文件校验失败；标签不一致失败；缺失 artifact 失败；已存在 ZIP 不被覆盖；异目录启动和含空格路径通过。
-- [ ] 运行脚本测试和一次实际全量打包，核查解压包确实有 111 个 exe；记录 DLL 核查结果和包 SHA-256。
-- [ ] 提交脚本与发行所需文档。
+- [x] 实现版本检查：读取 suiteVersion，ExpectedTag 必须等于 v<suiteVersion>；RequireClean 下 git 工作目录有修改则拒绝。常规本地构建必须标记 dirty。
+- [x] 执行固定 target 的 locked release build，使用 --message-format=json-render-diagnostics，将 compiler-artifact 中的 executable 与 workspace binary target 精确对应；检查退出码、缺失、重复和未知产物。
+- [x] 在 OutputDir 下创建唯一暂存目录，复制仅本次确认的 111 个 exe；不递归删除外部目录，不从 dist 或 glob 查找可执行文件。
+- [x] 调用 Task 3 冒烟入口，创建 manifest.json、SHA256SUMS，加入 README、CHANGELOG、compatibility.md。内部校验覆盖 exe 和随包文档，不循环包含校验文件自身。
+- [x] 生成 ruxcmd-0.1.0-x86_64-pc-windows-msvc.zip 和外部 .sha256，文件已存在时明确失败，避免覆盖历史包；失败时清理由本次创建且已经验证属于 OutputDir 的暂存或不完整归档。
+- [x] 解压到独立临时目录，比对完整文件集合、manifest、所有校验值，执行 cat/echo/wc/grep/true/false/ps 代表性验证后报告成功。
+- [x] 扩展 package-tests.ps1：伪造旧额外 exe 不进入 archive；篡改文件校验失败；标签不一致失败；缺失 artifact 失败；已存在 ZIP 不被覆盖；异目录启动和含空格路径通过。
+- [x] 运行脚本测试和一次实际全量打包，核查解压包确实有 111 个 exe；记录 DLL 核查结果和包 SHA-256。
+- [x] 提交脚本与发行所需文档。
 
 ### Task 5: CI、贡献流程与收尾验证
 
@@ -100,13 +100,13 @@
 
 **Interfaces:** ci 触发 push/pull_request/workflow_dispatch；release 只接受 workflow_dispatch 的既有 tag，成功上传 ZIP 与 .sha256 artifact，不创建 GitHub Release。
 
-- [ ] 核查 GitHub Actions 官方来源，固定 checkout、缓存和 artifact action 到真实 commit SHA，权限默认 contents: read；所有 run 步骤传播 Cargo/脚本失败。
-- [ ] ci Windows job 安装仓库固定工具链，缓存 Cargo，依次 fmt/check/clippy/test、release build、smoke 和脚本测试。release job 校验 tag 并检出干净源码，运行 package.ps1 -RequireClean -ExpectedTag <输入>，上传产物。
-- [ ] 写明 MSVC/SDK/PowerShell 7 前置要求、单工具与全量命令、ZIP 使用与 PowerShell alias、如何新增 crate 和冒烟策略、套件与命令版本区别、整体许可证未统一状态。
-- [ ] 兼容性表从源码检查生成初始状态，对已自动验证的行为单独标记；Issue/PR 模板包含参数、输入、环境、预期/实际结果与验证证据。
-- [ ] 使用可用 YAML parser 解析 workflow/template；静态核对 workflow 调用和脚本参数一致。检查变更和迁移文件集合，确认原有未提交工作保留。
-- [ ] 仅在最终源码或配置发生变化时重跑受影响验证，发布涉及变化时重新完整打包；不重复无变化的全量检查。
-- [ ] 审阅最终 diff 的迁移正确性、失败路径、测试隔离和包清单；记录已通过步骤与未在 GitHub 执行的限制，提交仅本任务文件。
+- [x] 核查 GitHub Actions 官方来源，固定 checkout、缓存和 artifact action 到真实 commit SHA，权限默认 contents: read；所有 run 步骤传播 Cargo/脚本失败。
+- [x] ci Windows job 安装仓库固定工具链，缓存 Cargo，依次 fmt/check/clippy/test、release build、smoke 和脚本测试。release job 校验 tag 并检出干净源码，运行 package.ps1 -RequireClean -ExpectedTag <输入>，上传产物。
+- [x] 写明 MSVC/SDK/PowerShell 7 前置要求、单工具与全量命令、ZIP 使用与 PowerShell alias、如何新增 crate 和冒烟策略、套件与命令版本区别、整体许可证未统一状态。
+- [x] 兼容性表从源码检查生成初始状态，对已自动验证的行为单独标记；Issue/PR 模板包含参数、输入、环境、预期/实际结果与验证证据。
+- [x] 使用可用 YAML parser 解析 workflow/template；静态核对 workflow 调用和脚本参数一致。检查变更和迁移文件集合，确认原有未提交工作保留。
+- [x] 仅在最终源码或配置发生变化时重跑受影响验证，发布涉及变化时重新完整打包；不重复无变化的全量检查。
+- [x] 审阅最终 diff 的迁移正确性、失败路径、测试隔离和包清单；记录已通过步骤与未在 GitHub 执行的限制，提交仅本任务文件。
 
 ## 执行交接
 

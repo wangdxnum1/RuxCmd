@@ -4,7 +4,7 @@ param([Parameter(Mandatory)][string]$BinDir, [ValidateRange(1, 300)][int]$Timeou
 . (Join-Path $PSScriptRoot 'common.ps1')
 $workspace = Get-WorkspaceInfo
 $cases = @(Get-SmokeCases (Join-Path $PSScriptRoot 'smoke-cases.json') $workspace)
-$directory = [IO.Path]::GetFullPath($BinDir)
+$directory = Get-FileSystemPath $BinDir
 $failures = [Collections.Generic.List[string]]::new()
 foreach ($case in $cases) {
     try {

@@ -16,7 +16,7 @@ if ($ExpectedTag) {
     if ($tagCommit.Output.Trim() -cne $commit.Output.Trim()) { throw 'Requested tag does not refer to the current checkout.' }
 }
 if (-not $OutputDir) { $OutputDir = Join-Path $script:RepositoryRoot 'dist' }
-$OutputDir = [IO.Path]::GetFullPath($OutputDir)
+$OutputDir = Get-FileSystemPath $OutputDir
 [IO.Directory]::CreateDirectory($OutputDir) | Out-Null
 $name = "ruxcmd-$($workspace.Version)-$($workspace.Target)"
 $archive = Join-Path $OutputDir "$name.zip"

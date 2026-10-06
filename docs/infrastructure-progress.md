@@ -10,5 +10,10 @@ Plan: superpowers/plans/2026-10-06-project-infrastructure.md
 - Task 1: metadata verified, 113 packages and 111 unique binaries; 463 migrated files hash-verified.
 - Task 2: locked check, full release build, Clippy and fmt pass. Clippy exposed csplit arithmetic overflow-check syntax, corrected with checked_add. Historical warnings remain visible.
 - Task 3: full Rust tests pass after cp/mv required-source declarations and grep no-match exit-code fixes (failures recorded before fixes). All 111 release smoke checks pass.
-- Task 4: 15 packaging failure-path cases pass. Actual ZIP built and extracted; full file checksums, 111 smoke checks and 8 representative behaviors pass. All 111 executables passed PE DLL dependency inspection.
-- Task 5: workflows and contribution docs written; validation and fresh review pending. Remote GitHub Actions have not been run.
+- Task 4: actual ZIP built and extracted; full file checksums, 111 smoke checks and 8 representative behaviors pass. All 111 executables passed PE DLL dependency inspection. Initially 15 failure-path cases; final review expanded this to 17 passing cases.
+- Task 5: YAML parser validates both workflows and both Issue forms; PowerShell parser validates scripts. Official actions pinned to SHAs verified with git ls-remote. Remote GitHub Actions have not been run.
+- Final review: independent reviewer found two Important defects, no further concrete defects or deferred minors.
+- Final: fixed relative path resolution after PowerShell Set-Location — relative binary path test RED→GREEN; output-directory preservation test also covers changed PowerShell location.
+- Final: fixed unbounded output completion after parent exit — inherited stdout handles test RED→GREEN, whole package suite 17/17. Windows jobs terminate owned descendants, and all process/stream waits use one deadline.
+- Final Rust suite: 36 passing tests, locked workspace check and Clippy pass, fmt check pass.
+- Archived 111 obsolete member lockfiles under ignored migration scratch; old target caches remain excluded from publication.

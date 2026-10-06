@@ -1,7 +1,7 @@
 #Requires -Version 7.0
 param([Parameter(Mandatory)][string]$BinDir)
 . (Join-Path $PSScriptRoot 'common.ps1')
-$directory = [IO.Path]::GetFullPath($BinDir)
+$directory = Get-FileSystemPath $BinDir
 $tests = @(
     @{ Name = 'cat'; Arguments = @(); Input = "hello`n"; Output = "hello`n"; Exit = 0 },
     @{ Name = 'echo'; Arguments = @('hello', 'world'); Input = ''; Output = "hello world`n"; Exit = 0 },

@@ -2,6 +2,16 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $script:RepositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+. (Join-Path $PSScriptRoot 'process-job.ps1')
+
+function Get-FileSystemPath {
+    param([string]$Path)
+    $provider = $null
+    $drive = $null
+    $resolved = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path, [ref]$provider, [ref]$drive)
+    if ($provider.Name -ne 'FileSystem') { throw "Expected a filesystem path: $Path" }
+    [IO.Path]::GetFullPath($resolved)
+}
 
 function Invoke-ToolProcess {
     param([Parameter(Mandatory)][string]$Executable, [string[]]$Arguments = @(),
@@ -20,9 +30,11 @@ function Invoke-ToolProcess {
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = $info
     $started = $false
+    $job = [RuxCmd.ProcessJob]::new()
     try {
         if (-not $process.Start()) { throw "Unable to start $Executable" }
         $started = $true
+        try { $job.Attach($process.Handle) } catch { if (-not $process.HasExited) { throw } }
         $stdout = $process.StandardOutput.ReadToEndAsync()
         $stderr = $process.StandardError.ReadToEndAsync()
         $clock = [Diagnostics.Stopwatch]::StartNew()
@@ -39,8 +51,12 @@ function Invoke-ToolProcess {
             $process.WaitForExit()
             throw "Timeout after ${TimeoutSeconds}s: $Executable $($Arguments -join ' ')"
         }
+        $remaining = [Math]::Max(0, $TimeoutSeconds * 1000 - [int]$clock.ElapsedMilliseconds)
+        $streams = [Threading.Tasks.Task]::WhenAll([Threading.Tasks.Task[]]@($stdout, $stderr))
+        if (-not $streams.Wait($remaining)) { throw "Timeout reading output after ${TimeoutSeconds}s: $Executable" }
         [pscustomobject]@{ ExitCode = $process.ExitCode; Output = $stdout.GetAwaiter().GetResult(); Error = $stderr.GetAwaiter().GetResult() }
     } finally {
+        $job.Dispose()
         if ($started -and -not $process.HasExited) { $process.Kill($true); $process.WaitForExit() }
         $process.Dispose()
     }

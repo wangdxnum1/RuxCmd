@@ -1,14 +1,15 @@
 #Requires -Version 7.0
-param([string]$BinDir)
+param([string]$BinDir, [string]$Case)
 . (Join-Path $PSScriptRoot '../common.ps1')
 $workspace = Get-WorkspaceInfo
 if (-not $BinDir) { $BinDir = Join-Path $script:RepositoryRoot "target/$($workspace.Target)/release" }
-$BinDir = [IO.Path]::GetFullPath($BinDir)
+$BinDir = Get-FileSystemPath $BinDir
 $temporaryParent = [IO.Path]::GetTempPath()
 $temporary = Join-Path $temporaryParent "ruxcmd-tests-$([guid]::NewGuid().ToString('N'))"
 [IO.Directory]::CreateDirectory($temporary) | Out-Null
 $script:Passed = 0
 function Test-Case([string]$Name, [scriptblock]$Body) {
+    if ($Case -and $Name -notlike $Case) { return }
     & $Body
     $script:Passed++
     Write-Host "PASS: $Name"
@@ -41,8 +42,45 @@ try {
         Assert-Equal $result.ExitCode 0
         Assert-Equal $result.Output.TrimEnd() 'an argument with spaces'
     }
+    Test-Case 'relative binary paths follow PowerShell Set-Location' {
+        $relativeBins = Join-Path $temporary 'relative binaries'
+        [IO.Directory]::CreateDirectory($relativeBins) | Out-Null
+        foreach ($name in @('cat', 'echo', 'wc', 'grep', 'true', 'false', 'ps')) {
+            Copy-Item -LiteralPath (Join-Path $BinDir "$name.exe") -Destination $relativeBins
+        }
+        $location = $temporary.Replace("'", "''")
+        $entry = (Join-Path $script:RepositoryRoot 'scripts/verify-behavior.ps1').Replace("'", "''")
+        $result = Invoke-ToolProcess $pwsh @('-NoProfile', '-Command', "Set-Location -LiteralPath '$location'; & '$entry' -BinDir 'relative binaries'") -WorkingDirectory $script:RepositoryRoot
+        Assert-ToolSuccess $result 'relative binary path check'
+    }
     Test-Case 'nonzero process exit propagation' {
         Assert-Throws { Assert-ToolSuccess (Invoke-ToolProcess $pwsh @('-NoProfile', '-Command', 'exit 7')) 'fixture' } 'exited 7'
+    }
+    Test-Case 'inherited stdout handles obey the same timeout' {
+        $fixture = Join-Path $temporary 'parent-exits.ps1'
+        $pidPath = Join-Path $temporary 'descendant.pid'
+        @'
+param([string]$ChildPidFile)
+$info = [Diagnostics.ProcessStartInfo]::new()
+$info.FileName = Join-Path $PSHOME 'pwsh.exe'
+$info.UseShellExecute = $false
+$info.CreateNoWindow = $true
+$info.ArgumentList.Add('-NoProfile')
+$info.ArgumentList.Add('-Command')
+$childCode = '[IO.File]::WriteAllText(''{0}'', [string]$PID); Start-Sleep -Seconds 5' -f $ChildPidFile.Replace("'", "''")
+$info.ArgumentList.Add($childCode)
+$child = [Diagnostics.Process]::Start($info)
+$child.Dispose()
+[Console]::WriteLine('parent completed')
+'@ | Set-Content -LiteralPath $fixture
+        $clock = [Diagnostics.Stopwatch]::StartNew()
+        Assert-Throws { Invoke-ToolProcess $pwsh @('-NoProfile', '-File', $fixture, '-ChildPidFile', $pidPath) -TimeoutSeconds 2 } 'Timeout.*output'
+        if ($clock.Elapsed.TotalSeconds -gt 4) { throw 'Output completion exceeded deadline.' }
+        if (Test-Path -LiteralPath $pidPath) {
+            $childId = [int](Get-Content -LiteralPath $pidPath -Raw)
+            $child = Get-Process -Id $childId -ErrorAction SilentlyContinue
+            if ($child -and -not $child.WaitForExit(2000)) { throw 'Timed out descendant still running.' }
+        }
     }
     Test-Case 'timeout terminates own child process' {
         $pidPath = Join-Path $temporary 'child.pid'
@@ -112,7 +150,9 @@ try {
         [IO.Directory]::CreateDirectory($output) | Out-Null
         $zip = Join-Path $output "ruxcmd-$($workspace.Version)-$($workspace.Target).zip"
         [IO.File]::WriteAllText($zip, 'keep existing archive')
-        $result = Invoke-ToolProcess $pwsh @('-NoProfile', '-File', (Join-Path $script:RepositoryRoot 'scripts/package.ps1'), '-OutputDir', $output) -WorkingDirectory $temporary
+        $location = $temporary.Replace("'", "''")
+        $entry = (Join-Path $script:RepositoryRoot 'scripts/package.ps1').Replace("'", "''")
+        $result = Invoke-ToolProcess $pwsh @('-NoProfile', '-Command', "Set-Location -LiteralPath '$location'; & '$entry' -OutputDir 'output with spaces'") -WorkingDirectory $script:RepositoryRoot
         if ($result.ExitCode -eq 0 -or $result.Error -notmatch 'already exists') { throw 'Existing archive was not rejected.' }
         Assert-Equal ([IO.File]::ReadAllText($zip)) 'keep existing archive'
     }
@@ -123,5 +163,6 @@ try {
             if ($result.ExitCode -eq 0 -or $result.Error -notmatch 'clean checkout') { throw 'Dirty formal release was not rejected.' }
         }
     }
+    if ($script:Passed -eq 0) { throw 'No matching package test cases.' }
     Write-Host "Package tests passed: $script:Passed cases."
 } finally { Remove-OwnedDirectory $temporary $temporaryParent }
