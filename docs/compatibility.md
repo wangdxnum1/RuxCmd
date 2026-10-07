@@ -106,7 +106,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | uname | --all, --kernel-name, --kernel-release, --kernel-version, --machine, --nodename | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | unexpand | --all, --tabs, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | uniq | --count, --ignore-case, --repeated, --skip-fields, --unique, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| unzip | --directory, --list, --overwrite, --quiet, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| unzip | --directory, --list, --overwrite, --quiet, --version | Smoke + behavior tests | Unsafe entry paths (`..`, absolute, drive/UNC prefixes) are rejected with a warning and skipped; exit code 2 when any entry was rejected. Entry mtimes are not restored. Full GNU behavior unverified. |
 | uptime | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | vmstat | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | w | --header, --help, --ignore-username, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
@@ -119,6 +119,6 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | xargs | --interactive, --max-args, --replace, --verbose, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | yes | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | zcat | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| zip | --recurse, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| zip | --recurse, --version | Smoke + behavior tests | Wrapper around PowerShell 5.1 Compress-Archive; file and destination arguments are single-quoted with embedded quotes doubled (injection-safe). Other GNU zip flags unsupported. |
 
 See the [ps README](ps/README.md) for detailed ps option documentation. This table was established by the first source survey and must be kept in sync when commands are added or changed.

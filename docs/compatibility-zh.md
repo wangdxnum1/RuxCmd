@@ -105,7 +105,7 @@
 | uname | --all, --kernel-name, --kernel-release, --kernel-version, --machine, --nodename | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | unexpand | --all, --tabs, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | uniq | --count, --ignore-case, --repeated, --skip-fields, --unique, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| unzip | --directory, --list, --overwrite, --quiet, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| unzip | --directory, --list, --overwrite, --quiet, --version | 冒烟 + 行为测试 | 不安全条目路径（`..`、绝对路径、盘符/UNC 前缀）被拒并警告、跳过；发生拒绝时退出码 2。不恢复条目 mtime。完整 GNU 行为未验证。 |
 | uptime | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | vmstat | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | w | --header, --help, --ignore-username, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
@@ -118,6 +118,6 @@
 | xargs | --interactive, --max-args, --replace, --verbose, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | yes | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | zcat | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| zip | --recurse, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| zip | --recurse, --version | 冒烟 + 行为测试 | PowerShell 5.1 Compress-Archive 外壳；文件与目标参数经单引号转义（内部引号加倍，防注入）。其余 GNU zip 参数不支持。 |
 
 更详细的 ps 参数文档见 [ps README](ps/README-zh.md)。本表由首次源码调查建立，新增或修改命令时需同步更新。
