@@ -6,7 +6,7 @@ pub struct Args {
     #[arg(short, long)]
     pub version: bool,
 
-    #[arg(short, long)]
+    #[arg(long)]
     pub header_once: bool,
 
     #[arg(default_value = "0")]

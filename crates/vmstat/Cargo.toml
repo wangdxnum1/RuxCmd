@@ -10,3 +10,6 @@ authors = ["Tim"]
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 windows-sys = { version = "0.61", features = ["Win32_System_Performance", "Win32_System_SystemInformation", "Win32_System_Diagnostics_ToolHelp", "Win32_Foundation"] }
+
+[dev-dependencies]
+assert_cmd.workspace = true

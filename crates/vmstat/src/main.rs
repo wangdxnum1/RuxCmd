@@ -53,6 +53,11 @@ fn get_memory_info() -> Option<MemoryInfo> {
     })
 }
 
+/// Take one memory snapshot, aborting when the OS refuses to provide one.
+fn sample_memory() -> MemoryInfo {
+    get_memory_info().expect("vmstat: cannot access memory information")
+}
+
 fn get_process_count() -> u64 {
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::System::Diagnostics::ToolHelp::{
@@ -147,7 +152,7 @@ fn main() {
         return;
     }
 
-    let mem_info = get_memory_info().expect("vmstat: cannot access memory information");
+    let mut mem_info = sample_memory();
 
     if !args.header_once || args.count == 1 {
         print_header();
@@ -160,8 +165,40 @@ fn main() {
         }
         print_stats(&mem_info);
 
-        if i < args.count - 1 && args.delay > 0 {
-            std::thread::sleep(std::time::Duration::from_secs(args.delay as u64));
+        if i < args.count - 1 {
+            if args.delay > 0 {
+                std::thread::sleep(std::time::Duration::from_secs(args.delay as u64));
+            }
+            // Re-sample every frame: swpd/free must reflect the state at the
+            // time each line is printed, not the state at startup (P0 #46).
+            mem_info = sample_memory();
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Two consecutive samples must return numerically valid field values
+    /// (types are checked by the compiler; ranges are checked here).
+    #[test]
+    fn consecutive_samples_return_valid_numeric_fields() {
+        let first = get_memory_info().expect("memory information available");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        let second = get_memory_info().expect("memory information available");
+
+        for (label, info) in [("first", &first), ("second", &second)] {
+            assert!(info.total_phys > 0, "{label}: total_phys must be positive");
+            assert!(
+                info.avail_phys <= info.total_phys,
+                "{label}: avail_phys exceeds total_phys"
+            );
+            assert!(
+                info.avail_pagefile <= info.total_pagefile,
+                "{label}: avail_pagefile exceeds total_pagefile"
+            );
+            assert!(info.memory_load <= 100, "{label}: memory_load out of range");
         }
     }
 }
