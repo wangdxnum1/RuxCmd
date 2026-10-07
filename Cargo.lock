@@ -479,8 +479,11 @@ dependencies = [
 name = "date"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "chrono",
  "clap",
+ "predicates",
+ "windows",
 ]
 
 [[package]]
@@ -1599,7 +1602,10 @@ dependencies = [
 name = "patch"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
+ "tempfile",
 ]
 
 [[package]]
