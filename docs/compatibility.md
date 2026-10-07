@@ -59,7 +59,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | mpstat | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | mv | --force, --interactive, --no-clobber, --verbose | Smoke + behavior tests | Full GNU behavior unverified. |
 | netstat | --all, --numeric, --protocol, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| nice | --adjustment, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| nice | --adjustment, --version | Smoke + behavior tests | Spawns the command directly (no wmic) and applies a priority class: adjustment <=-15 High, -14..-5 Above normal, -4..4 Normal, 5..14 Below normal, >=15 Idle; the child exit code is passed through. |
 | nl | --body-numbering, --number-width, --separator, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | nslookup | --type, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | numfmt | --delimiter, --field, --from, --from-unit, --grouping, --header | Smoke only; behavior unverified | Full GNU behavior unverified. |
@@ -97,7 +97,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | tee | --append, --ignore-interrupts, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | test | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | time | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| timeout | --kill-after, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| timeout | --kill-after, --version | Smoke + behavior tests | Polls the child and returns its exit code, or 124 on expiry; -k/--kill-after escalates after the grace period. Durations accept decimals with s/m/h/d suffixes; the command may start with '-'. Only the direct child is killed. |
 | top | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | touch | --no-create, --version | Smoke + behavior tests | Updates atime/mtime via SetFileTime on existing files, directories, and read-only files; -a and -m select which time to update. -d/--date, -t, and -r/--reference are not implemented. |
 | tr | --complement, --delete, --squeeze, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |

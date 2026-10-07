@@ -58,7 +58,7 @@
 | mpstat | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | mv | --force, --interactive, --no-clobber, --verbose | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
 | netstat | --all, --numeric, --protocol, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| nice | --adjustment, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| nice | --adjustment, --version | 冒烟 + 行为测试 | 直接 spawn 命令（不依赖 wmic）并应用优先级：adjustment <=-15 High、-14..-5 Above normal、-4..4 Normal、5..14 Below normal、>=15 Idle；透传子进程退出码。 |
 | nl | --body-numbering, --number-width, --separator, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | nslookup | --type, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | numfmt | --delimiter, --field, --from, --from-unit, --grouping, --header | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
@@ -96,7 +96,7 @@
 | tee | --append, --ignore-interrupts, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | test | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | time | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| timeout | --kill-after, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| timeout | --kill-after, --version | 冒烟 + 行为测试 | 轮询子进程：正常结束透传退出码，超时返回 124；-k/--kill-after 在宽限期后升级终止。时长支持小数与 s/m/h/d 后缀；子命令允许以 '-' 开头。仅终止直接子进程。 |
 | top | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | touch | --no-create, --version | 冒烟 + 行为测试 | 经 SetFileTime 更新已存在文件、目录与只读文件的 atime/mtime；-a 与 -m 选择更新的时间。-d/--date、-t、-r/--reference 未实现。 |
 | tr | --complement, --delete, --squeeze, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
