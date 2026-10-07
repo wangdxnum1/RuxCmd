@@ -15,6 +15,16 @@ fn main() {
         std::process::exit(1);
     }
 
+    // With multiple sources the destination must be an existing directory,
+    // otherwise each source would silently overwrite the same target file.
+    if args.sources.len() > 1 && !(args.destination.exists() && args.destination.is_dir()) {
+        eprintln!(
+            "cp: target '{}' is not a directory",
+            args.destination.display()
+        );
+        std::process::exit(1);
+    }
+
     let mut exit_code = 0i32;
 
     for source in &args.sources {
@@ -45,7 +55,15 @@ fn copy_file(source: &Path, dest: &Path, args: &cli::Args) -> Result<(), String>
         copy_directory(source, dest, args)
     } else {
         let dest_path = if dest.exists() && dest.is_dir() {
-            dest.join(source.file_name().unwrap())
+            match source.file_name() {
+                Some(name) => dest.join(name),
+                None => {
+                    return Err(format!(
+                        "cannot determine target name for '{}'",
+                        source.display()
+                    ));
+                }
+            }
         } else {
             dest.to_path_buf()
         };
@@ -100,8 +118,24 @@ fn copy_file(source: &Path, dest: &Path, args: &cli::Args) -> Result<(), String>
 }
 
 fn copy_directory(source: &Path, dest: &Path, args: &cli::Args) -> Result<(), String> {
-    let dest_path = if dest.exists() && dest.is_dir() {
-        dest.join(source.file_name().unwrap())
+    let dest_path = if ends_in_dot_component(source) {
+        // `cp -r src/. dest` (also bare `.`/`..`): copy the contents of
+        // source into dest itself. Dest must already be an existing
+        // directory; unlike GNU cp we do not create it on demand.
+        if !dest.is_dir() {
+            return Err(format!("target '{}' is not a directory", dest.display()));
+        }
+        dest.to_path_buf()
+    } else if dest.exists() && dest.is_dir() {
+        match source.file_name() {
+            Some(name) => dest.join(name),
+            None => {
+                return Err(format!(
+                    "cannot determine target name for '{}'",
+                    source.display()
+                ));
+            }
+        }
     } else {
         dest.to_path_buf()
     };
@@ -162,6 +196,21 @@ fn copy_directory(source: &Path, dest: &Path, args: &cli::Args) -> Result<(), St
     Ok(())
 }
 
+/// True when the path's final component is `.` or `..` (e.g. `.`, `./`,
+/// `src/.`, `src/..`), so the path carries no usable trailing name.
+fn ends_in_dot_component(path: &Path) -> bool {
+    use std::path::Component;
+    match path.components().next_back() {
+        Some(Component::CurDir) | Some(Component::ParentDir) => return true,
+        _ => {}
+    }
+    // `components()` normalizes away interior/trailing `.` segments, so also
+    // inspect the raw text for a trailing dot component such as `src/.`.
+    let text = path.as_os_str().to_string_lossy();
+    let text = text.trim_end_matches(['/', '\\']);
+    matches!(text.rsplit(['/', '\\']).next(), Some(".") | Some(".."))
+}
+
 fn prompt_yes_no(prompt: &str) -> bool {
     print!("{}", prompt);
     let _ = io::stdout().flush();
@@ -173,4 +222,38 @@ fn prompt_yes_no(prompt: &str) -> bool {
 
     let input = input.trim().to_lowercase();
     input == "y" || input == "yes"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ends_in_dot_component;
+    use std::path::Path;
+
+    #[test]
+    fn detects_trailing_dot_components() {
+        for p in [
+            ".", "./", "./.", "..", "../", "src/.", "src/..", "src/../", "a\\b\\..",
+        ] {
+            assert!(
+                ends_in_dot_component(Path::new(p)),
+                "expected dot tail: {p}"
+            );
+        }
+        for p in [
+            "src",
+            "src/",
+            "src/./sub",
+            "src/..\\sub",
+            "/",
+            "\\",
+            "C:\\",
+            "C:\\dir",
+            "",
+        ] {
+            assert!(
+                !ends_in_dot_component(Path::new(p)),
+                "expected no dot tail: {p}"
+            );
+        }
+    }
 }
