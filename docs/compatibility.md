@@ -25,7 +25,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | csplit | --digits, --elide-empty-files, --keep-files, --prefix, --quiet, --suffix-format | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | curl | --data, --header, --output, --request, --silent, --version | Smoke only; behavior unverified | HTTPS/TLS and network behavior are unverified. |
 | cut | --bytes, --characters, --delimiter, --fields, --only-delimited, --output-delimiter | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| date | --date, --nanoseconds, --seconds, --set, --utc, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| date | --date, --nanoseconds, --seconds, --set, --utc, --version | Smoke + behavior tests | -d/--date and the positional operand accept @EPOCH, YYYY-MM-DD, and YYYY-MM-DDTHH:MM[:SS] (empty = now, other formats error with exit 1); -s/--set sets the local clock via SetLocalTime. --seconds applies to the parsed instant; %N is always 0. |
 | df | --human-readable, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | diff | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | dirname | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
@@ -66,7 +66,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | od | --address-radix, --ascii, --decimal, --format, --hexadecimal, --octal | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | open | --application, --edit, --reveal, --version, --wait | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | paste | --delimiters, --serial, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| patch | --force, --reverse, --strip, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| patch | --force, --reverse, --strip, --version | Smoke + behavior tests | --strip/-p strips N leading path components (default 0, GNU semantics); /dev/null and all-@@ -0,0 patches create the target file. Hunks are matched without line counts, one target file is used per run, and .rej files contain the error message. |
 | pgrep | --full, --list-name, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | ping | --count, --size, --timeout, --version | Smoke only; behavior unverified | Network behavior and permission requirements are unverified. |
 | pkill | --full, --signal, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |

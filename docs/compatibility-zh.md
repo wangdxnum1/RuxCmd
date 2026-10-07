@@ -24,7 +24,7 @@
 | csplit | --digits, --elide-empty-files, --keep-files, --prefix, --quiet, --suffix-format | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | curl | --data, --header, --output, --request, --silent, --version | 仅冒烟；业务待验证 | HTTPS/TLS 与联网行为尚未验证。 |
 | cut | --bytes, --characters, --delimiter, --fields, --only-delimited, --output-delimiter | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| date | --date, --nanoseconds, --seconds, --set, --utc, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| date | --date, --nanoseconds, --seconds, --set, --utc, --version | 冒烟 + 行为测试 | -d/--date 与位置参数接受 @EPOCH、YYYY-MM-DD、YYYY-MM-DDTHH:MM[:SS]（空串=now，其他格式报错退出 1）；-s/--set 经 SetLocalTime 设置本地时钟。--seconds 作用于解析出的时刻；%N 恒为 0。 |
 | df | --human-readable, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | diff | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | dirname | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
@@ -65,7 +65,7 @@
 | od | --address-radix, --ascii, --decimal, --format, --hexadecimal, --octal | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | open | --application, --edit, --reveal, --version, --wait | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | paste | --delimiters, --serial, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| patch | --force, --reverse, --strip, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| patch | --force, --reverse, --strip, --version | 冒烟 + 行为测试 | --strip/-p 剥离 N 个前导路径组件（默认 0，GNU 语义）；/dev/null 与全 `@@ -0,0` 补丁会创建目标文件。hunk 匹配不按行计数，每次运行只处理一个目标文件，.rej 内容为错误消息。 |
 | pgrep | --full, --list-name, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | ping | --count, --size, --timeout, --version | 仅冒烟；业务待验证 | 网络行为及权限要求尚未验证。 |
 | pkill | --full, --signal, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
