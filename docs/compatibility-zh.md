@@ -40,13 +40,13 @@
 | fold | --bytes, --spaces, --version, --width | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | free | --bytes, --gigabytes, --human-readable, --kilobytes, --megabytes, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | grep | --count, --ignore-case, --invert-match, --line-number, --line-regexp, --only-matching | 冒烟 + 行为测试 | 匹配/未匹配退出码已验证；递归错误传播尚未验证。 |
-| groups | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| groups | --version | 冒烟 + 行为测试 | 输出当前用户的真实令牌组（空格分隔，组名与区域相关）；仅支持当前用户，其他名字报错退出 1。 |
 | gunzip | --force, --keep, --verbose | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | head | --bytes, --lines, --quiet, --verbose | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | hexdump | --ascii, --canonical, --decimal, --hexadecimal, --length, --octal | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | hostname | --fqdn, --ip-address, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | iconv | --from-code, --list, --output, --to-code, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| id | --group, --groups, --name, --user, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| id | --group, --groups, --name, --user, --version | 冒烟 + 行为测试 | uid/gid/groups 取自进程令牌 SID 的 RID；-u/-g/-G/-n 遵循 GNU；组名与区域相关，无法解析时回退为 RID。 |
 | iostat | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | join | --separator, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | kill | --list, --signal, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
@@ -71,7 +71,7 @@
 | pkill | --full, --signal, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | pr | --double-space, --form-feed, --header, --indent, --length, --number-lines | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | printf | --version | 冒烟 + 行为测试 | 实现格式串反斜杠转义（\n \r \t \ \" \0NNN \xHH）、缺参输出空串/0、非法数字参数退出 1。宽度/精度/标志与格式复用未实现。 |
-| ps | --ascii, --comm, --everyone, --extra-full, --forest, --format | 冒烟 + 行为测试 | 原生 Windows 进程信息；不可读取字段可能显示 ?。 |
+| ps | --ascii, --comm, --everyone, --extra-full, --forest, --format | 冒烟 + 行为测试 | 原生 Windows 进程信息；不可读取字段可能显示 ?。%MEM 使用真实总物理内存（GlobalMemoryStatusEx）；请求未注册列时 stderr 警告并跳过该列。 |
 | pwd | --logical, --physical, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | readlink | --canonicalize, --no-newline, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | realpath | --strip-components, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |

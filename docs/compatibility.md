@@ -41,13 +41,13 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | fold | --bytes, --spaces, --version, --width | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | free | --bytes, --gigabytes, --human-readable, --kilobytes, --megabytes, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | grep | --count, --ignore-case, --invert-match, --line-number, --line-regexp, --only-matching | Smoke + behavior tests | Match/no-match exit codes verified; recursive error propagation unverified. |
-| groups | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| groups | --version | Smoke + behavior tests | Prints the current user's real token groups (space-separated, locale-dependent names); only the current user is supported and other names error with exit 1. |
 | gunzip | --force, --keep, --verbose | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | head | --bytes, --lines, --quiet, --verbose | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | hexdump | --ascii, --canonical, --decimal, --hexadecimal, --length, --octal | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | hostname | --fqdn, --ip-address, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | iconv | --from-code, --list, --output, --to-code, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| id | --group, --groups, --name, --user, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| id | --group, --groups, --name, --user, --version | Smoke + behavior tests | uid/gid/groups derive from the process token SID RIDs; -u/-g/-G/-n follow GNU; group names are locale-dependent and fall back to the RID. |
 | iostat | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | join | --separator, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | kill | --list, --signal, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
@@ -72,7 +72,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | pkill | --full, --signal, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | pr | --double-space, --form-feed, --header, --indent, --length, --number-lines | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | printf | --version | Smoke + behavior tests | Implements format-string backslash escapes (\n \r \t \ \" \0NNN \xHH), empty string/0 for missing arguments, and exit code 1 for invalid numeric arguments. Width/precision/flags and format reuse are not implemented. |
-| ps | --ascii, --comm, --everyone, --extra-full, --forest, --format | Smoke + behavior tests | Native Windows process information; unreadable fields may show ?. |
+| ps | --ascii, --comm, --everyone, --extra-full, --forest, --format | Smoke + behavior tests | Native Windows process information; unreadable fields may show ?. %MEM uses the real total physical memory (GlobalMemoryStatusEx); requesting an unregistered column warns on stderr and skips it. |
 | pwd | --logical, --physical, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | readlink | --canonicalize, --no-newline, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | realpath | --strip-components, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
