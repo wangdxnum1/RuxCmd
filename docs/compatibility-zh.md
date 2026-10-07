@@ -15,7 +15,7 @@
 | cal | --version | 冒烟 + 行为测试 | 单参数 1-12 视为月份，100-9999 视为年份；13-99 被拒绝。完整 GNU 行为未验证。 |
 | cat | --number, --number-nonblank, --show-all, --show-ends, --show-nonprinting, --show-tabs, --unbuffered | 冒烟 + 行为测试 | 默认字节透明（CRLF、二进制、非 ASCII 数据原样透传）；-v 使用字节级 ^/M- 记号；-E 不给未结尾的末行补 $。行号与空行压缩状态按文件重置。 |
 | chmod | --recursive, --verbose, --version | 仅冒烟；业务待验证 | Windows 权限语义与 Unix mode 不等价。 |
-| chown | --version | 仅冒烟；业务待验证 | 使用 Windows 用户/安全 API，Unix UID/GID 语义不等价。 |
+| chown | --user, --group, --recursive, --verbose, --version | 冒烟 + 行为测试 | --user 设 owner、--group 设组（GROUP_SECURITY_INFORMATION），可同时给；任一文件失败退出 1。改 owner 为他人通常需要特权。Unix UID/GID 语义不等价。 |
 | clear | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | cmp | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | column | --output-separator, --separator, --table, --table-header-repeat, --table-right, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
@@ -60,7 +60,7 @@
 | netstat | --all, --numeric, --protocol, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | nice | --adjustment, --version | 冒烟 + 行为测试 | 直接 spawn 命令（不依赖 wmic）并应用优先级：adjustment <=-15 High、-14..-5 Above normal、-4..4 Normal、5..14 Below normal、>=15 Idle；透传子进程退出码。 |
 | nl | --body-numbering, --number-width, --separator, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| nslookup | --type, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| nslookup | --type, --version | 冒烟 + 行为测试 | A/AAAA/CNAME/MX/TXT 经真实查询解析（getaddrinfo / DnsQuery_W）；类型名大小写不敏感；不支持的类型报错退出 1。SERVER 位置参数已移除。 |
 | numfmt | --delimiter, --field, --from, --from-unit, --grouping, --header | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | od | --address-radix, --ascii, --decimal, --format, --hexadecimal, --octal | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | open | --application, --edit, --reveal, --version, --wait | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
@@ -101,13 +101,13 @@
 | touch | --no-create, --version | 冒烟 + 行为测试 | 经 SetFileTime 更新已存在文件、目录与只读文件的 atime/mtime；-a 与 -m 选择更新的时间。-d/--date、-t、-r/--reference 未实现。 |
 | tr | --complement, --delete, --squeeze, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | true | --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
-| tty | --all, --silent, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| tty | --all, --silent, --version | 冒烟 + 行为测试 | 经 IsTerminal 判断控制台，名称输出占位 CONIN$；-a 检查三个流（CONIN$/CONOUT$ 占位）；-s 静默。 |
 | uname | --all, --kernel-name, --kernel-release, --kernel-version, --machine, --nodename | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | unexpand | --all, --tabs, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | uniq | --count, --ignore-case, --repeated, --skip-fields, --unique, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | unzip | --directory, --list, --overwrite, --quiet, --version | 冒烟 + 行为测试 | 不安全条目路径（`..`、绝对路径、盘符/UNC 前缀）被拒并警告、跳过；发生拒绝时退出码 2。不恢复条目 mtime。完整 GNU 行为未验证。 |
 | uptime | 见 --help | 冒烟 + 行为测试 | 经 GetTickCount64 报告开机以来的秒数；-p 输出中文时长。 |
-| vmstat | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| vmstat | 见 --help | 冒烟 + 行为测试 | swpd/free 逐帧采样；-h 短名为 help（长名 --header-once 保留）。完整 GNU 行为未验证。 |
 | w | --header, --help, --ignore-username, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | wc | --bytes, --chars, --lines, --max-line-length, --version, --words | 冒烟 + 行为测试 | stdin 输出附带 <stdin> 标签；不是 GNU 的无标签输出。 |
 | wget | --directory-prefix, --output-document, --quiet, --version | 仅冒烟；业务待验证 | HTTPS/TLS 与联网行为尚未验证。 |

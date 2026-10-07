@@ -16,7 +16,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | cal | --version | Smoke + behavior tests | A single argument 1-12 is a month, 100-9999 a year; 13-99 is rejected. Full GNU behavior unverified. |
 | cat | --number, --number-nonblank, --show-all, --show-ends, --show-nonprinting, --show-tabs, --unbuffered | Smoke + behavior tests | Byte-transparent by default (CRLF, binary, and non-ASCII data pass through unchanged); -v uses byte-level ^/M- notation; -E does not mark an unterminated last line. Line numbering and empty-line compression state reset per file. |
 | chmod | --recursive, --verbose, --version | Smoke only; behavior unverified | Windows permission semantics are not equivalent to Unix modes. |
-| chown | --version | Smoke only; behavior unverified | Uses the Windows user/security APIs; Unix UID/GID semantics are not equivalent. |
+| chown | --user, --group, --recursive, --verbose, --version | Smoke + behavior tests | --user sets the owner and --group the group (GROUP_SECURITY_INFORMATION), both may be given; any file failure exits 1. Changing the owner to another account usually requires privileges. Unix UID/GID semantics are not equivalent. |
 | clear | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | cmp | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | column | --output-separator, --separator, --table, --table-header-repeat, --table-right, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
@@ -61,7 +61,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | netstat | --all, --numeric, --protocol, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | nice | --adjustment, --version | Smoke + behavior tests | Spawns the command directly (no wmic) and applies a priority class: adjustment <=-15 High, -14..-5 Above normal, -4..4 Normal, 5..14 Below normal, >=15 Idle; the child exit code is passed through. |
 | nl | --body-numbering, --number-width, --separator, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| nslookup | --type, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| nslookup | --type, --version | Smoke + behavior tests | Types A/AAAA/CNAME/MX/TXT resolve for real (getaddrinfo / DnsQuery_W); type names are case-insensitive; unsupported types error with exit 1. The SERVER positional argument was removed. |
 | numfmt | --delimiter, --field, --from, --from-unit, --grouping, --header | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | od | --address-radix, --ascii, --decimal, --format, --hexadecimal, --octal | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | open | --application, --edit, --reveal, --version, --wait | Smoke only; behavior unverified | Full GNU behavior unverified. |
@@ -102,13 +102,13 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | touch | --no-create, --version | Smoke + behavior tests | Updates atime/mtime via SetFileTime on existing files, directories, and read-only files; -a and -m select which time to update. -d/--date, -t, and -r/--reference are not implemented. |
 | tr | --complement, --delete, --squeeze, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | true | --version | Smoke + behavior tests | Full GNU behavior unverified. |
-| tty | --all, --silent, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| tty | --all, --silent, --version | Smoke + behavior tests | Detects a console via IsTerminal and prints CONIN$ as the name placeholder; -a checks all three streams with CONIN$/CONOUT$ placeholders; -s is quiet. |
 | uname | --all, --kernel-name, --kernel-release, --kernel-version, --machine, --nodename | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | unexpand | --all, --tabs, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | uniq | --count, --ignore-case, --repeated, --skip-fields, --unique, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | unzip | --directory, --list, --overwrite, --quiet, --version | Smoke + behavior tests | Unsafe entry paths (`..`, absolute, drive/UNC prefixes) are rejected with a warning and skipped; exit code 2 when any entry was rejected. Entry mtimes are not restored. Full GNU behavior unverified. |
 | uptime | See --help | Smoke + behavior tests | Reports seconds since boot via GetTickCount64; -p prints a Chinese-language duration. |
-| vmstat | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| vmstat | See --help | Smoke + behavior tests | swpd/free are sampled every frame; the -h short option is help (--header-once remains the long name). Full GNU behavior unverified. |
 | w | --header, --help, --ignore-username, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | wc | --bytes, --chars, --lines, --max-line-length, --version, --words | Smoke + behavior tests | stdin output carries a <stdin> label, unlike GNU's unlabeled output. |
 | wget | --directory-prefix, --output-document, --quiet, --version | Smoke only; behavior unverified | HTTPS/TLS and network behavior are unverified. |
