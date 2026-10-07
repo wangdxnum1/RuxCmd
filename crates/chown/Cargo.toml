@@ -7,4 +7,11 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-windows-sys = { version = "0.52", features = ["Win32_Security", "Win32_Foundation", "Win32_System_Memory", "Win32_Storage_FileSystem"] }
+# Win32_Security_Authorization: SetNamedSecurityInfoW / SE_FILE_OBJECT (P0 #48 fix)
+windows-sys = { version = "0.52", features = ["Win32_Security", "Win32_Foundation", "Win32_System_Memory", "Win32_Storage_FileSystem", "Win32_Security_Authorization"] }
+
+[dev-dependencies]
+assert_cmd.workspace = true
+predicates.workspace = true
+tempfile.workspace = true
+windows-sys = { version = "0.52", features = ["Win32_Security", "Win32_Foundation"] }

@@ -5,9 +5,9 @@ use std::path::Path;
 
 use cli::Cli;
 use windows_sys::Win32::Foundation::{GetLastError, PSID};
+use windows_sys::Win32::Security::Authorization::{SE_FILE_OBJECT, SetNamedSecurityInfoW};
 use windows_sys::Win32::Security::{
-    GetFileSecurityW, LookupAccountNameW, SetFileSecurityW, SetSecurityDescriptorOwner,
-    OWNER_SECURITY_INFORMATION, SID_NAME_USE,
+    GROUP_SECURITY_INFORMATION, LookupAccountNameW, OWNER_SECURITY_INFORMATION, SID_NAME_USE,
 };
 
 fn main() {
@@ -15,34 +15,56 @@ fn main() {
     let cli = Cli::parse();
 
     if cli.user.is_none() && cli.group.is_none() {
-        eprintln!("错误: 必须指定 --user 或 --group");
+        eprintln!("chown: either --user or --group must be specified");
         std::process::exit(1);
     }
 
-    let name = cli.user.as_deref().or(cli.group.as_deref()).unwrap();
-    let sid = match lookup_account(name) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("错误: 无法查找 '{}': {}", name, e);
+    let user_sid = match cli.user.as_deref().map(lookup_account) {
+        Some(Ok(sid)) => Some(sid),
+        Some(Err(e)) => {
+            eprintln!("chown: {}", e);
             std::process::exit(1);
         }
+        None => None,
     };
 
+    let group_sid = match cli.group.as_deref().map(lookup_account) {
+        Some(Ok(sid)) => Some(sid),
+        Some(Err(e)) => {
+            eprintln!("chown: {}", e);
+            std::process::exit(1);
+        }
+        None => None,
+    };
+
+    let mut had_error = false;
     for p in &cli.path {
         let path = Path::new(p);
-        if cli.recursive && path.is_dir() {
-            if let Err(e) = chown_recursive(path, sid, cli.verbose) {
-                eprintln!("错误: {}", e);
-            }
+        let failed = if cli.recursive && path.is_dir() {
+            chown_recursive(path, user_sid, group_sid, cli.verbose)
         } else {
-            if let Err(e) = chown_file(path, sid, cli.verbose) {
-                eprintln!("错误: {}", e);
+            match chown_file(path, user_sid, group_sid, cli.verbose) {
+                Ok(()) => false,
+                Err(e) => {
+                    eprintln!("chown: {}", e);
+                    true
+                }
             }
-        }
+        };
+        had_error |= failed;
     }
 
     unsafe {
-        kernel32::LocalFree(sid);
+        if let Some(sid) = user_sid {
+            kernel32::LocalFree(sid);
+        }
+        if let Some(sid) = group_sid {
+            kernel32::LocalFree(sid);
+        }
+    }
+
+    if had_error {
+        std::process::exit(1);
     }
 }
 
@@ -73,7 +95,10 @@ fn lookup_account(name: &str) -> Result<PSID, String> {
 
     let err = unsafe { GetLastError() };
     if err != 122 {
-        return Err(format!("LookupAccountNameW 失败: {}", err));
+        return Err(format!(
+            "cannot find account '{}': LookupAccountNameW failed with error {}",
+            name, err
+        ));
     }
 
     let mut sid_buffer = vec![0u8; sid_size as usize];
@@ -93,7 +118,10 @@ fn lookup_account(name: &str) -> Result<PSID, String> {
 
     if result == 0 {
         let err = unsafe { GetLastError() };
-        return Err(format!("LookupAccountNameW 失败: {}", err));
+        return Err(format!(
+            "cannot find account '{}': LookupAccountNameW failed with error {}",
+            name, err
+        ));
     }
 
     let sid_ptr = unsafe {
@@ -103,8 +131,8 @@ fn lookup_account(name: &str) -> Result<PSID, String> {
         )
     };
 
-    if sid_ptr == std::ptr::null_mut() {
-        return Err("LocalAlloc 失败".to_string());
+    if sid_ptr.is_null() {
+        return Err(format!("cannot find account '{}': LocalAlloc failed", name));
     }
 
     unsafe {
@@ -114,109 +142,107 @@ fn lookup_account(name: &str) -> Result<PSID, String> {
     Ok(sid_ptr)
 }
 
-fn chown_file(path: &Path, sid: PSID, verbose: bool) -> Result<(), String> {
+fn chown_file(
+    path: &Path,
+    user_sid: Option<PSID>,
+    group_sid: Option<PSID>,
+    verbose: bool,
+) -> Result<(), String> {
     let path_w: Vec<u16> = path
         .as_os_str()
         .encode_wide()
         .chain(std::iter::once(0))
         .collect();
 
-    let mut security_desc_size = 0u32;
-
-    unsafe {
-        GetFileSecurityW(
-            path_w.as_ptr(),
-            OWNER_SECURITY_INFORMATION,
-            std::ptr::null_mut(),
-            0,
-            &mut security_desc_size,
-        );
+    let mut info = 0u32;
+    if user_sid.is_some() {
+        info |= OWNER_SECURITY_INFORMATION;
     }
-
-    let err = unsafe { GetLastError() };
-    if err != 122 {
-        return Err(format!("GetFileSecurityW 失败: {}", err));
-    }
-
-    let mut security_desc = vec![0u8; security_desc_size as usize];
-
-    let result = unsafe {
-        GetFileSecurityW(
-            path_w.as_ptr(),
-            OWNER_SECURITY_INFORMATION,
-            security_desc.as_mut_ptr() as *mut _,
-            security_desc_size,
-            &mut security_desc_size,
-        )
-    };
-
-    if result == 0 {
-        let err = unsafe { GetLastError() };
-        return Err(format!("GetFileSecurityW 失败: {}", err));
-    }
-
-    let result =
-        unsafe { SetSecurityDescriptorOwner(security_desc.as_mut_ptr() as *mut _, sid, 0) };
-
-    if result == 0 {
-        let err = unsafe { GetLastError() };
-        return Err(format!("SetSecurityDescriptorOwner 失败: {}", err));
+    if group_sid.is_some() {
+        info |= GROUP_SECURITY_INFORMATION;
     }
 
     let result = unsafe {
-        SetFileSecurityW(
+        SetNamedSecurityInfoW(
             path_w.as_ptr(),
-            OWNER_SECURITY_INFORMATION,
-            security_desc.as_mut_ptr() as *mut _,
+            SE_FILE_OBJECT,
+            info,
+            user_sid.unwrap_or(std::ptr::null_mut()),
+            group_sid.unwrap_or(std::ptr::null_mut()),
+            std::ptr::null(),
+            std::ptr::null(),
         )
     };
 
-    if result == 0 {
-        let err = unsafe { GetLastError() };
-        Err(format!(
-            "无法更改文件 '{}' 的所有权: {}",
+    if result != 0 {
+        return Err(format!(
+            "cannot change owner/group of '{}': SetNamedSecurityInfoW failed with error {}",
             path.display(),
-            err
-        ))
-    } else {
-        if verbose {
-            println!("已更改所有权: {}", path.display());
-        }
-        Ok(())
+            result
+        ));
     }
+
+    if verbose {
+        let what = match (user_sid.is_some(), group_sid.is_some()) {
+            (true, true) => "changed owner and group",
+            (true, false) => "changed owner",
+            (false, true) => "changed group",
+            (false, false) => "changed nothing",
+        };
+        println!("{}: {}", what, path.display());
+    }
+    Ok(())
 }
 
-fn chown_recursive(path: &Path, sid: PSID, verbose: bool) -> Result<(), String> {
-    let mut entries = match std::fs::read_dir(path) {
+/// Recursively chown everything under `path`; returns true if any entry failed.
+/// Note: descent follows `is_dir()`, so junction/symlink cycles are not
+/// guarded against (known P2 limitation).
+fn chown_recursive(
+    path: &Path,
+    user_sid: Option<PSID>,
+    group_sid: Option<PSID>,
+    verbose: bool,
+) -> bool {
+    let mut had_error = false;
+
+    let entries = match std::fs::read_dir(path) {
         Ok(e) => e,
-        Err(e) => return Err(format!("无法读取目录 '{}': {}", path.display(), e)),
+        Err(e) => {
+            eprintln!("chown: cannot read directory '{}': {}", path.display(), e);
+            return true;
+        }
     };
 
-    while let Some(entry) = entries.next() {
+    for entry in entries {
         let entry = match entry {
             Ok(e) => e,
             Err(e) => {
-                eprintln!("警告: 无法读取目录项: {}", e);
+                eprintln!(
+                    "chown: cannot read directory entry under '{}': {}",
+                    path.display(),
+                    e
+                );
+                had_error = true;
                 continue;
             }
         };
 
         let entry_path = entry.path();
 
-        if let Err(e) = chown_file(&entry_path, sid, verbose) {
-            eprintln!("警告: {}", e);
+        if let Err(e) = chown_file(&entry_path, user_sid, group_sid, verbose) {
+            eprintln!("chown: {}", e);
+            had_error = true;
         }
 
-        if entry_path.is_dir() {
-            if let Err(e) = chown_recursive(&entry_path, sid, verbose) {
-                eprintln!("警告: {}", e);
-            }
+        if entry_path.is_dir() && chown_recursive(&entry_path, user_sid, group_sid, verbose) {
+            had_error = true;
         }
     }
 
-    if let Err(e) = chown_file(path, sid, verbose) {
-        eprintln!("警告: {}", e);
+    if let Err(e) = chown_file(path, user_sid, group_sid, verbose) {
+        eprintln!("chown: {}", e);
+        had_error = true;
     }
 
-    Ok(())
+    had_error
 }
