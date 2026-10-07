@@ -14,7 +14,7 @@ fn main() {
     let uptime = get_uptime();
 
     if cli.pretty {
-        print_pretty(uptime);
+        println!("{}", format_pretty(uptime));
     } else {
         println!("{}", uptime);
     }
@@ -30,11 +30,11 @@ fn get_uptime() -> u64 {
 
 #[cfg(target_os = "windows")]
 fn get_uptime() -> u64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("无法获取系统时间")
-        .as_secs()
+    use windows::Win32::System::SystemInformation::GetTickCount64;
+
+    // SAFETY: GetTickCount64 takes no parameters and cannot fail.
+    let tick_ms = unsafe { GetTickCount64() };
+    tick_ms / 1000
 }
 
 #[cfg(target_os = "macos")]
@@ -51,7 +51,7 @@ fn get_uptime() -> u64 {
     time_str.parse::<f64>().unwrap() as u64
 }
 
-fn print_pretty(seconds: u64) {
+fn format_pretty(seconds: u64) -> String {
     let days = seconds / 86400;
     let hours = (seconds % 86400) / 3600;
     let minutes = (seconds % 3600) / 60;
@@ -71,5 +71,18 @@ fn print_pretty(seconds: u64) {
         parts.push(format!("{}秒", secs));
     }
 
-    println!("{}", parts.join(" "));
+    parts.join(" ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_pretty;
+
+    #[test]
+    fn pretty_format_keeps_chinese_duration() {
+        assert_eq!(format_pretty(90_061), "1天 1小时 1分钟 1秒");
+        assert_eq!(format_pretty(59), "59秒");
+        assert_eq!(format_pretty(3600), "1小时");
+        assert_eq!(format_pretty(0), "0秒");
+    }
 }
