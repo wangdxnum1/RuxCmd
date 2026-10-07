@@ -1,97 +1,67 @@
 mod cli;
 
-use clap::Parser;
-use std::env;
-
 #[cfg(windows)]
-fn get_current_user_groups() -> Vec<String> {
-    use std::process::Command;
+mod token;
 
-    let username = env::var("USERNAME").unwrap_or_else(|_| "".to_string());
-    if username.is_empty() {
-        return Vec::new();
-    }
-
-    let output = Command::new("net").arg("user").arg(&username).output();
-
-    match output {
-        Ok(out) => {
-            let stdout = String::from_utf8_lossy(&out.stdout);
-            let lines: Vec<&str> = stdout.split('\n').collect();
-
-            let mut groups = Vec::new();
-
-            for line in &lines {
-                let line = line.trim_end_matches('\r');
-                if line.contains("Local Group") {
-                    if let Some(idx) = line.find('*') {
-                        let groups_str = &line[idx..];
-                        for group in groups_str.split_whitespace() {
-                            if !group.is_empty() {
-                                let cleaned_group = group.trim_start_matches('*');
-                                groups.push(cleaned_group.to_string());
-                            }
-                        }
-                    }
-                    break;
-                }
-            }
-
-            if groups.is_empty() {
-                for line in &lines {
-                    let line = line.trim_end_matches('\r');
-                    if line.contains("Group Memberships") || line.contains("本地组成员") {
-                        let parts: Vec<&str> = line.split(':').collect();
-                        if parts.len() > 1 {
-                            let groups_str = parts[1].trim();
-                            for group in groups_str.split_whitespace() {
-                                if !group.is_empty() {
-                                    let cleaned_group = group.trim_start_matches('*');
-                                    groups.push(cleaned_group.to_string());
-                                }
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
-
-            groups
-        }
-        Err(_) => {
-            let mut groups = Vec::new();
-            if let Ok(domain) = env::var("USERDOMAIN") {
-                groups.push(domain);
-            }
-            if let Ok(username) = env::var("USERNAME") {
-                groups.push(username);
-            }
-            if let Ok(computername) = env::var("COMPUTERNAME") {
-                groups.push(computername);
-            }
-            groups.push("Everyone".to_string());
-            groups.push("Authenticated Users".to_string());
-            groups
-        }
-    }
-}
-
-#[cfg(not(windows))]
-fn get_current_user_groups() -> Vec<String> {
-    Vec::new()
-}
+use clap::Parser;
 
 fn main() {
     let args = cli::Args::parse();
 
-    let username = args.user.clone().unwrap_or_else(|| {
-        env::var("USERNAME").unwrap_or_else(|_| env::var("USER").unwrap_or_else(|_| "".to_string()))
-    });
+    #[cfg(windows)]
+    run_windows(&args);
 
-    let groups = get_current_user_groups();
-    if groups.is_empty() {
-        println!("{} :", username);
-    } else {
-        println!("{} : {}", username, groups.join(" "));
+    #[cfg(not(windows))]
+    {
+        let _ = args;
+        eprintln!("groups: identity information is not available on this platform");
+        std::process::exit(1);
     }
+}
+
+#[cfg(windows)]
+fn run_windows(args: &cli::Args) {
+    let identity = match token::current_identity() {
+        Ok(id) => id,
+        Err(e) => {
+            eprintln!("groups: {e}");
+            std::process::exit(1);
+        }
+    };
+
+    // GNU `groups [USER]` queries another user; on Windows we can only read the
+    // current process token, so any other user is rejected explicitly.
+    if let Some(requested) = &args.user
+        && !is_current_user(requested, &identity)
+    {
+        eprintln!("groups: cannot query other users on windows");
+        std::process::exit(1);
+    }
+
+    let names: Vec<String> = identity
+        .groups
+        .iter()
+        .map(|e| match &e.name {
+            Some(n) => n.clone(),
+            None => e.rid.to_string(),
+        })
+        .collect();
+    println!("{}", names.join(" "));
+}
+
+/// Case-insensitive match against the token account name (with optional
+/// DOMAIN\ prefix). When the token account name cannot be resolved we cannot
+/// confirm the request refers to the current user, so it is rejected.
+#[cfg(windows)]
+fn is_current_user(requested: &str, identity: &token::Identity) -> bool {
+    let Some(name) = &identity.user.name else {
+        return false;
+    };
+    let requested = requested.to_lowercase();
+    let name = name.to_lowercase();
+    if identity.domain.is_empty() {
+        return requested == name;
+    }
+    let full = format!("{}\\{}", identity.domain.to_lowercase(), name);
+    requested == name || requested == full
 }
