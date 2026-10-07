@@ -3,11 +3,25 @@ use std::path::PathBuf;
 
 /// Create empty files or update file timestamps — a Windows port of the Linux touch command.
 #[derive(Parser, Debug)]
-#[command(name = "touch", version, about, disable_version_flag = true)]
+#[command(
+    name = "touch",
+    version,
+    about,
+    disable_version_flag = true,
+    after_help = "Options -d/--date, -t and -r/--reference are not implemented in this build."
+)]
 pub struct Args {
     /// Do not create any files
     #[arg(short = 'c', long = "no-create")]
     pub no_create: bool,
+
+    /// Change only the access time
+    #[arg(short = 'a')]
+    pub atime: bool,
+
+    /// Change only the modification time
+    #[arg(short = 'm')]
+    pub mtime: bool,
 
     /// The file(s) to touch
     #[arg(value_name = "FILE")]
