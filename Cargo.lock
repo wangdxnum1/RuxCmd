@@ -276,7 +276,10 @@ dependencies = [
 name = "chown"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
+ "tempfile",
  "windows-sys 0.52.0",
 ]
 
@@ -1482,7 +1485,9 @@ checksum = "61807f77802ff30975e01f4f071c8ba10c022052f98b3294119f3e615d13e5be"
 name = "nslookup"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "windows",
 ]
 
 [[package]]
@@ -2730,6 +2735,7 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 name = "tty"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
 ]
 
@@ -2838,6 +2844,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 name = "vmstat"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
  "windows-sys 0.61.2",
 ]
