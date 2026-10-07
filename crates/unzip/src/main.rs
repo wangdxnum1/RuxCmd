@@ -33,7 +33,7 @@ fn list_archive(cli: &Cli) -> io::Result<()> {
     Ok(())
 }
 
-fn extract_archive(cli: &Cli) -> Result<(), ZipError> {
+fn extract_archive(cli: &Cli) -> Result<bool, ZipError> {
     let archive_path = cli.archive.as_ref().ok_or_else(|| {
         ZipError::Io(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -53,9 +53,24 @@ fn extract_archive(cli: &Cli) -> Result<(), ZipError> {
         fs::create_dir_all(&dest_path)?;
     }
 
+    let mut skipped_unsafe = false;
+
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;
-        let file_path = dest_path.join(file.name());
+
+        // Reject "zip slip" entries: names that escape the destination
+        // directory via `..` components, absolute paths, or drive/UNC
+        // prefixes must never be joined onto the destination.
+        let Some(enclosed) = file.enclosed_name() else {
+            eprintln!(
+                "unzip: skipping entry with unsafe path: '{}'",
+                file.name()
+            );
+            skipped_unsafe = true;
+            continue;
+        };
+
+        let file_path = dest_path.join(enclosed);
 
         if !cli.quiet {
             println!("{}", file_path.display());
@@ -87,7 +102,7 @@ fn extract_archive(cli: &Cli) -> Result<(), ZipError> {
         }
     }
 
-    Ok(())
+    Ok(skipped_unsafe)
 }
 
 fn main() {
@@ -98,10 +113,19 @@ fn main() {
             eprintln!("unzip: error: {}", e);
             std::process::exit(1);
         }
-    } else if let Some(_) = &cli.archive {
-        if let Err(e) = extract_archive(&cli) {
-            eprintln!("unzip: error: {}", e);
-            std::process::exit(1);
+    } else if cli.archive.is_some() {
+        match extract_archive(&cli) {
+            Ok(skipped_unsafe) => {
+                if skipped_unsafe {
+                    // At least one entry was refused; signal a partial
+                    // failure so scripts can detect unextracted content.
+                    std::process::exit(2);
+                }
+            }
+            Err(e) => {
+                eprintln!("unzip: error: {}", e);
+                std::process::exit(1);
+            }
         }
     } else {
         eprintln!("unzip: no archive specified");
