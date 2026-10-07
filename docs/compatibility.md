@@ -90,10 +90,10 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | split | --bytes, --lines, --number, --numeric-suffixes, --output, --suffix-length | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | stat | --file-system, --format, --terse, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | strings | --all, --bytes, --encoding, --print-file-name, --radix, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| sync | --version | Smoke only; behavior unverified | Currently shells out to the external sync; standalone capability is unverified. |
+| sync | --version | Smoke + behavior tests | Resolves an external sync.exe along PATH (candidates identical to this executable are skipped to prevent self-recursion) and propagates its exit code; falls back to rundll32 ProcessIdleTasks with a stderr notice when no external command is available. |
 | tac | --before, --separator, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | tail | --bytes, --follow, --lines, --quiet, --verbose | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| tar | --create, --extract, --file, --gzip, --list, --verbose | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| tar | --create, --extract, --file, --gzip, --list, --verbose | Smoke + behavior tests | Extraction rejects entries with absolute paths, drive/UNC prefixes, or '..' components (skipped with an error; exit code 2 when any entry was rejected). Full GNU behavior unverified. |
 | tee | --append, --ignore-interrupts, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | test | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | time | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |

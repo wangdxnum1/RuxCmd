@@ -89,10 +89,10 @@
 | split | --bytes, --lines, --number, --numeric-suffixes, --output, --suffix-length | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | stat | --file-system, --format, --terse, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | strings | --all, --bytes, --encoding, --print-file-name, --radix, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| sync | --version | 仅冒烟；业务待验证 | 当前业务调用外部 sync，独立使用能力尚未验证。 |
+| sync | --version | 冒烟 + 行为测试 | 沿 PATH 解析外部 sync.exe（跳过与本程序相同的候选以防自递归）并传播其退出码；无可用外部命令时回退 rundll32 ProcessIdleTasks（stderr 英文提示）。 |
 | tac | --before, --separator, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | tail | --bytes, --follow, --lines, --quiet, --verbose | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| tar | --create, --extract, --file, --gzip, --list, --verbose | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| tar | --create, --extract, --file, --gzip, --list, --verbose | 冒烟 + 行为测试 | 解包拒绝绝对路径、盘符/UNC 前缀或含 `..` 组件的条目（跳过并报错；发生拒绝时退出码 2）。完整 GNU 行为未验证。 |
 | tee | --append, --ignore-interrupts, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | test | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | time | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
