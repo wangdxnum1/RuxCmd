@@ -107,7 +107,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | unexpand | --all, --tabs, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | uniq | --count, --ignore-case, --repeated, --skip-fields, --unique, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | unzip | --directory, --list, --overwrite, --quiet, --version | Smoke + behavior tests | Unsafe entry paths (`..`, absolute, drive/UNC prefixes) are rejected with a warning and skipped; exit code 2 when any entry was rejected. Entry mtimes are not restored. Full GNU behavior unverified. |
-| uptime | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| uptime | See --help | Smoke + behavior tests | Reports seconds since boot via GetTickCount64; -p prints a Chinese-language duration. |
 | vmstat | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | w | --header, --help, --ignore-username, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | wc | --bytes, --chars, --lines, --max-line-length, --version, --words | Smoke + behavior tests | stdin output carries a <stdin> label, unlike GNU's unlabeled output. |
