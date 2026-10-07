@@ -3,7 +3,6 @@ mod cli;
 use clap::Parser;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::path::PathBuf;
 
 const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -128,36 +127,17 @@ fn decode_write<W: Write>(input: &[u8], out: &mut W) -> Result<(), std::io::Erro
     }
     let mut acc: u32 = 0;
     let mut bits: u32 = 0;
-    let mut pad = 0u32;
+    let mut pad_seen = false;
+    let mut invalid = false;
     for &ch in input {
         match ch {
-            b'\n' | b'\r' | b' ' | b'\t' => continue,
-            b'=' => {
-                pad += 1;
-                bits += 6;
-                if bits >= 24 {
-                    let mut out3 = [0u8; 3];
-                    out3[0] = ((acc >> 16) & 0xFF) as u8;
-                    out3[1] = ((acc >> 8) & 0xFF) as u8;
-                    out3[2] = (acc & 0xFF) as u8;
-                    let write_n = match pad {
-                        1 => 2,
-                        2 => 1,
-                        _ => 0,
-                    };
-                    if write_n > 0 {
-                        out.write_all(&out3[..write_n])?;
-                    }
-                    acc = 0;
-                    bits = 0;
-                    pad = 0;
-                }
-            }
+            b'\n' | b'\r' | b' ' | b'\t' => {}
+            b'=' => pad_seen = true,
             _ => {
                 let v = table[ch as usize];
-                if v == 255 {
-                    eprintln!("base64: invalid character in input");
-                    std::process::exit(1);
+                if v == 255 || pad_seen {
+                    invalid = true;
+                    break;
                 }
                 acc = (acc << 6) | (v as u32);
                 bits += 6;
@@ -170,26 +150,23 @@ fn decode_write<W: Write>(input: &[u8], out: &mut W) -> Result<(), std::io::Erro
                     out.write_all(&out3)?;
                     acc = 0;
                     bits = 0;
-                    pad = 0;
                 }
             }
         }
     }
-    if bits >= 12 {
-        let n = if bits >= 24 {
-            3
-        } else if bits >= 18 {
-            2
-        } else if pad > 0 {
-            if pad == 1 { 2 } else { 1 }
-        } else {
-            1
-        };
-        let shifts = [16u32, 8u32, 0u32];
-        for i in 0..n {
-            let b = ((acc >> shifts[i]) & 0xFF) as u8;
-            out.write_all(&[b])?;
-        }
+    // Emit whatever whole bytes remain in the accumulator. The bits past
+    // bits/8 are the zero padding of the final sextet group.
+    let whole = bits / 8;
+    for i in 0..whole {
+        let shift = bits - 8 * (i + 1);
+        out.write_all(&[((acc >> shift) & 0xFF) as u8])?;
+    }
+    if invalid || (bits > 0 && !pad_seen) {
+        // Flush every byte already decoded (including the partial group
+        // above) before reporting the failure, matching GNU coreutils.
+        out.flush()?;
+        eprintln!("base64: invalid input");
+        std::process::exit(1);
     }
     Ok(())
 }
