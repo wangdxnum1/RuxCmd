@@ -151,7 +151,10 @@ dependencies = [
 name = "bc"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
+ "tempfile",
 ]
 
 [[package]]
@@ -2603,7 +2606,11 @@ dependencies = [
 name = "touch"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
+ "tempfile",
+ "windows",
 ]
 
 [[package]]
