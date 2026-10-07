@@ -17,22 +17,32 @@ fn main() {
 fn parse_numbers(numbers: &[String]) -> (f64, f64, f64) {
     match numbers.len() {
         1 => {
-            let end = numbers[0].parse::<f64>().unwrap();
+            let end = parse_f64(&numbers[0]);
             (1.0, 1.0, end)
         }
         2 => {
-            let start = numbers[0].parse::<f64>().unwrap();
-            let end = numbers[1].parse::<f64>().unwrap();
+            let start = parse_f64(&numbers[0]);
+            let end = parse_f64(&numbers[1]);
             (start, 1.0, end)
         }
         3 => {
-            let start = numbers[0].parse::<f64>().unwrap();
-            let step = numbers[1].parse::<f64>().unwrap();
-            let end = numbers[2].parse::<f64>().unwrap();
+            let start = parse_f64(&numbers[0]);
+            let step = parse_f64(&numbers[1]);
+            let end = parse_f64(&numbers[2]);
             (start, step, end)
         }
         _ => {
             eprintln!("seq: wrong number of arguments");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn parse_f64(s: &str) -> f64 {
+    match s.parse::<f64>() {
+        Ok(value) => value,
+        Err(_) => {
+            eprintln!("seq: invalid floating point argument: '{}'", s);
             std::process::exit(1);
         }
     }
