@@ -4,7 +4,7 @@ use clap::Parser;
 #[command(
     name = "nslookup",
     version,
-    about = "Query Internet name servers interactively",
+    about = "Query DNS records for a name (types: A, AAAA, CNAME, MX, TXT)",
     disable_version_flag = true
 )]
 pub struct Args {
@@ -16,7 +16,4 @@ pub struct Args {
 
     #[arg(value_name = "NAME")]
     pub name: Option<String>,
-
-    #[arg(value_name = "SERVER")]
-    pub server: Option<String>,
 }
