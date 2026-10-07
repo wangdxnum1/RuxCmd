@@ -13,7 +13,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | base64 | --decode, --version, --wrap | Smoke + behavior tests | Decoding is strict like GNU: input without padding that is not a multiple of 4 produces decoded bytes but reports invalid input and exits 1. |
 | basename | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | bc | --version | Smoke + behavior tests | Integer arithmetic on i128 with truncating / and % (GNU scale=0 default); supports + - * / % ^ ( ), variable assignment, ; separators, # comments, and quit. No arbitrary precision, scale, ibase/obase, or functions - unsupported constructs print a notice and the line is skipped. Banner is bc 0.1.0 (RuxCmd). |
-| cal | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| cal | --version | Smoke + behavior tests | A single argument 1-12 is a month, 100-9999 a year; 13-99 is rejected. Full GNU behavior unverified. |
 | cat | --number, --number-nonblank, --show-all, --show-ends, --show-nonprinting, --show-tabs, --unbuffered | Smoke + behavior tests | Byte-transparent by default (CRLF, binary, and non-ASCII data pass through unchanged); -v uses byte-level ^/M- notation; -E does not mark an unterminated last line. Line numbering and empty-line compression state reset per file. |
 | chmod | --recursive, --verbose, --version | Smoke only; behavior unverified | Windows permission semantics are not equivalent to Unix modes. |
 | chown | --version | Smoke only; behavior unverified | Uses the Windows user/security APIs; Unix UID/GID semantics are not equivalent. |
@@ -21,7 +21,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | cmp | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | column | --output-separator, --separator, --table, --table-header-repeat, --table-right, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | comm | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| cp | --force, --interactive, --preserve, --recursive, --symbolic-link, --verbose | Smoke + behavior tests | Full GNU behavior unverified. |
+| cp | --force, --interactive, --preserve, --recursive, --symbolic-link, --verbose | Smoke + behavior tests | Sources ending in `.`/`..` merge their contents into an existing destination directory (error if it does not exist); with multiple sources the destination must be an existing directory. Full GNU behavior unverified. |
 | csplit | --digits, --elide-empty-files, --keep-files, --prefix, --quiet, --suffix-format | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | curl | --data, --header, --output, --request, --silent, --version | Smoke only; behavior unverified | HTTPS/TLS and network behavior are unverified. |
 | cut | --bytes, --characters, --delimiter, --fields, --only-delimited, --output-delimiter | Smoke only; behavior unverified | Full GNU behavior unverified. |
