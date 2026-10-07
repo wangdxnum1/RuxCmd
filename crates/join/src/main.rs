@@ -8,6 +8,13 @@ use std::io::{BufRead, BufReader};
 fn main() {
     let args = cli::Args::parse();
 
+    // Fields are numbered from 1 (GNU convention); 0 would underflow below.
+    if args.field1 == 0 || args.field2 == 0 {
+        let bad = if args.field1 == 0 { args.field1 } else { args.field2 };
+        eprintln!("join: invalid field number '{}'", bad);
+        std::process::exit(1);
+    }
+
     let field1 = args.field1 - 1;
     let field2 = args.field2 - 1;
     let delimiter = args.delimiter.unwrap_or('\t');
