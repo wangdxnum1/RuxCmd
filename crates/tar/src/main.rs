@@ -3,8 +3,8 @@ mod cli;
 use clap::Parser;
 use cli::Cli;
 use std::fs::File;
-use std::io::{self, BufReader, BufWriter};
-use std::path::Path;
+use std::io::{self, BufReader, BufWriter, Write};
+use std::path::{Component, Path};
 use std::time;
 
 fn create_archive(cli: &Cli) -> io::Result<()> {
@@ -56,6 +56,21 @@ fn create_archive(cli: &Cli) -> io::Result<()> {
     Ok(())
 }
 
+/// Returns false when an entry path must be rejected on extraction:
+/// absolute paths, Windows drive/UNC/verbatim prefixes, or any `..`
+/// component would let the entry escape the extraction directory.
+fn is_safe_entry_path(path: &Path) -> bool {
+    if path.as_os_str().is_empty() {
+        return false;
+    }
+    path.components().all(|component| {
+        matches!(
+            component,
+            Component::Normal(_) | Component::CurDir
+        )
+    })
+}
+
 fn extract_archive(cli: &Cli) -> io::Result<()> {
     let file = File::open(&cli.file)?;
     let reader: Box<dyn io::Read> = if cli.gzip {
@@ -65,16 +80,31 @@ fn extract_archive(cli: &Cli) -> io::Result<()> {
     };
 
     let mut archive = tar::Archive::new(BufReader::new(reader));
+    let mut rejected = false;
 
     for entry in archive.entries()? {
         let mut entry = entry?;
         let path = entry.path()?.to_path_buf();
+
+        if !is_safe_entry_path(&path) {
+            eprintln!(
+                "tar: skipping '{}': entry path is unsafe (absolute paths, drive prefixes, and '..' components are not allowed)",
+                path.display()
+            );
+            rejected = true;
+            continue;
+        }
 
         if cli.verbose {
             println!("{}", path.display());
         }
 
         entry.unpack(&path)?;
+    }
+
+    if rejected {
+        io::stdout().flush()?;
+        std::process::exit(2);
     }
 
     Ok(())
