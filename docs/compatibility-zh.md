@@ -9,11 +9,11 @@
 | 命令 | 显式长参数示例（源码） | 当前验证 | Windows 差异 / 限制 |
 | --- | --- | --- | --- |
 | awk | --assign, --field-separator, --file, --version | 仅冒烟；业务待验证 | 已有实现使用子串简化部分匹配；不是完整 awk 解释器。 |
-| base64 | --decode, --version, --wrap | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| base64 | --decode, --version, --wrap | 冒烟 + 行为测试 | 解码与 GNU 一致地严格：无填充且长度非 4 倍数的输入会输出已解码字节，但报 invalid input 并退出 1。 |
 | basename | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | bc | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | cal | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| cat | --number, --number-nonblank, --show-all, --show-ends, --show-nonprinting, --show-tabs | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
+| cat | --number, --number-nonblank, --show-all, --show-ends, --show-nonprinting, --show-tabs, --unbuffered | 冒烟 + 行为测试 | 默认字节透明（CRLF、二进制、非 ASCII 数据原样透传）；-v 使用字节级 ^/M- 记号；-E 不给未结尾的末行补 $。行号与空行压缩状态按文件重置。 |
 | chmod | --recursive, --verbose, --version | 仅冒烟；业务待验证 | Windows 权限语义与 Unix mode 不等价。 |
 | chown | --version | 仅冒烟；业务待验证 | 使用 Windows 用户/安全 API，Unix UID/GID 语义不等价。 |
 | clear | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
@@ -29,7 +29,7 @@
 | diff | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | dirname | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | du | --human-readable, --summarize, --total, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| echo | --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
+| echo | --version | 冒烟 + 行为测试 | 默认不解释转义（GNU 默认 -E）；-e 开启，-E 强制关闭；两者同给时 -E 生效。 |
 | env | --ignore-environment, --unset, --verbose, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | expand | --initial, --tabs, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | factor | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
@@ -70,7 +70,7 @@
 | ping | --count, --size, --timeout, --version | 仅冒烟；业务待验证 | 网络行为及权限要求尚未验证。 |
 | pkill | --full, --signal, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | pr | --double-space, --form-feed, --header, --indent, --length, --number-lines | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| printf | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| printf | --version | 冒烟 + 行为测试 | 实现格式串反斜杠转义（\n \r \t \ \" \0NNN \xHH）、缺参输出空串/0、非法数字参数退出 1。宽度/精度/标志与格式复用未实现。 |
 | ps | --ascii, --comm, --everyone, --extra-full, --forest, --format | 冒烟 + 行为测试 | 原生 Windows 进程信息；不可读取字段可能显示 ?。 |
 | pwd | --logical, --physical, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | readlink | --canonicalize, --no-newline, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |

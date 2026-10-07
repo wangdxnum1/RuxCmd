@@ -10,11 +10,11 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | --- | --- | --- | --- |
 | --- | --- | --- | --- |
 | awk | --assign, --field-separator, --file, --version | Smoke only; behavior unverified | The implementation simplifies some matching with substrings; it is not a full awk interpreter. |
-| base64 | --decode, --version, --wrap | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| base64 | --decode, --version, --wrap | Smoke + behavior tests | Decoding is strict like GNU: input without padding that is not a multiple of 4 produces decoded bytes but reports invalid input and exits 1. |
 | basename | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | bc | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | cal | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| cat | --number, --number-nonblank, --show-all, --show-ends, --show-nonprinting, --show-tabs | Smoke + behavior tests | Full GNU behavior unverified. |
+| cat | --number, --number-nonblank, --show-all, --show-ends, --show-nonprinting, --show-tabs, --unbuffered | Smoke + behavior tests | Byte-transparent by default (CRLF, binary, and non-ASCII data pass through unchanged); -v uses byte-level ^/M- notation; -E does not mark an unterminated last line. Line numbering and empty-line compression state reset per file. |
 | chmod | --recursive, --verbose, --version | Smoke only; behavior unverified | Windows permission semantics are not equivalent to Unix modes. |
 | chown | --version | Smoke only; behavior unverified | Uses the Windows user/security APIs; Unix UID/GID semantics are not equivalent. |
 | clear | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
@@ -30,7 +30,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | diff | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | dirname | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | du | --human-readable, --summarize, --total, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| echo | --version | Smoke + behavior tests | Full GNU behavior unverified. |
+| echo | --version | Smoke + behavior tests | Escapes are off by default (GNU -E default); -e enables them, -E forces off. When both are given, -E wins. |
 | env | --ignore-environment, --unset, --verbose, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | expand | --initial, --tabs, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | factor | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
@@ -71,7 +71,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | ping | --count, --size, --timeout, --version | Smoke only; behavior unverified | Network behavior and permission requirements are unverified. |
 | pkill | --full, --signal, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | pr | --double-space, --form-feed, --header, --indent, --length, --number-lines | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| printf | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| printf | --version | Smoke + behavior tests | Implements format-string backslash escapes (\n \r \t \ \" \0NNN \xHH), empty string/0 for missing arguments, and exit code 1 for invalid numeric arguments. Width/precision/flags and format reuse are not implemented. |
 | ps | --ascii, --comm, --everyone, --extra-full, --forest, --format | Smoke + behavior tests | Native Windows process information; unreadable fields may show ?. |
 | pwd | --logical, --physical, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | readlink | --canonicalize, --no-newline, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
