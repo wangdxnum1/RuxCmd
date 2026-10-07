@@ -39,9 +39,13 @@ fn main() {
         process::exit(1);
     }
 
+    // GNU patch default: no stripping (equivalent to -p0) when the option
+    // is omitted.
+    let strip = cli.strip.unwrap_or(0);
+
     let target_file = match &cli.target_file {
         Some(f) => f.clone(),
-        None => extract_target_file(&patch_content),
+        None => extract_target_file(&patch_content, strip),
     };
 
     if target_file.is_empty() {
@@ -51,11 +55,21 @@ fn main() {
         process::exit(1);
     }
 
+    // A creation patch (`--- /dev/null`, or hunks whose old range is
+    // `@@ -0,0`) applies to a file that does not exist yet; treat its old
+    // content as empty so the file is created when the result is written.
+    let is_creation = is_new_file_patch(&patch_content)
+        || hunks.iter().all(|h| h.old_start == 0 && h.old_count == 0);
+
     let mut target_content = match read_to_string(&target_file) {
         Ok(content) => content,
         Err(e) => {
-            eprintln!("Error reading target file {}: {}", target_file, e);
-            process::exit(1);
+            if is_creation {
+                String::new()
+            } else {
+                eprintln!("Error reading target file {}: {}", target_file, e);
+                process::exit(1);
+            }
         }
     };
 
@@ -205,22 +219,63 @@ fn parse_hunk(lines: &[&str], i: &mut usize) -> Option<Hunk> {
     })
 }
 
-fn extract_target_file(content: &str) -> String {
+fn extract_target_file(content: &str, strip: usize) -> String {
     for line in content.lines() {
         if line.starts_with("+++ ") {
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() >= 2 {
-                return parts[1].to_string();
+                return strip_path_components(parts[1], strip);
             }
         }
     }
     String::new()
 }
 
+/// True when the patch's `---` header names `/dev/null` (git-style file
+/// creation).
+fn is_new_file_patch(content: &str) -> bool {
+    for line in content.lines() {
+        if line.starts_with("--- ") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 2 {
+                return parts[1] == "/dev/null";
+            }
+        }
+    }
+    false
+}
+
+/// Strips `strip` leading components from a `---`/`+++` header path, GNU
+/// patch style: `-pN` removes the smallest prefix containing N leading
+/// slashes, so `b/file.txt` with `-p1` becomes `file.txt`, `/a/b/c` with
+/// `-p2` becomes `b/c`, and `C:/dir/file.txt` with `-p1` becomes
+/// `dir/file.txt` (drive letter and root slash are stripped together).
+/// `/dev/null` is never stripped. Returns an empty string when no name
+/// remains after stripping.
+fn strip_path_components(path: &str, strip: usize) -> String {
+    if strip == 0 || path == "/dev/null" {
+        return path.to_string();
+    }
+    let mut rest = path;
+    for _ in 0..strip {
+        match rest.find('/') {
+            Some(idx) => rest = &rest[idx + 1..],
+            None => return String::new(),
+        }
+    }
+    if rest.is_empty() {
+        // The path ended in a slash; no file name remains.
+        return String::new();
+    }
+    rest.to_string()
+}
+
 fn apply_hunk(content: &str, hunk: &Hunk) -> Result<String, String> {
     let lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
 
-    let old_start = hunk.old_start - 1;
+    // A `@@ -0,0` creation hunk has no old content and starts at line 0;
+    // saturate so the 0-based start does not underflow.
+    let old_start = hunk.old_start.saturating_sub(1);
     let old_end = old_start + hunk.old_count;
 
     if old_end > lines.len() {
@@ -232,52 +287,52 @@ fn apply_hunk(content: &str, hunk: &Hunk) -> Result<String, String> {
         ));
     }
 
-    let mut new_lines = Vec::new();
+    let mut new_lines: Vec<String> = Vec::new();
     let mut line_idx = 0;
-    let mut hunk_idx = 0;
 
-    while line_idx < lines.len() && hunk_idx < hunk.lines.len() {
-        if line_idx < old_start {
-            new_lines.push(lines[line_idx].clone());
-            line_idx += 1;
-        } else {
-            let (prefix, ref content) = hunk.lines[hunk_idx];
+    // Lines before the hunk's old range pass through unchanged. The range
+    // check above guarantees old_start <= lines.len().
+    while line_idx < old_start {
+        new_lines.push(lines[line_idx].clone());
+        line_idx += 1;
+    }
 
-            match prefix {
-                '-' => {
-                    if line_idx < lines.len() && lines[line_idx] == *content {
-                        line_idx += 1;
-                    } else {
-                        return Err(format!(
-                            "Hunk {} reject: expected '{}' but got '{}'",
-                            hunk.old_start,
-                            content,
-                            if line_idx < lines.len() {
-                                &lines[line_idx]
-                            } else {
-                                "EOF"
-                            }
-                        ));
-                    }
+    // Apply the hunk body. Additions may extend past the end of the old
+    // content (creation/append hunks); '-' and ' ' lines guard against
+    // running past EOF below.
+    for (prefix, hunk_line) in hunk.lines.iter() {
+        match *prefix {
+            '-' => {
+                if line_idx < lines.len() && lines[line_idx] == *hunk_line {
+                    line_idx += 1;
+                } else {
+                    return Err(format!(
+                        "Hunk {} reject: expected '{}' but got '{}'",
+                        hunk.old_start,
+                        hunk_line,
+                        if line_idx < lines.len() {
+                            &lines[line_idx]
+                        } else {
+                            "EOF"
+                        }
+                    ));
                 }
-                '+' => {
-                    new_lines.push(content.clone());
-                }
-                ' ' => {
-                    if line_idx < lines.len() && lines[line_idx] == *content {
-                        new_lines.push(lines[line_idx].clone());
-                        line_idx += 1;
-                    } else {
-                        return Err(format!(
-                            "Hunk {} reject: context mismatch '{}'",
-                            hunk.old_start, content
-                        ));
-                    }
-                }
-                _ => {}
             }
-
-            hunk_idx += 1;
+            '+' => {
+                new_lines.push(hunk_line.clone());
+            }
+            ' ' => {
+                if line_idx < lines.len() && lines[line_idx] == *hunk_line {
+                    new_lines.push(lines[line_idx].clone());
+                    line_idx += 1;
+                } else {
+                    return Err(format!(
+                        "Hunk {} reject: context mismatch '{}'",
+                        hunk.old_start, hunk_line
+                    ));
+                }
+            }
+            _ => {}
         }
     }
 
