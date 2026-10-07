@@ -67,8 +67,12 @@ fn transform_replace(input: &str, set1: &[char], set2: &[char]) -> String {
         if let Some(idx) = set1.iter().position(|&x| x == c) {
             if idx < set2_len {
                 result.push(set2[idx]);
-            } else {
+            } else if set2_len > 0 {
                 result.push(set2[set2_len - 1]);
+            } else {
+                // Empty SET2 never reaches translation (rejected upfront),
+                // but keep the mapping total instead of underflowing.
+                result.push(c);
             }
         } else {
             result.push(c);
@@ -109,7 +113,30 @@ fn main() -> io::Result<()> {
         return Ok(());
     }
 
-    let set1_str = cli.set1.expect("set1 is required");
+    let set1_str = match cli.set1 {
+        Some(s) => s,
+        None => {
+            eprintln!("tr: missing operand");
+            eprintln!("Usage: tr [OPTION]... SET1 [SET2]");
+            std::process::exit(1);
+        }
+    };
+
+    if !cli.delete && cli.set2.is_none() && !cli.squeeze {
+        // Translation without SET2 has nothing to translate to.
+        eprintln!("tr: missing operand after '{}'", set1_str);
+        std::process::exit(1);
+    }
+
+    if !cli.delete {
+        if let Some(ref set2) = cli.set2 {
+            if set2.is_empty() {
+                eprintln!("tr: when translating, SET2 must be non-empty");
+                std::process::exit(1);
+            }
+        }
+    }
+
     let set1_vec = build_char_vec(&set1_str);
     let mut set1_set = build_char_set(&set1_str);
 
