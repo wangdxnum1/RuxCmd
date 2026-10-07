@@ -2775,7 +2775,9 @@ dependencies = [
 name = "uptime"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "windows",
 ]
 
 [[package]]
@@ -2832,7 +2834,9 @@ dependencies = [
 name = "w"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
 ]
 
 [[package]]
