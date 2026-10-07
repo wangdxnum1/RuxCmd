@@ -1,4 +1,6 @@
 [package]
+license.workspace = true
+repository.workspace = true
 name = "basename"
 version = "1.0.0"
 edition = "2021"
