@@ -51,7 +51,7 @@ ps -ef --no-cmdline
 
 ### 输出格式
 - `-f`, `--full` — 完整列表 (`uid,pid,ppid,c,stime,tty,time,cmd`)
-- `-F`, `--extra-full` — 扩展完整列表 (`…+rss,psr,comm,args`)
+- `-F`, `--extra-full` — 扩展完整列表 (`…+vsz,rss,comm,args`)
 - `-l`, `--long` — 长格式
 - `-j`, `--jobs` — 作业格式
 - `-o`, `--format COLS` — 自定义列（逗号分隔）
@@ -101,24 +101,27 @@ ps -ef --no-cmdline
 | `thcount` / `nlwp` | 线程数 |
 | `f` | 标志（进程标志） |
 | `c` | CPU 利用率（CPU * 100 取整） |
-| `psr` | 当前分配的处理器 |
-| `wchan` | 等待通道 / 原因 |
-| `sz` | 大小（4 KiB 页数） |
-| `cputime` / `time` | CPU 时间（HH:MM:SS / MM:SS） |
+| `time` / `times` | CPU 时间（HH:MM:SS / 秒数） |
+
+后续计划实现的列（P1，尚未注册——请求会打印
+`ps: warning: unknown column '<name>', skipped`）：`sz`、`psr`、`wchan`、
+`cputime`。
 
 ## 不支持 / 尽力映射的列
 
 Windows 并不直接暴露每个 Linux 字段的概念。以下是尽力映射（见 [跨平台映射](#跨平台映射)）：
 
 - `vsz`, `rss` — 从 `GetProcessMemoryInfo` 派生
-- `cputime` — 从 `GetProcessTimes` 派生
+- `pmem` — 工作集除以 `GlobalMemoryStatusEx` 返回的物理内存总量
+- `time` / `times` — 从 `GetProcessTimes` 派生
 - `pcpu` — 从 CPU 时间与进程启动后的流逝时间计算
 - `stat` — 从 `GetExitCodeProcess` + 主窗口状态合成
 - `ni`, `pri` — 从 `GetPriorityClass` 合成
 - `tty` — Windows 没有 TTY；无控制台窗口时显示 `?`
 - `ruser` — 目前与 `user` 相同（Windows 令牌是每会话的）
 
-没有 Windows 对应概念的字段（如大多数 GUI 应用的 `wchan`）会显示为 `?` 而非省略。
+暂时没有 Windows 对应概念的列（`sz`、`psr`、`wchan`）一律不注册——见上
+方的"后续计划实现的列"说明——而不是显示为 `?`。
 
 ## 项目架构
 
@@ -158,7 +161,7 @@ ps/
 | `ppid` | `ProcessBasicInformation.InheritedFromUniqueProcessId` |
 | `rss` / `vsz` | `GetProcessMemoryInfo` (WorkingSetSize / PagefileUsage) |
 | `pcpu` | (CPU 时间) ÷ (自 `CreateTime` 以来的运行时间) |
-| `cputime` | `GetProcessTimes` |
+| `time` / `times` | `GetProcessTimes` |
 | `pri` / `ni` | `GetPriorityClass` 映射到 0..40 范围 |
 | `stat` | `GetExitCodeProcess` + 主窗口存在性 |
 | `start` | `GetProcessTimes`（创建时间） |

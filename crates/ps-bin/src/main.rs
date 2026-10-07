@@ -16,10 +16,26 @@ use render::{render_forest, render_table};
 
 type AppResult<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
+/// Raised when `GlobalMemoryStatusEx` fails and %MEM cannot be computed.
+#[derive(Debug)]
+struct MemoryUnavailable;
+
+impl std::fmt::Display for MemoryUnavailable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "cannot determine total physical memory (GlobalMemoryStatusEx failed)")
+    }
+}
+
+impl std::error::Error for MemoryUnavailable {}
+
 fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
+            if e.downcast_ref::<MemoryUnavailable>().is_some() {
+                eprintln!("ps: {e}");
+                return ExitCode::from(1);
+            }
             eprintln!("ps: error: {e}");
             ExitCode::from(2)
         }
@@ -53,6 +69,12 @@ fn run() -> AppResult<()> {
     }
 
     let cols: Vec<BoxCol> = resolve_columns(&cli)?;
+
+    // %MEM needs total physical memory; sample it once up front and fail
+    // loudly instead of silently emitting wrong percentages.
+    if ps_core::total_physical_memory().is_none() {
+        return Err(Box::new(MemoryUnavailable));
+    }
 
     let opts = if cli.no_cmdline {
         CollectOptions::FAST

@@ -2,6 +2,7 @@
 
 pub mod cmdline;
 pub mod error;
+pub mod meminfo;
 pub mod procinfo;
 pub mod snapshot;
 pub mod threads;
@@ -11,6 +12,7 @@ pub mod util;
 
 pub use cmdline::cmdline;
 pub use error::{Error, Result};
+pub use meminfo::total_physical_memory;
 pub use procinfo::{procinfo, ProcInfo};
 pub use snapshot::{snapshot as raw_snapshot, Snapshot};
 pub use threads::thread_counts;

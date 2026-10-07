@@ -54,7 +54,7 @@ ps -ef --no-cmdline
 
 ### Output format
 - `-f`, `--full` — full listing (`uid,pid,ppid,c,stime,tty,time,cmd`)
-- `-F`, `--extra-full` — extra full (`…+rss,psr,comm,args`)
+- `-F`, `--extra-full` — extra full (`…+vsz,rss,comm,args`)
 - `-l`, `--long` — long format
 - `-j`, `--jobs` — jobs format
 - `-o`, `--format COLS` — custom columns (comma-separated)
@@ -105,11 +105,11 @@ Run `ps --list-columns` to print the canonical list. Highlights:
 | `thcount` / `nlwp` | Number of threads                            |
 | `f`     | Flags (process flags)                                    |
 | `c`     | Processor utilization (CPU * 100 truncated)              |
-| `psr`   | Processor the process is currently assigned to           |
-| `wchan` | Wait channel / reason                                    |
-| `sz`    | Size in 4 KiB pages                                      |
-| `vsz`   | Virtual size in KiB                                      |
-| `cputime` / `time` | CPU time (HH:MM:SS / MM:SS)                  |
+| `time` / `times` | CPU time (HH:MM:SS / seconds)                   |
+
+Future columns (P1, not registered yet — requesting one prints
+`ps: warning: unknown column '<name>', skipped`): `sz`, `psr`, `wchan`,
+`cputime`.
 
 ## Unsupported / best-effort columns
 
@@ -117,15 +117,18 @@ Windows does not expose a 1:1 concept for every Linux field. These are
 best-effort mappings (see [Cross-platform mapping](#cross-platform-mapping)):
 
 - `vsz`, `rss` — derive from `GetProcessMemoryInfo`
-- `cputime` — derive from `GetProcessTimes`
+- `pmem` — working set divided by total physical memory from
+  `GlobalMemoryStatusEx`
+- `time` / `times` — derive from `GetProcessTimes`
 - `pcpu` — derived from CPU time vs elapsed wall clock since the process started
 - `stat` — synthesised from `GetExitCodeProcess` + main window state
 - `ni`, `pri` — synthesised from `GetPriorityClass`
 - `tty` — Windows has no TTYs; `?` when there is no console window
 - `ruser` — same as `user` for now (Windows tokens are per-session)
 
-Fields that have no Windows counterpart (e.g. `wchan` on most GUI apps) are
-rendered as `?` rather than omitted.
+Columns whose Linux fields have no Windows counterpart yet (`sz`, `psr`,
+`wchan`) are not registered at all — see the future-columns note above —
+rather than rendered as `?`.
 
 ## Architecture
 
@@ -165,7 +168,7 @@ ps/
 | `ppid`             | `ProcessBasicInformation.InheritedFromUniqueProcessId`  |
 | `rss` / `vsz`      | `GetProcessMemoryInfo` (WorkingSetSize / PagefileUsage) |
 | `pcpu`             | (CPU time) ÷ (uptime since `CreateTime`)                |
-| `cputime`          | `GetProcessTimes`                                       |
+| `time` / `times`   | `GetProcessTimes`                                       |
 | `pri` / `ni`       | `GetPriorityClass` mapped to 0..40 range                |
 | `stat`             | `GetExitCodeProcess` + main window presence             |
 | `start`            | `GetProcessTimes` (create time)                         |
