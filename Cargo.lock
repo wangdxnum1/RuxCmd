@@ -2313,7 +2313,10 @@ dependencies = [
 name = "sync"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
+ "tempfile",
 ]
 
 [[package]]
@@ -2386,9 +2389,12 @@ dependencies = [
 name = "tar"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
  "flate2",
+ "predicates",
  "tar 0.4.46",
+ "tempfile",
 ]
 
 [[package]]
