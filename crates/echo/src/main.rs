@@ -7,7 +7,9 @@ fn main() {
 
     let text = args.strings.join(" ");
 
-    let output = if args.enable_escapes || (!args.disable_escapes && !args.strings.is_empty()) {
+    // GNU echo defaults to -E: escapes are only interpreted when -e is
+    // given and -E does not explicitly turn them back off.
+    let output = if args.enable_escapes && !args.disable_escapes {
         expand_escapes(&text)
     } else {
         text
