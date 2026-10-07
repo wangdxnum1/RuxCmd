@@ -1,24 +1,26 @@
-# 贡献规范
+# Contributing
 
-请先阅读 [开发说明](docs/development.md) 和 [兼容性说明](docs/compatibility.md)。
+**English** | [简体中文](CONTRIBUTING-zh.md)
 
-## 新增命令
+Start with the [development notes](docs/development.md) and the [command compatibility notes](docs/compatibility.md).
 
-1. 在 `crates/<命令名>/` 创建 Rust package。根 workspace 的 `crates/*` 会自动纳入；二进制名称必须唯一。
-2. 定义参数与行为，记录 Windows 与 Linux 的差异。不要依赖个人机器路径。
-3. 在本 crate 的 `tests/` 中添加行为测试；涉及文件时使用独立临时目录，避免真实用户文件、系统进程或外网依赖。
-4. 在 `scripts/smoke-cases.json` 增加有界策略。通常使用 `--help`，但须确认解析会在任何副作用之前退出。`true`、`false` 直接断言退出码。
-5. 更新兼容性表和 CHANGELOG。不要仅凭能编译将功能标记为已验证。
-6. 更新根 Cargo.lock 并提交；CI 和发布使用 `--locked`。
+## Adding a command
 
-## 提交与 PR
+1. Create a Rust package under `crates/<command>/`. The root workspace's `crates/*` glob picks it up automatically; binary names must be unique.
+2. Define the arguments and behavior, and document the Windows/Linux differences. Do not depend on personal machine paths.
+3. Add behavior tests in the crate's own `tests/`; for file-related tests use isolated temporary directories and never touch real user files, system processes, or the network.
+4. Add a bounded smoke policy in `scripts/smoke-cases.json`. `--help` is the usual entry, but confirm that parsing exits before any side effect. `true` and `false` assert exit codes directly.
+5. Update the compatibility table and the CHANGELOG. Never mark a feature as verified merely because it compiles.
+6. Update the root `Cargo.lock` and commit it; CI and releases use `--locked`.
 
-按变化目的组织提交。功能修复附复现输入与回归测试，纯格式化避免与功能重写混合。保持现有依赖版本范围；升级依赖单独说明理由。
+## Commits and pull requests
 
-提交前执行 `pwsh -File scripts/build.ps1 -Task Verify`。涉及发行脚本时运行完整本地发布打包并检查解压后的产物。Clippy 历史 warning 暂不统一提升为错误；不要批量用 allow 隐藏问题。
+Organize commits by purpose. Bug fixes come with a reproducing input and a regression test; do not mix pure formatting with functional rewrites. Keep the existing dependency version ranges; explain dependency upgrades separately.
 
-PR 说明具体行为变化、验证命令与结果、未验证的平台或条件。无关日志和个人配置不进入 PR。
+Run `pwsh -File scripts/build.ps1 -Task Verify` before submitting. When release scripts change, run a full local release package and inspect the extracted artifacts. Historical Clippy warnings are not currently promoted to errors; do not hide problems with bulk `allow` attributes.
 
-## 发行
+The PR description states the concrete behavior change, the verification commands and their results, and any unverified platforms or conditions. Unrelated logs and personal configuration do not go into PRs.
 
-维护者更新 `workspace.metadata.ruxcmd.version` 和 CHANGELOG。从干净目录运行 `pwsh -File scripts/release.ps1 -Publish`，完整验证后创建/校验对应 tag、推送 tag 并上传 GitHub Release；使用 `-Draft` 可先创建草稿。也可手动推送 tag 后在 GitHub Actions 运行 Release，它仅生成 ZIP 和 `.sha256` artifact。参数及恢复说明见 [脚本说明](scripts/README.md)。
+## Releases
+
+Maintainers update `workspace.metadata.ruxcmd.version` and the CHANGELOG. From a clean checkout, run `pwsh -File scripts/release.ps1 -Publish`, which verifies everything, creates/validates the matching tag, pushes it, and uploads the GitHub Release; `-Draft` creates a draft first. Alternatively push a tag manually and run Release in GitHub Actions, which only produces the ZIP and `.sha256` artifacts. See the [script usage](scripts/README.md) for parameters and recovery instructions.

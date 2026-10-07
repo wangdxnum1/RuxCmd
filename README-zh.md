@@ -1,12 +1,13 @@
 # RuxCmd
 
 [![CI](https://github.com/wangdxnum1/RuxCmd/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/wangdxnum1/RuxCmd/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 [English](README.md) | **简体中文**
 
 用 Rust 实现的 Linux 风格 Windows 命令集。目前生成 **111 个独立可执行文件**，面向 Windows x64 / MSVC，覆盖文件、文本、进程、网络及系统信息工具。
 
-项目仍在开发中。命令名称和参数沿用 Linux 风格，但不保证完整 GNU/POSIX 兼容性。支持的选项及已知差异见[命令兼容性表](docs/compatibility.md)。
+项目仍在开发中。命令名称和参数沿用 Linux 风格，但不保证完整 GNU/POSIX 兼容性。支持的选项及已知差异见[命令兼容性表](docs/compatibility-zh.md)。
 
 ## 使用命令
 
@@ -145,7 +146,7 @@ pwsh -File scripts/release.ps1 -Publish
 
 只有 `-Publish` 才会联系 GitHub 执行发布。它从 `origin` 确定仓库，执行完整验证，在 HEAD 创建缺失的对应版本 tag（或使用指向该提交的已有 tag），生成干净的发布包，推送 tag 并上传 ZIP 和校验文件。已存在的 GitHub Release 和冲突 tag 都会被拒绝。使用 `-Draft` 创建草稿，或通过 `-NotesFile` 指定发布说明；默认使用已提交的 CHANGELOG。上传失败时保留本地文件和已推送的 tag，供排查及手动恢复。
 
-完整参数、示例及输出路径见[脚本使用说明](scripts/README.md)。可以从其他目录通过完整路径运行脚本；相对 `-OutputDir` 和 `-NotesFile` 按当前 PowerShell 目录解析。
+完整参数、示例及输出路径见[脚本使用说明](scripts/README-zh.md)。可以从其他目录通过完整路径运行脚本；相对 `-OutputDir` 和 `-NotesFile` 按当前 PowerShell 目录解析。
 
 ## 项目结构
 
@@ -163,12 +164,14 @@ rust-toolchain.toml      固定 Rust 工具链
 
 ## 贡献与文档
 
-- [贡献规范](CONTRIBUTING.md)
-- [开发说明](docs/development.md)
-- [命令兼容性](docs/compatibility.md)
+- [贡献规范](CONTRIBUTING-zh.md)（[English](CONTRIBUTING.md)）
+- [开发说明](docs/development-zh.md)（[English](docs/development.md)）
+- [命令兼容性](docs/compatibility-zh.md)（[English](docs/compatibility.md)）
+- [行为准则](CODE_OF_CONDUCT.md)
+- [安全策略](SECURITY.md)
 - [变更记录](CHANGELOG.md)
 - [ps 文档](docs/ps/README-zh.md)
 
 ## 许可证
 
-整个仓库尚未统一指定许可证。`ps` 的三个包保留已有 MIT 元数据声明。仓库公开不代表整个项目已采用统一的开源许可证。
+本项目以 [MIT 许可证](LICENSE) 发布。`ps` 的三个包此前声明的 MIT 元数据与仓库许可证一致。

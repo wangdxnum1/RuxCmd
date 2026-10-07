@@ -1,121 +1,124 @@
-# 命令与 Windows 兼容性
+# Command and Windows compatibility
 
-当前发行范围为 111 个命令。下表参数来自各 cli.rs 中显式声明的 long 名称，不是完整语法；以该命令 --help 为准。源码声明不等于功能已经通过测试。
+**English** | [简体中文](compatibility-zh.md)
 
-所有命令已通过有界发布冒烟检查（帮助入口，true/false 为退出码）。只有标记“行为测试”的命令运行了代表性业务断言；其余业务行为尚未自动验证。未声明完整 GNU/POSIX 兼容性。
+The current release covers 111 commands. The options in the table below are the explicit long names declared in each command's `cli.rs`, not the full syntax; the command's `--help` is authoritative. A source declaration does not mean the feature has passed tests.
 
-| 命令 | 显式长参数示例（源码） | 当前验证 | Windows 差异 / 限制 |
+All commands have passed bounded release smoke checks (help entry, exit codes for true/false). Only commands marked "Smoke + behavior tests" have run representative behavior assertions; the remaining business behavior is not automatically verified. Full GNU/POSIX compatibility is not claimed.
+
+| Command | Explicit long options (from source) | Verification status | Windows differences / limitations |
 | --- | --- | --- | --- |
-| awk | --assign, --field-separator, --file, --version | 仅冒烟；业务待验证 | 已有实现使用子串简化部分匹配；不是完整 awk 解释器。 |
-| base64 | --decode, --version, --wrap | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| basename | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| bc | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| cal | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| cat | --number, --number-nonblank, --show-all, --show-ends, --show-nonprinting, --show-tabs | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
-| chmod | --recursive, --verbose, --version | 仅冒烟；业务待验证 | Windows 权限语义与 Unix mode 不等价。 |
-| chown | --version | 仅冒烟；业务待验证 | 使用 Windows 用户/安全 API，Unix UID/GID 语义不等价。 |
-| clear | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| cmp | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| column | --output-separator, --separator, --table, --table-header-repeat, --table-right, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| comm | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| cp | --force, --interactive, --preserve, --recursive, --symbolic-link, --verbose | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
-| csplit | --digits, --elide-empty-files, --keep-files, --prefix, --quiet, --suffix-format | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| curl | --data, --header, --output, --request, --silent, --version | 仅冒烟；业务待验证 | HTTPS/TLS 与联网行为尚未验证。 |
-| cut | --bytes, --characters, --delimiter, --fields, --only-delimited, --output-delimiter | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| date | --date, --nanoseconds, --seconds, --set, --utc, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| df | --human-readable, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| diff | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| dirname | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| du | --human-readable, --summarize, --total, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| echo | --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
-| env | --ignore-environment, --unset, --verbose, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| expand | --initial, --tabs, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| factor | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| false | --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
-| file | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| find | --basename, --ignore-case, --maxdepth, --mindepth, --name, --regex | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| fmt | --crown-margin, --split-only, --version, --width | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| fold | --bytes, --spaces, --version, --width | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| free | --bytes, --gigabytes, --human-readable, --kilobytes, --megabytes, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| grep | --count, --ignore-case, --invert-match, --line-number, --line-regexp, --only-matching | 冒烟 + 行为测试 | 匹配/未匹配退出码已验证；递归错误传播尚未验证。 |
-| groups | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| gunzip | --force, --keep, --verbose | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| head | --bytes, --lines, --quiet, --verbose | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| hexdump | --ascii, --canonical, --decimal, --hexadecimal, --length, --octal | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| hostname | --fqdn, --ip-address, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| iconv | --from-code, --list, --output, --to-code, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| id | --group, --groups, --name, --user, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| iostat | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| join | --separator, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| kill | --list, --signal, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| ln | --force, --symbolic, --version | 仅冒烟；业务待验证 | Windows 符号链接可能需要权限或开发者模式。 |
-| ls | --all, --almost-all, --author, --block-size, --classify, --color | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| md5sum | --check, --quiet, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| mkdir | --mode, --parents, --verbose | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| mkfifo | --mode, --version | 仅冒烟；业务待验证 | Windows 管道语义与 POSIX FIFO 不等价。 |
-| mpstat | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| mv | --force, --interactive, --no-clobber, --verbose | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
-| netstat | --all, --numeric, --protocol, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| nice | --adjustment, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| nl | --body-numbering, --number-width, --separator, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| nslookup | --type, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| numfmt | --delimiter, --field, --from, --from-unit, --grouping, --header | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| od | --address-radix, --ascii, --decimal, --format, --hexadecimal, --octal | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| open | --application, --edit, --reveal, --version, --wait | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| paste | --delimiters, --serial, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| patch | --force, --reverse, --strip, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| pgrep | --full, --list-name, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| ping | --count, --size, --timeout, --version | 仅冒烟；业务待验证 | 网络行为及权限要求尚未验证。 |
-| pkill | --full, --signal, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| pr | --double-space, --form-feed, --header, --indent, --length, --number-lines | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| printf | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| ps | --ascii, --comm, --everyone, --extra-full, --forest, --format | 冒烟 + 行为测试 | 原生 Windows 进程信息；不可读取字段可能显示 ?。 |
-| pwd | --logical, --physical, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| readlink | --canonicalize, --no-newline, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| realpath | --strip-components, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| reset | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| rev | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| rm | --dir, --force, --no-preserve-root, --one-file-system, --preserve-root, --verbose | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
-| sar | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| sed | --expression, --in-place, --separate, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| seq | --equal-width, --format, --separator, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| sha256sum | --check, --quiet, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| shred | --force, --iterations, --remove, --verbose, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| shuf | --head-count, --input-range, --output, --random-source, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| sleep | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| sort | --check, --field-separator, --human-numeric-sort, --ignore-case, --key, --numeric-sort | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| split | --bytes, --lines, --number, --numeric-suffixes, --output, --suffix-length | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| stat | --file-system, --format, --terse, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| strings | --all, --bytes, --encoding, --print-file-name, --radix, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| sync | --version | 仅冒烟；业务待验证 | 当前业务调用外部 sync，独立使用能力尚未验证。 |
-| tac | --before, --separator, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| tail | --bytes, --follow, --lines, --quiet, --verbose | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| tar | --create, --extract, --file, --gzip, --list, --verbose | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| tee | --append, --ignore-interrupts, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| test | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| time | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| timeout | --kill-after, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| top | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| touch | --no-create, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| tr | --complement, --delete, --squeeze, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| true | --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
-| tty | --all, --silent, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| uname | --all, --kernel-name, --kernel-release, --kernel-version, --machine, --nodename | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| unexpand | --all, --tabs, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| uniq | --count, --ignore-case, --repeated, --skip-fields, --unique, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| unzip | --directory, --list, --overwrite, --quiet, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| uptime | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| vmstat | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| w | --header, --help, --ignore-username, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| wc | --bytes, --chars, --lines, --max-line-length, --version, --words | 冒烟 + 行为测试 | stdin 输出附带 <stdin> 标签；不是 GNU 的无标签输出。 |
-| wget | --directory-prefix, --output-document, --quiet, --version | 仅冒烟；业务待验证 | HTTPS/TLS 与联网行为尚未验证。 |
-| whereis | --version | 仅冒烟；业务待验证 | 保留历史固定搜索路径，待专项修正。 |
-| which | --all, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| who | --all, --boot, --dead, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| whoami | --hostname, --username, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| xargs | --interactive, --max-args, --replace, --verbose, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| yes | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| zcat | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| zip | --recurse, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| --- | --- | --- | --- |
+| awk | --assign, --field-separator, --file, --version | Smoke only; behavior unverified | The implementation simplifies some matching with substrings; it is not a full awk interpreter. |
+| base64 | --decode, --version, --wrap | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| basename | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| bc | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| cal | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| cat | --number, --number-nonblank, --show-all, --show-ends, --show-nonprinting, --show-tabs | Smoke + behavior tests | Full GNU behavior unverified. |
+| chmod | --recursive, --verbose, --version | Smoke only; behavior unverified | Windows permission semantics are not equivalent to Unix modes. |
+| chown | --version | Smoke only; behavior unverified | Uses the Windows user/security APIs; Unix UID/GID semantics are not equivalent. |
+| clear | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| cmp | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| column | --output-separator, --separator, --table, --table-header-repeat, --table-right, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| comm | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| cp | --force, --interactive, --preserve, --recursive, --symbolic-link, --verbose | Smoke + behavior tests | Full GNU behavior unverified. |
+| csplit | --digits, --elide-empty-files, --keep-files, --prefix, --quiet, --suffix-format | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| curl | --data, --header, --output, --request, --silent, --version | Smoke only; behavior unverified | HTTPS/TLS and network behavior are unverified. |
+| cut | --bytes, --characters, --delimiter, --fields, --only-delimited, --output-delimiter | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| date | --date, --nanoseconds, --seconds, --set, --utc, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| df | --human-readable, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| diff | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| dirname | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| du | --human-readable, --summarize, --total, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| echo | --version | Smoke + behavior tests | Full GNU behavior unverified. |
+| env | --ignore-environment, --unset, --verbose, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| expand | --initial, --tabs, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| factor | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| false | --version | Smoke + behavior tests | Full GNU behavior unverified. |
+| file | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| find | --basename, --ignore-case, --maxdepth, --mindepth, --name, --regex | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| fmt | --crown-margin, --split-only, --version, --width | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| fold | --bytes, --spaces, --version, --width | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| free | --bytes, --gigabytes, --human-readable, --kilobytes, --megabytes, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| grep | --count, --ignore-case, --invert-match, --line-number, --line-regexp, --only-matching | Smoke + behavior tests | Match/no-match exit codes verified; recursive error propagation unverified. |
+| groups | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| gunzip | --force, --keep, --verbose | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| head | --bytes, --lines, --quiet, --verbose | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| hexdump | --ascii, --canonical, --decimal, --hexadecimal, --length, --octal | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| hostname | --fqdn, --ip-address, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| iconv | --from-code, --list, --output, --to-code, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| id | --group, --groups, --name, --user, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| iostat | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| join | --separator, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| kill | --list, --signal, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| ln | --force, --symbolic, --version | Smoke only; behavior unverified | Windows symbolic links may require privileges or Developer Mode. |
+| ls | --all, --almost-all, --author, --block-size, --classify, --color | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| md5sum | --check, --quiet, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| mkdir | --mode, --parents, --verbose | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| mkfifo | --mode, --version | Smoke only; behavior unverified | Windows pipe semantics are not equivalent to POSIX FIFOs. |
+| mpstat | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| mv | --force, --interactive, --no-clobber, --verbose | Smoke + behavior tests | Full GNU behavior unverified. |
+| netstat | --all, --numeric, --protocol, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| nice | --adjustment, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| nl | --body-numbering, --number-width, --separator, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| nslookup | --type, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| numfmt | --delimiter, --field, --from, --from-unit, --grouping, --header | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| od | --address-radix, --ascii, --decimal, --format, --hexadecimal, --octal | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| open | --application, --edit, --reveal, --version, --wait | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| paste | --delimiters, --serial, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| patch | --force, --reverse, --strip, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| pgrep | --full, --list-name, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| ping | --count, --size, --timeout, --version | Smoke only; behavior unverified | Network behavior and permission requirements are unverified. |
+| pkill | --full, --signal, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| pr | --double-space, --form-feed, --header, --indent, --length, --number-lines | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| printf | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| ps | --ascii, --comm, --everyone, --extra-full, --forest, --format | Smoke + behavior tests | Native Windows process information; unreadable fields may show ?. |
+| pwd | --logical, --physical, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| readlink | --canonicalize, --no-newline, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| realpath | --strip-components, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| reset | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| rev | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| rm | --dir, --force, --no-preserve-root, --one-file-system, --preserve-root, --verbose | Smoke + behavior tests | Full GNU behavior unverified. |
+| sar | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| sed | --expression, --in-place, --separate, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| seq | --equal-width, --format, --separator, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| sha256sum | --check, --quiet, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| shred | --force, --iterations, --remove, --verbose, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| shuf | --head-count, --input-range, --output, --random-source, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| sleep | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| sort | --check, --field-separator, --human-numeric-sort, --ignore-case, --key, --numeric-sort | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| split | --bytes, --lines, --number, --numeric-suffixes, --output, --suffix-length | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| stat | --file-system, --format, --terse, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| strings | --all, --bytes, --encoding, --print-file-name, --radix, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| sync | --version | Smoke only; behavior unverified | Currently shells out to the external sync; standalone capability is unverified. |
+| tac | --before, --separator, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| tail | --bytes, --follow, --lines, --quiet, --verbose | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| tar | --create, --extract, --file, --gzip, --list, --verbose | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| tee | --append, --ignore-interrupts, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| test | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| time | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| timeout | --kill-after, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| top | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| touch | --no-create, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| tr | --complement, --delete, --squeeze, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| true | --version | Smoke + behavior tests | Full GNU behavior unverified. |
+| tty | --all, --silent, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| uname | --all, --kernel-name, --kernel-release, --kernel-version, --machine, --nodename | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| unexpand | --all, --tabs, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| uniq | --count, --ignore-case, --repeated, --skip-fields, --unique, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| unzip | --directory, --list, --overwrite, --quiet, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| uptime | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| vmstat | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| w | --header, --help, --ignore-username, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| wc | --bytes, --chars, --lines, --max-line-length, --version, --words | Smoke + behavior tests | stdin output carries a <stdin> label, unlike GNU's unlabeled output. |
+| wget | --directory-prefix, --output-document, --quiet, --version | Smoke only; behavior unverified | HTTPS/TLS and network behavior are unverified. |
+| whereis | --version | Smoke only; behavior unverified | Keeps historical fixed search paths; a dedicated fix is pending. |
+| which | --all, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| who | --all, --boot, --dead, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| whoami | --hostname, --username, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| xargs | --interactive, --max-args, --replace, --verbose, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| yes | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| zcat | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| zip | --recurse, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 
-更详细的 ps 参数文档见 [ps README](ps/README-zh.md)。本表由首次源码调查建立，新增或修改命令时需同步更新。
+See the [ps README](ps/README.md) for detailed ps option documentation. This table was established by the first source survey and must be kept in sync when commands are added or changed.

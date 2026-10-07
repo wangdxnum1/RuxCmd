@@ -1,39 +1,41 @@
-# 开发与构建
+# Development and building
 
-## 工程结构
+**English** | [简体中文](development-zh.md)
 
-根 virtual workspace 管理 `crates/*`。目前 113 个 package 产出 111 个命令；`ps-sys`、`ps-core` 是库，`ps-bin` 产出 `ps.exe`。Cargo metadata 是构建及发布工具清单的唯一来源，冒烟策略必须与其二进制集合一致。
+## Project structure
 
-Edition 2021/2024 和各 crate 原版本保留。根 Cargo.lock 固定整个套件的依赖，resolver 为 3。ps 保留原来声明的 Rust 1.75 元数据，但整个仓库当前只用固定的 1.99.0 验证，不承诺整体 MSRV。
+The root virtual workspace manages `crates/*`. Currently 113 packages produce 111 commands; `ps-sys` and `ps-core` are libraries, and `ps-bin` produces `ps.exe`. Cargo metadata is the single source of truth for the build and release tool inventories; smoke policies must stay consistent with that binary set.
 
-Cargo 命令可在根使用 `--workspace`，也可在单个 crate 目录运行；两者使用根锁文件和 target。默认 debug 产物路径可能受用户 Cargo 配置影响，发布命令显式使用 x86_64-pc-windows-msvc。
+Editions 2021/2024 and each crate's original version are preserved. The root `Cargo.lock` pins the whole suite's dependencies, with resolver 3. The ps packages keep their originally declared Rust 1.75 metadata, but the repository as a whole is only validated against the pinned 1.99.0; no suite-wide MSRV is promised.
 
-## 检查与测试
+Cargo commands can run with `--workspace` at the root or inside a single crate directory; both use the root lockfile and target. The default debug artifact path can be influenced by user Cargo configuration; release commands explicitly use x86_64-pc-windows-msvc.
 
-统一入口为 `scripts/build.ps1`；`-Task Verify` 执行与 CI 相同的完整流程，参数见 [脚本说明](../scripts/README.md)。Rust 集成测试覆盖 cat、echo、wc、grep、cp、mv、rm、true、false 和现有 ps 行为。文件测试使用 tempfile；没有测试依赖联网或终止真实进程。
+## Checks and tests
 
-发布冒烟只运行经过源码检查的帮助入口，以及 true/false 的退出码。每个进程有超时，异步读取输出和错误，超时终止本次进程树。帮助通过说明启动/参数入口能工作，不证明全部业务行为正确。
+The unified entry point is `scripts/build.ps1`; `-Task Verify` runs the same complete pipeline as CI, and parameters are documented in the [script usage](../scripts/README.md). Rust integration tests cover cat, echo, wc, grep, cp, mv, rm, true, false, and the existing ps behavior. File tests use tempfile; no test depends on the network or on killing real processes.
 
-路径按 PowerShell 当前目录解析，即使执行过 Set-Location 而 .NET 进程目录未同步，也可正确使用相对 BinDir/OutputDir。进程等待、stdin 写入和输出管道共用截止时间；Windows Job Object 负责本次子进程及其后代的生命周期，包括父进程先退出而后代仍持有输出管道的情况。
+Release smoke checks only run help entries that were reviewed in source, plus true/false exit codes. Every process has a timeout, reads output and errors asynchronously, and on timeout terminates that process tree. Passing the help check proves the startup/argument entry point works; it does not prove all business behavior.
 
-`scripts/tests/package-tests.ps1` 的 17 个测试检查含空格路径、Set-Location 后的相对路径、参数、超时、继承输出管道的后代、阻塞 stdin、大输出、ps-bin/ps 名称、清单遗漏、旧产物、校验篡改、发行标签和拒绝覆盖等失败条件。
+Paths are resolved against the PowerShell current directory, so relative BinDir/OutputDir values keep working even after Set-Location when the .NET process directory has not been synced. Process waits, stdin writes, and output pipes share a common deadline; a Windows Job Object owns the lifetime of the spawned child tree, including descendants that outlive a parent already exited while still holding output pipes.
 
-## 打包实现
+The 17 tests in `scripts/tests/package-tests.ps1` cover failure conditions such as paths containing spaces, relative paths after Set-Location, arguments, timeouts, descendants inheriting output pipes, blocking stdin, large outputs, ps-bin/ps naming, manifest omissions, stale artifacts, checksum tampering, release tags, and refusing overwrites.
 
-用户入口为 `scripts/release.ps1`，默认生成本地包，只有 `-Publish` 执行 GitHub 发布。底层 `scripts/package.ps1` 解析 Cargo JSON compiler-artifact 消息，只收集与 workspace binary target 精确对应的 exe。每次使用唯一暂存目录，不从旧 target 或 dist 模糊匹配文件。
+## Packaging implementation
 
-通过 MSVC dumpbin 检查 PE 导入依赖，拒绝非系统 DLL 或动态 VC runtime 依赖；每个 exe 的依赖记录写入 manifest。静态 CRT 配置保留在 `.cargo/config.toml`，但实际检查结果才是发行依据。
+The user entry point is `scripts/release.ps1`, which produces a local package by default; only `-Publish` performs the GitHub release. The underlying `scripts/package.ps1` parses Cargo JSON compiler-artifact messages and collects only exes that exactly correspond to workspace binary targets. Every run uses a unique staging directory and never fuzzy-matches files from old target or dist directories.
 
-清单包含 suiteVersion、target、rustcVersion、sourceCommit、dirty、binaries 与 files。SHA256SUMS 覆盖 exe 和随包文档；清单和校验索引不循环校验自身，外部 `.sha256` 校验整个 ZIP。生成后解压到独立临时目录，核对完整文件集合和校验值，再运行全部冒烟及代表性行为检查。
+PE import dependencies are checked with MSVC dumpbin; non-system DLLs and dynamic VC runtime dependencies are rejected, and each exe's dependencies are recorded in the manifest. The static CRT configuration lives in `.cargo/config.toml`, but the actual check results are what a release relies on.
 
-相同版本的包已存在时不会覆盖。脚本默认仅清理本次创建的暂存目录和失败的本次归档，不删除历史发行文件。
+The manifest contains suiteVersion, target, rustcVersion, sourceCommit, dirty, binaries, and files. SHA256SUMS covers the exes and bundled docs; the manifest and the checksum index do not verify themselves recursively, and the external `.sha256` file verifies the whole ZIP. After generation, the ZIP is extracted to a separate temporary directory, the full file set and checksums are compared, and all smoke plus representative behavior checks run again.
 
-## 当前已知问题
+Existing packages of the same version are never overwritten. By default the scripts only clean staging directories created by the current run and failed archives of the current run; historical release files are not deleted.
 
-- 历史代码含 unused import/variable、dead code 和 Clippy 风格 warning，基线门槛是检查命令成功退出；后续逐步消除。
-- 此次行为测试暴露并修复 cp/mv 的源参数必需性声明和 grep 未匹配退出码；csplit 的溢出检查改为 checked_add。
-- `wc -l` 对 stdin 会带 `<stdin>` 标签，与常见 GNU 输出不同，目前测试保留该行为。
-- `whereis` 仍含历史固定搜索路径；其业务兼容性需另行修正，构建和发行流程不依赖该路径。
-- 迁移留下的旧各命令 target 缓存不属于发布输入，且被忽略；需要腾空间时可由维护者另行清理。
-- Windows ARM64、x86、最低 Windows 版本和完整 GNU/POSIX 兼容性尚未验证。
-- 远程 CI 的真实运行结果以 GitHub Actions 为准，本地命令通过不等于远程 workflow 已运行。
+## Known issues
+
+- Historical code contains unused imports/variables, dead code, and Clippy style warnings; the baseline gate is that check commands exit successfully, to be cleaned up incrementally.
+- Behavior testing surfaced and fixed the cp/mv source-argument requiredness declarations and grep's no-match exit code; csplit's overflow check was changed to checked_add.
+- `wc -l` reading stdin emits a `<stdin>` label, which differs from common GNU output; tests currently preserve that behavior.
+- `whereis` still contains historical fixed search paths; its behavioral compatibility needs a dedicated fix, and the build/release pipeline does not depend on them.
+- Old per-command target caches left over from the migration are not release inputs and are ignored; maintainers can clean them manually when disk space is needed.
+- Windows ARM64, x86, minimum Windows versions, and full GNU/POSIX compatibility remain unverified.
+- For remote CI, real results are whatever GitHub Actions reports; local command success does not mean the remote workflow has run.

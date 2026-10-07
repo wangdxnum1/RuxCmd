@@ -1,6 +1,7 @@
 # RuxCmd
 
 [![CI](https://github.com/wangdxnum1/RuxCmd/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/wangdxnum1/RuxCmd/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **English** | [简体中文](README-zh.md)
 
@@ -163,12 +164,14 @@ rust-toolchain.toml      Pinned Rust toolchain
 
 ## Contributing and documentation
 
-- [Contribution guidelines](CONTRIBUTING.md) (Chinese)
-- [Development notes](docs/development.md) (Chinese)
-- [Command compatibility](docs/compatibility.md) (Chinese)
+- [Contributing](CONTRIBUTING.md) ([简体中文](CONTRIBUTING-zh.md))
+- [Development notes](docs/development.md) ([开发说明](docs/development-zh.md))
+- [Command compatibility](docs/compatibility.md) ([兼容性说明](docs/compatibility-zh.md))
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security policy](SECURITY.md)
 - [Changelog](CHANGELOG.md)
 - [ps documentation](docs/ps/README.md)
 
 ## License
 
-A repository-wide license has not yet been selected. The three `ps` packages retain their existing MIT metadata declarations. Public repository visibility does not establish a uniform open-source license for the whole project.
+This project is licensed under the [MIT License](LICENSE). The three `ps` packages previously declared MIT metadata, which matches the repository license.
