@@ -16,6 +16,6 @@ pub struct Args {
     #[arg(value_name = "DURATION")]
     pub duration: String,
 
-    #[arg(value_name = "COMMAND")]
+    #[arg(value_name = "COMMAND", trailing_var_arg = true, allow_hyphen_values = true)]
     pub command: Vec<String>,
 }
