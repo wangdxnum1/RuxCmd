@@ -26,6 +26,15 @@ fn get_memory_info() -> (u64, u64, u64, u64) {
     )
 }
 
+fn warn_snapshot_failed_once() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    static SNAPSHOT_WARNED: AtomicBool = AtomicBool::new(false);
+    if !SNAPSHOT_WARNED.swap(true, Ordering::Relaxed) {
+        eprintln!("top: failed to create a process snapshot; process counts are unavailable");
+    }
+}
+
 fn get_process_count() -> u64 {
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::System::Diagnostics::ToolHelp::{
@@ -35,6 +44,7 @@ fn get_process_count() -> u64 {
 
     let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
     if snapshot == windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE {
+        warn_snapshot_failed_once();
         return 0;
     }
 
@@ -62,6 +72,10 @@ fn get_process_count() -> u64 {
     count
 }
 
+fn header_process_count(processes: u64) -> u64 {
+    processes.saturating_sub(1)
+}
+
 fn print_header() {
     let now = Local::now();
     let (used, free, total, percent) = get_memory_info();
@@ -75,7 +89,7 @@ fn print_header() {
     println!(
         "Tasks: {} total, 0 running, {} sleeping, 0 stopped, 0 zombie",
         processes,
-        (processes - 1)
+        header_process_count(processes)
     );
     println!("%Cpu(s): 0.0 us, 0.0 sy, 0.0 ni, 0.0 id, 0.0 wa, 0.0 hi, 0.0 si, 0.0 st");
     println!(
@@ -164,5 +178,24 @@ fn main() {
             std::thread::sleep(std::time::Duration::from_secs(args.delay as u64));
             println!("\n\n");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::header_process_count;
+
+    #[test]
+    fn zero_processes_does_not_underflow() {
+        // P0 #38 regression: an empty snapshot used to compute 0 - 1 and
+        // wrap around to u64::MAX in release builds (debug panic).
+        assert_eq!(header_process_count(0), 0);
+    }
+
+    #[test]
+    fn nonzero_processes_keep_minus_one() {
+        assert_eq!(header_process_count(1), 0);
+        assert_eq!(header_process_count(5), 4);
+        assert_eq!(header_process_count(u64::MAX), u64::MAX - 1);
     }
 }
