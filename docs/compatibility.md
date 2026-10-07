@@ -12,7 +12,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | awk | --assign, --field-separator, --file, --version | Smoke only; behavior unverified | The implementation simplifies some matching with substrings; it is not a full awk interpreter. |
 | base64 | --decode, --version, --wrap | Smoke + behavior tests | Decoding is strict like GNU: input without padding that is not a multiple of 4 produces decoded bytes but reports invalid input and exits 1. |
 | basename | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| bc | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| bc | --version | Smoke + behavior tests | Integer arithmetic on i128 with truncating / and % (GNU scale=0 default); supports + - * / % ^ ( ), variable assignment, ; separators, # comments, and quit. No arbitrary precision, scale, ibase/obase, or functions - unsupported constructs print a notice and the line is skipped. Banner is bc 0.1.0 (RuxCmd). |
 | cal | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | cat | --number, --number-nonblank, --show-all, --show-ends, --show-nonprinting, --show-tabs, --unbuffered | Smoke + behavior tests | Byte-transparent by default (CRLF, binary, and non-ASCII data pass through unchanged); -v uses byte-level ^/M- notation; -E does not mark an unterminated last line. Line numbering and empty-line compression state reset per file. |
 | chmod | --recursive, --verbose, --version | Smoke only; behavior unverified | Windows permission semantics are not equivalent to Unix modes. |
@@ -99,7 +99,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | time | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | timeout | --kill-after, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | top | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| touch | --no-create, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| touch | --no-create, --version | Smoke + behavior tests | Updates atime/mtime via SetFileTime on existing files, directories, and read-only files; -a and -m select which time to update. -d/--date, -t, and -r/--reference are not implemented. |
 | tr | --complement, --delete, --squeeze, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | true | --version | Smoke + behavior tests | Full GNU behavior unverified. |
 | tty | --all, --silent, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |

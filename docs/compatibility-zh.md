@@ -11,7 +11,7 @@
 | awk | --assign, --field-separator, --file, --version | 仅冒烟；业务待验证 | 已有实现使用子串简化部分匹配；不是完整 awk 解释器。 |
 | base64 | --decode, --version, --wrap | 冒烟 + 行为测试 | 解码与 GNU 一致地严格：无填充且长度非 4 倍数的输入会输出已解码字节，但报 invalid input 并退出 1。 |
 | basename | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| bc | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| bc | --version | 冒烟 + 行为测试 | i128 整数运算，/ 与 % 向零截断（GNU scale=0 默认语义）；支持 + - * / % ^ ( )、变量赋值、; 分隔、# 注释与 quit。无任意精度、scale、ibase/obase 与函数——遇到不支持结构时打印提示并跳过该行。banner 为 bc 0.1.0 (RuxCmd)。 |
 | cal | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | cat | --number, --number-nonblank, --show-all, --show-ends, --show-nonprinting, --show-tabs, --unbuffered | 冒烟 + 行为测试 | 默认字节透明（CRLF、二进制、非 ASCII 数据原样透传）；-v 使用字节级 ^/M- 记号；-E 不给未结尾的末行补 $。行号与空行压缩状态按文件重置。 |
 | chmod | --recursive, --verbose, --version | 仅冒烟；业务待验证 | Windows 权限语义与 Unix mode 不等价。 |
@@ -98,7 +98,7 @@
 | time | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | timeout | --kill-after, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | top | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| touch | --no-create, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| touch | --no-create, --version | 冒烟 + 行为测试 | 经 SetFileTime 更新已存在文件、目录与只读文件的 atime/mtime；-a 与 -m 选择更新的时间。-d/--date、-t、-r/--reference 未实现。 |
 | tr | --complement, --delete, --squeeze, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | true | --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
 | tty | --all, --silent, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
