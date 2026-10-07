@@ -225,8 +225,10 @@ dependencies = [
 name = "cal"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "chrono",
  "clap",
+ "predicates",
 ]
 
 [[package]]
@@ -1261,7 +1263,10 @@ dependencies = [
 name = "join"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
+ "tempfile",
 ]
 
 [[package]]
@@ -2100,7 +2105,9 @@ dependencies = [
 name = "seq"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
 ]
 
 [[package]]
@@ -2662,7 +2669,9 @@ checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 name = "tr"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
 ]
 
 [[package]]
