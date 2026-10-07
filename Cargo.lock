@@ -827,7 +827,10 @@ dependencies = [
 name = "groups"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
+ "windows",
 ]
 
 [[package]]
@@ -1183,7 +1186,10 @@ dependencies = [
 name = "id"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
+ "windows",
 ]
 
 [[package]]
