@@ -1450,7 +1450,10 @@ dependencies = [
 name = "nice"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
+ "windows",
 ]
 
 [[package]]
@@ -2533,7 +2536,9 @@ dependencies = [
 name = "timeout"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
 ]
 
 [[package]]
