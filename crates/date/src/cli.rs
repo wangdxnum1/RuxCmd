@@ -4,19 +4,21 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(name = "date", version, about, disable_version_flag = true)]
 pub struct Args {
-    /// Display date using the specified format
-    #[arg(short = 'd', long = "date")]
+    /// Display the given date string instead of the current time
+    /// (@EPOCH, YYYY-MM-DD, or YYYY-MM-DDTHH:MM[:SS]; empty means now)
+    #[arg(short = 'd', long = "date", value_name = "DATE")]
     pub date_string: Option<String>,
 
-    /// Set the system date and time
-    #[arg(short = 's', long = "set")]
+    /// Set the system date and time to the given value
+    /// (same formats as --date; requires administrator privilege)
+    #[arg(short = 's', long = "set", value_name = "DATE")]
     pub set_time: Option<String>,
 
-    /// Display the time as seconds since the Unix epoch
-    #[arg(short = 's', long = "seconds")]
+    /// Display the resolved time as seconds since the Unix epoch
+    #[arg(long = "seconds")]
     pub seconds: bool,
 
-    /// Display the time as nanoseconds since the Unix epoch
+    /// Display the resolved time as nanoseconds since the Unix epoch
     #[arg(long = "nanoseconds")]
     pub nanoseconds: bool,
 
@@ -24,9 +26,9 @@ pub struct Args {
     #[arg(short = 'u', long = "utc")]
     pub utc: bool,
 
-    /// Format string
-    #[arg(value_name = "FORMAT")]
-    pub format: Option<String>,
+    /// Date to display (like --date), or +FORMAT controlling the output format
+    #[arg(value_name = "DATE|+FORMAT")]
+    pub operand: Option<String>,
 
     /// Show version information
     #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
