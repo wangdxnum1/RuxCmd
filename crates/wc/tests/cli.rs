@@ -142,4 +142,3 @@ fn missing_file_reports_error_and_exits_one() {
         .code(1)
         .stderr(predicates::str::contains("wc:"));
 }
-

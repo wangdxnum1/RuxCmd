@@ -63,12 +63,8 @@ fn is_safe_entry_path(path: &Path) -> bool {
     if path.as_os_str().is_empty() {
         return false;
     }
-    path.components().all(|component| {
-        matches!(
-            component,
-            Component::Normal(_) | Component::CurDir
-        )
-    })
+    path.components()
+        .all(|component| matches!(component, Component::Normal(_) | Component::CurDir))
 }
 
 fn extract_archive(cli: &Cli) -> io::Result<()> {

@@ -9,7 +9,10 @@ use std::process::Output;
 // the current user gets real token groups on a single line.
 
 fn run_groups(args: &[&str]) -> Output {
-    cargo_bin_cmd!("groups").args(args).output().expect("groups runs")
+    cargo_bin_cmd!("groups")
+        .args(args)
+        .output()
+        .expect("groups runs")
 }
 
 #[test]
@@ -19,7 +22,9 @@ fn other_user_argument_is_rejected_with_error() {
         .assert()
         .failure()
         .code(1)
-        .stderr(predicates::str::contains("cannot query other users on windows"));
+        .stderr(predicates::str::contains(
+            "cannot query other users on windows",
+        ));
 }
 
 #[test]

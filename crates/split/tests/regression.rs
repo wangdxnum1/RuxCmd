@@ -57,7 +57,10 @@ fn alphabetic_suffixes_follow_gnu_order() {
         .filter(|e| e.file_name().to_string_lossy().starts_with('p'))
         .count();
     assert_eq!(count, 27, "expected exactly 27 chunk files");
-    assert!(!dir.path().join("p0a").exists(), "zero-padded suffix leaked");
+    assert!(
+        !dir.path().join("p0a").exists(),
+        "zero-padded suffix leaked"
+    );
 }
 
 /// Numeric suffixes (-d) are zero-padded decimal: 00..09, 10.
@@ -107,7 +110,11 @@ fn line_mode_is_byte_exact_with_crlf_and_non_utf8() {
     let second = std::fs::read(dir.path().join("pab")).unwrap();
     assert_eq!(first, b"alpha\r\nbeta\r\n");
     assert_eq!(second, b"\xFF\xFE\r\ntail-no-newline");
-    assert_eq!(first.len() + second.len(), input.len(), "bytes not conserved");
+    assert_eq!(
+        first.len() + second.len(),
+        input.len(),
+        "bytes not conserved"
+    );
 }
 
 /// A final unterminated line must not gain a newline in single-line mode.

@@ -125,8 +125,8 @@ fn run_fallback() -> i32 {
 #[cfg(test)]
 mod tests {
     use super::resolve_external;
-    use std::path::{Path, PathBuf};
     use std::fs;
+    use std::path::{Path, PathBuf};
     use tempfile::tempdir;
 
     #[test]
@@ -158,7 +158,10 @@ mod tests {
         let foreign = other_dir.path().join("sync.exe");
         fs::write(&foreign, b"").unwrap();
 
-        let paths: Vec<PathBuf> = vec![self_dir.path().to_path_buf(), other_dir.path().to_path_buf()];
+        let paths: Vec<PathBuf> = vec![
+            self_dir.path().to_path_buf(),
+            other_dir.path().to_path_buf(),
+        ];
         let found = resolve_external(&paths, &self_candidate);
         assert_eq!(found, Some(fs::canonicalize(&foreign).unwrap()));
     }
@@ -170,12 +173,18 @@ mod tests {
         let foreign = other_dir.path().join("sync.exe");
         fs::write(&foreign, b"").unwrap();
 
-        let paths = vec![empty_dir.path().to_path_buf(), other_dir.path().to_path_buf()];
+        let paths = vec![
+            empty_dir.path().to_path_buf(),
+            other_dir.path().to_path_buf(),
+        ];
         let unrelated_self = PathBuf::from(r"Z:\definitely-not-our-sync.exe");
         let found = resolve_external(&paths, &unrelated_self);
         assert_eq!(found, Some(fs::canonicalize(&foreign).unwrap()));
 
-        assert_eq!(resolve_external(&[empty_dir.path().to_path_buf()], &unrelated_self), None);
+        assert_eq!(
+            resolve_external(&[empty_dir.path().to_path_buf()], &unrelated_self),
+            None
+        );
     }
 
     #[test]

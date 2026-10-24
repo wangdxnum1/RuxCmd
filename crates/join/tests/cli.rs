@@ -8,7 +8,10 @@ fn write_pair(dir: &TempDir) -> (String, String) {
     let b = dir.path().join("b.txt");
     fs::write(&a, "1 x\n2 y\n").unwrap();
     fs::write(&b, "1 p\n2 q\n").unwrap();
-    (a.to_string_lossy().into_owned(), b.to_string_lossy().into_owned())
+    (
+        a.to_string_lossy().into_owned(),
+        b.to_string_lossy().into_owned(),
+    )
 }
 
 #[test]

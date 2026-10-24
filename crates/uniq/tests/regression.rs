@@ -69,7 +69,5 @@ fn duplicate_and_unique_filters_unchanged() {
 /// Plain uniq over mixed input still collapses only exact repeats.
 #[test]
 fn plain_uniq_collapses_exact_repeats() {
-    uniq_args(&[], "a\na\nb\na\n")
-        .success()
-        .stdout("a\nb\na\n");
+    uniq_args(&[], "a\na\nb\na\n").success().stdout("a\nb\na\n");
 }

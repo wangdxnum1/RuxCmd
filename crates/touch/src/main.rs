@@ -3,12 +3,12 @@ mod cli;
 use clap::Parser;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
-use windows::core::PCWSTR;
 use windows::Win32::Foundation::{CloseHandle, FILETIME, HANDLE};
 use windows::Win32::Storage::FileSystem::{
-    CreateFileW, SetFileTime, CREATE_NEW, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS,
-    FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_WRITE_ATTRIBUTES,
+    CREATE_NEW, CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, FILE_SHARE_READ, FILE_SHARE_WRITE,
+    FILE_WRITE_ATTRIBUTES, OPEN_EXISTING, SetFileTime,
 };
+use windows::core::PCWSTR;
 
 fn main() {
     let args = cli::Args::parse();

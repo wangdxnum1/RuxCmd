@@ -83,10 +83,7 @@ fn positional_server_argument_is_rejected() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("unexpected argument"),
-        "stderr: {stderr:?}"
-    );
+    assert!(stderr.contains("unexpected argument"), "stderr: {stderr:?}");
 }
 
 // ---------------------------------------------------------------------------
@@ -98,8 +95,12 @@ fn positional_server_argument_is_rejected() {
 #[ignore = "requires DNS/network; manual acceptance for P0 #47"]
 fn real_mx_query_returns_true_records() {
     let output = run(&["-t", "MX", "example.com"]);
-    assert_eq!(output.status.code(), Some(0),
-        "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("mail exchanger"), "stdout: {stdout:?}");
     assert_ne!(
@@ -113,8 +114,12 @@ fn real_mx_query_returns_true_records() {
 #[ignore = "requires DNS/network; manual acceptance for P0 #47"]
 fn real_txt_and_cname_queries_return_true_records() {
     let txt = run(&["-t", "TXT", "example.com"]);
-    assert_eq!(txt.status.code(), Some(0),
-        "stderr: {}", String::from_utf8_lossy(&txt.stderr));
+    assert_eq!(
+        txt.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&txt.stderr)
+    );
     let txt_out = String::from_utf8_lossy(&txt.stdout);
     assert!(txt_out.contains("text ="), "stdout: {txt_out:?}");
     assert!(
@@ -123,10 +128,17 @@ fn real_txt_and_cname_queries_return_true_records() {
     );
 
     let cname = run(&["-t", "CNAME", "www.microsoft.com"]);
-    assert_eq!(cname.status.code(), Some(0),
-        "stderr: {}", String::from_utf8_lossy(&cname.stderr));
+    assert_eq!(
+        cname.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&cname.stderr)
+    );
     let cname_out = String::from_utf8_lossy(&cname.stdout);
-    assert!(cname_out.contains("canonical name"), "stdout: {cname_out:?}");
+    assert!(
+        cname_out.contains("canonical name"),
+        "stdout: {cname_out:?}"
+    );
     assert_ne!(
         cname_out.trim(),
         "www.microsoft.com canonical name = www.microsoft.com",

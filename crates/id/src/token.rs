@@ -7,14 +7,14 @@
 use std::ffi::OsString;
 use std::os::windows::ffi::OsStringExt;
 
-use windows::core::{PCWSTR, PWSTR};
 use windows::Win32::Foundation::{CloseHandle, HANDLE};
 use windows::Win32::Security::{
-    GetSidSubAuthority, GetSidSubAuthorityCount, GetTokenInformation, LookupAccountSidW,
-    TokenGroups, TokenPrimaryGroup, TokenUser, PSID, SID_NAME_USE, TOKEN_GROUPS,
-    TOKEN_INFORMATION_CLASS, TOKEN_PRIMARY_GROUP, TOKEN_QUERY, TOKEN_USER,
+    GetSidSubAuthority, GetSidSubAuthorityCount, GetTokenInformation, LookupAccountSidW, PSID,
+    SID_NAME_USE, TOKEN_GROUPS, TOKEN_INFORMATION_CLASS, TOKEN_PRIMARY_GROUP, TOKEN_QUERY,
+    TOKEN_USER, TokenGroups, TokenPrimaryGroup, TokenUser,
 };
 use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+use windows::core::{PCWSTR, PWSTR};
 
 #[derive(Clone)]
 pub struct Entry {
@@ -172,5 +172,7 @@ unsafe fn lookup_account(sid: PSID) -> Option<(String, String)> {
 
 fn wide_to_string(buf: &[u16]) -> String {
     let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
-    OsString::from_wide(&buf[..len]).to_string_lossy().into_owned()
+    OsString::from_wide(&buf[..len])
+        .to_string_lossy()
+        .into_owned()
 }

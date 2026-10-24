@@ -84,7 +84,9 @@ fn groups_field_rids_equal_capital_g_output() {
     let cap_g_line = stdout_str(&cap_g);
     let cap_g_rids: Vec<String> = cap_g_line.trim_end().split(' ').map(String::from).collect();
     assert!(
-        cap_g_rids.iter().all(|r| !r.is_empty() && r.chars().all(|c| c.is_ascii_digit())),
+        cap_g_rids
+            .iter()
+            .all(|r| !r.is_empty() && r.chars().all(|c| c.is_ascii_digit())),
         "id -G must print space separated numeric RIDs, got {cap_g_line:?}"
     );
 
@@ -119,10 +121,7 @@ fn n_flag_prints_names_for_u_g_and_capital_g() {
         let out = run_id(&[flag, "-n"]);
         assert!(out.status.success(), "id {flag} -n must exit 0");
         let s = stdout_str(&out).trim_end().to_string();
-        assert!(
-            !s.is_empty(),
-            "id {flag} -n must print at least one name"
-        );
+        assert!(!s.is_empty(), "id {flag} -n must print at least one name");
         assert!(
             s.chars().any(|c| !c.is_ascii_digit() && c != ' '),
             "id {flag} -n must print names, not bare numbers, got {s:?}"

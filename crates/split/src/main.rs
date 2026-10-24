@@ -102,7 +102,11 @@ fn parse_size(s: &str) -> Result<u64, String> {
 /// left-padded with `a`; numeric suffixes are zero-padded decimal. Returns
 /// `None` once the index no longer fits the width (suffixes exhausted).
 fn generate_suffix(index: usize, numeric: bool, length: usize) -> Option<String> {
-    let (radix, pad) = if numeric { (10u64, b'0') } else { (26u64, b'a') };
+    let (radix, pad) = if numeric {
+        (10u64, b'0')
+    } else {
+        (26u64, b'a')
+    };
 
     let mut digits: Vec<u8> = Vec::new();
     let mut n = index as u64;
@@ -145,8 +149,8 @@ fn split_by_bytes(
             break;
         }
 
-        let suffix =
-            generate_suffix(index, numeric, suffix_len).ok_or_else(|| SUFFIXES_EXHAUSTED.to_string())?;
+        let suffix = generate_suffix(index, numeric, suffix_len)
+            .ok_or_else(|| SUFFIXES_EXHAUSTED.to_string())?;
         let output_name = format!("{}{}", prefix, suffix);
 
         let mut output_file = File::create(&output_name)

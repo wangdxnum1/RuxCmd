@@ -74,10 +74,7 @@ fn extract_rejects_traversal_and_absolute_entries() {
         "traversal entry escaped the extraction directory: {}",
         traversal_escape.display()
     );
-    assert!(
-        !escaped_to_root,
-        "absolute entry escaped to the drive root"
-    );
+    assert!(!escaped_to_root, "absolute entry escaped to the drive root");
     // The benign entry is still extracted, so rejection skips the entry
     // instead of aborting the whole archive.
     assert_eq!(fs::read(work.join("ok.txt")).unwrap(), b"benign");

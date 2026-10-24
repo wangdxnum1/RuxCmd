@@ -22,7 +22,10 @@ struct MemoryUnavailable;
 
 impl std::fmt::Display for MemoryUnavailable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "cannot determine total physical memory (GlobalMemoryStatusEx failed)")
+        write!(
+            f,
+            "cannot determine total physical memory (GlobalMemoryStatusEx failed)"
+        )
     }
 }
 

@@ -3,7 +3,13 @@ use std::path::PathBuf;
 
 /// Estimate file space usage — a Windows port of the Linux du command.
 #[derive(Parser, Debug)]
-#[command(name = "du", version, about, disable_version_flag = true, disable_help_flag = true)]
+#[command(
+    name = "du",
+    version,
+    about,
+    disable_version_flag = true,
+    disable_help_flag = true
+)]
 /// Help stays a long-only flag: -h keeps its GNU meaning in this command.
 pub struct Args {
     #[arg(long = "help", action = clap::ArgAction::Help)]

@@ -2,11 +2,11 @@ mod cli;
 
 use clap::Parser;
 use std::net::{IpAddr, ToSocketAddrs};
-use windows::core::{PCWSTR, PWSTR};
 use windows::Win32::NetworkManagement::Dns::{
-    DnsFree, DnsFreeRecordList, DnsQuery_W, DNS_QUERY_STANDARD, DNS_RECORDA, DNS_RECORDW,
-    DNS_TYPE, DNS_TYPE_CNAME, DNS_TYPE_MX, DNS_TYPE_TEXT,
+    DNS_QUERY_STANDARD, DNS_RECORDA, DNS_RECORDW, DNS_TYPE, DNS_TYPE_CNAME, DNS_TYPE_MX,
+    DNS_TYPE_TEXT, DnsFree, DnsFreeRecordList, DnsQuery_W,
 };
+use windows::core::{PCWSTR, PWSTR};
 
 fn main() {
     let args = cli::Args::parse();
@@ -190,7 +190,7 @@ fn wide_string(p: PWSTR) -> String {
 /// returns (FormatMessage output would be locale-dependent).
 fn dns_status_message(status: u32) -> String {
     let text = match status {
-        146 => "DNS query timed out",                     // ERROR_TIMEOUT
+        146 => "DNS query timed out",                    // ERROR_TIMEOUT
         9001 => "DNS server unable to interpret format", // DNS_ERROR_RCODE_FORMAT_ERROR
         9002 => "DNS server failure",                    // DNS_ERROR_RCODE_SERVER_FAILURE
         9003 => "DNS name does not exist",               // DNS_ERROR_RCODE_NAME_ERROR

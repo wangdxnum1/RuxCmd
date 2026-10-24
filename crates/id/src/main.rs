@@ -53,11 +53,7 @@ fn run_windows(args: &cli::Args) {
     } else if args.group {
         println!("{}", one(&identity.primary_group, args.name));
     } else if args.groups {
-        let parts: Vec<String> = identity
-            .groups
-            .iter()
-            .map(|e| one(e, args.name))
-            .collect();
+        let parts: Vec<String> = identity.groups.iter().map(|e| one(e, args.name)).collect();
         println!("{}", parts.join(" "));
     } else {
         let groups: Vec<String> = identity.groups.iter().map(|e| e.display()).collect();

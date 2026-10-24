@@ -115,17 +115,13 @@ fn key_sort_works_with_file_argument() {
 /// duplicates, so the pre-fix order (dedup, then sort) printed two `b`s.
 #[test]
 fn u_dedups_after_sorting() {
-    sort_args(&["-u"], "b\na\nb\n")
-        .success()
-        .stdout("a\nb\n");
+    sort_args(&["-u"], "b\na\nb\n").success().stdout("a\nb\n");
 }
 
 /// Adjacent duplicates are still removed.
 #[test]
 fn u_removes_adjacent_duplicates() {
-    sort_args(&["-u"], "a\na\nb\n")
-        .success()
-        .stdout("a\nb\n");
+    sort_args(&["-u"], "a\na\nb\n").success().stdout("a\nb\n");
 }
 
 // --- -c ----------------------------------------------------------------------
@@ -221,10 +217,6 @@ fn h_uses_1024_base() {
 /// 1P = 1024^5 < 1E = 1024^6, which whole-line string order gets backwards.
 #[test]
 fn h_supports_peta_zetta_yotta_suffixes() {
-    sort_args(&["-h"], "1E\n1P\n")
-        .success()
-        .stdout("1P\n1E\n");
-    sort_args(&["-h"], "1Y\n1Z\n")
-        .success()
-        .stdout("1Z\n1Y\n");
+    sort_args(&["-h"], "1E\n1P\n").success().stdout("1P\n1E\n");
+    sort_args(&["-h"], "1Y\n1Z\n").success().stdout("1Z\n1Y\n");
 }

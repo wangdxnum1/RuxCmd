@@ -198,8 +198,7 @@ impl Cli {
         }
         if self.long {
             return vec![
-                "f", "uid", "pid", "ppid", "pri", "ni", "vsz", "rss", "stat", "tty", "time",
-                "comm",
+                "f", "uid", "pid", "ppid", "pri", "ni", "vsz", "rss", "stat", "tty", "time", "comm",
             ]
             .into_iter()
             .map(String::from)

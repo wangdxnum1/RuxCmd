@@ -5,9 +5,9 @@ use std::path::Path;
 
 use cli::Cli;
 use windows_sys::Win32::Foundation::{GetLastError, PSID};
-use windows_sys::Win32::Security::Authorization::{SE_FILE_OBJECT, SetNamedSecurityInfoW};
+use windows_sys::Win32::Security::Authorization::{SetNamedSecurityInfoW, SE_FILE_OBJECT};
 use windows_sys::Win32::Security::{
-    GROUP_SECURITY_INFORMATION, LookupAccountNameW, OWNER_SECURITY_INFORMATION, SID_NAME_USE,
+    LookupAccountNameW, GROUP_SECURITY_INFORMATION, OWNER_SECURITY_INFORMATION, SID_NAME_USE,
 };
 
 fn main() {

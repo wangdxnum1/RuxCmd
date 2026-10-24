@@ -12,11 +12,7 @@ const NOT_A_TTY: &str = "not a tty";
 
 /// GNU tty reports success iff the stream it inspects (stdin) is a terminal.
 fn stdin_exit_code(stdin_is_tty: bool) -> i32 {
-    if stdin_is_tty {
-        0
-    } else {
-        1
-    }
+    if stdin_is_tty { 0 } else { 1 }
 }
 
 /// `tty -a` succeeds when any of the three standard streams is a terminal.
@@ -32,11 +28,7 @@ fn all_streams_exit_code(streams_are_tty: [bool; 3]) -> i32 {
 /// docs/compatibility.md).
 fn stream_label(is_tty: bool, is_input: bool) -> &'static str {
     if is_tty {
-        if is_input {
-            CONIN_NAME
-        } else {
-            CONOUT_NAME
-        }
+        if is_input { CONIN_NAME } else { CONOUT_NAME }
     } else {
         NOT_A_TTY
     }

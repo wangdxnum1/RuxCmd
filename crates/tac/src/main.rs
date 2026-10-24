@@ -111,10 +111,7 @@ fn read_file_reader<R: Read>(
             records.push(chars[..first_sep].to_vec());
         }
         for (idx, &start) in sep_positions.iter().enumerate() {
-            let end = sep_positions
-                .get(idx + 1)
-                .copied()
-                .unwrap_or(chars.len());
+            let end = sep_positions.get(idx + 1).copied().unwrap_or(chars.len());
             records.push(chars[start..end].to_vec());
         }
     } else {

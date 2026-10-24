@@ -43,7 +43,12 @@ fn printf(format: &str, args: &[String]) -> (Vec<u8>, bool) {
                     arg_index += 1;
                 }
                 Some('f') => {
-                    push_number(&mut out, args.get(arg_index), NumKind::Float, &mut had_error);
+                    push_number(
+                        &mut out,
+                        args.get(arg_index),
+                        NumKind::Float,
+                        &mut had_error,
+                    );
                     arg_index += 1;
                 }
                 Some('c') => {
@@ -86,14 +91,21 @@ fn push_number(out: &mut Vec<u8>, arg: Option<&String>, kind: NumKind, had_error
         return;
     };
     let parsed = match kind {
-        NumKind::Dec => a.trim_start().parse::<i64>().map(|n| n.to_string()).map_err(|_| ()),
-        NumKind::Hex => {
-            a.trim_start()
-                .parse::<u64>()
-                .map(|n| format!("{:x}", n))
-                .map_err(|_| ())
-        }
-        NumKind::Float => a.trim_start().parse::<f64>().map(|n| n.to_string()).map_err(|_| ()),
+        NumKind::Dec => a
+            .trim_start()
+            .parse::<i64>()
+            .map(|n| n.to_string())
+            .map_err(|_| ()),
+        NumKind::Hex => a
+            .trim_start()
+            .parse::<u64>()
+            .map(|n| format!("{:x}", n))
+            .map_err(|_| ()),
+        NumKind::Float => a
+            .trim_start()
+            .parse::<f64>()
+            .map(|n| n.to_string())
+            .map_err(|_| ()),
     };
     match parsed {
         Ok(s) => out.extend_from_slice(s.as_bytes()),

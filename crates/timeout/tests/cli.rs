@@ -63,15 +63,8 @@ fn early_exit_returns_child_code_promptly() {
 /// within a 1-4s window.
 #[test]
 fn expiry_kills_child_and_returns_124() {
-    let (code, elapsed) = run_with_null_stdio(&[
-        "1s",
-        "cmd",
-        "/c",
-        "ping",
-        "-n",
-        "10",
-        "127.0.0.1",
-    ]);
+    let (code, elapsed) =
+        run_with_null_stdio(&["1s", "cmd", "/c", "ping", "-n", "10", "127.0.0.1"]);
     assert_code_and_window(code, elapsed, 124, "expiry with cmd wrapper");
 }
 

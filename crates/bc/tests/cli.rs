@@ -129,7 +129,11 @@ fn file_mode_evaluates_each_line() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("prog.bc");
     fs::write(&file, "1+2\n2*3\n").unwrap();
-    cargo_bin_cmd!("bc").arg(&file).assert().success().stdout("3\n6\n");
+    cargo_bin_cmd!("bc")
+        .arg(&file)
+        .assert()
+        .success()
+        .stdout("3\n6\n");
 }
 
 #[test]
@@ -137,7 +141,11 @@ fn quit_stops_file_processing() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("prog.bc");
     fs::write(&file, "1+2\nquit\n2+2\n").unwrap();
-    cargo_bin_cmd!("bc").arg(&file).assert().success().stdout("3\n");
+    cargo_bin_cmd!("bc")
+        .arg(&file)
+        .assert()
+        .success()
+        .stdout("3\n");
 }
 
 // File-mode error policy: report the error to stderr, keep evaluating the

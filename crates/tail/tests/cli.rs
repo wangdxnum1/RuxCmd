@@ -189,13 +189,7 @@ fn follow_multi_polls_every_file() {
     let b = temp_path("fb");
     std::fs::write(&a, b"a-old\n").unwrap();
     std::fs::write(&b, b"b-old\n").unwrap();
-    let mut child = spawn_tail(&[
-        "-n",
-        "0",
-        "-f",
-        a.to_str().unwrap(),
-        b.to_str().unwrap(),
-    ]);
+    let mut child = spawn_tail(&["-n", "0", "-f", a.to_str().unwrap(), b.to_str().unwrap()]);
     std::thread::sleep(Duration::from_millis(600));
     append(&b, b"B1\n");
     // Larger than the follow poll interval so the order is deterministic.

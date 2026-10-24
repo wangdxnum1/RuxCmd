@@ -28,9 +28,10 @@ fn plain_output_is_finite_seconds() {
     assert!(output.status.success(), "uptime must exit 0");
 
     let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-    let secs: u64 = stdout.trim().parse().unwrap_or_else(|_| {
-        panic!("uptime must print a bare number, got: {stdout:?}")
-    });
+    let secs: u64 = stdout
+        .trim()
+        .parse()
+        .unwrap_or_else(|_| panic!("uptime must print a bare number, got: {stdout:?}"));
     assert!(
         secs < 1000 * 86400,
         "uptime printed {secs} seconds (epoch bug?)"

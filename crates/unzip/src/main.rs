@@ -62,10 +62,7 @@ fn extract_archive(cli: &Cli) -> Result<bool, ZipError> {
         // directory via `..` components, absolute paths, or drive/UNC
         // prefixes must never be joined onto the destination.
         let Some(enclosed) = file.enclosed_name() else {
-            eprintln!(
-                "unzip: skipping entry with unsafe path: '{}'",
-                file.name()
-            );
+            eprintln!("unzip: skipping entry with unsafe path: '{}'", file.name());
             skipped_unsafe = true;
             continue;
         };

@@ -9,7 +9,9 @@ fn no_operands_errors_instead_of_panicking() {
         .failure()
         .code(1)
         .stderr(predicates::str::contains("tr: missing operand"))
-        .stderr(predicates::str::contains("Usage: tr [OPTION]... SET1 [SET2]"))
+        .stderr(predicates::str::contains(
+            "Usage: tr [OPTION]... SET1 [SET2]",
+        ))
         .stderr(predicates::str::contains("panicked").not());
 }
 

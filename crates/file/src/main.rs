@@ -406,8 +406,8 @@ fn classify_text(bytes: &[u8]) -> Option<FileType> {
     for c in text.chars() {
         if c.is_ascii() {
             let b = c as u8;
-            let printable = matches!(b, b'\t' | b'\n' | 0x0B | 0x0C | b'\r')
-                || (0x20..=0x7E).contains(&b);
+            let printable =
+                matches!(b, b'\t' | b'\n' | 0x0B | 0x0C | b'\r') || (0x20..=0x7E).contains(&b);
             if !printable {
                 return None;
             }

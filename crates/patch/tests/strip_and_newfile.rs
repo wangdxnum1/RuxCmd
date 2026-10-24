@@ -101,7 +101,11 @@ fn creation_hunk_on_existing_empty_file_does_not_underflow() {
     let dir = TempDir::new().unwrap();
     fs::write(dir.path().join("empty.txt"), "").unwrap();
     let patch = dir.path().join("create.diff");
-    fs::write(&patch, "--- empty.txt\n+++ empty.txt\n@@ -0,0 +1,2 @@\n+alpha\n+beta\n").unwrap();
+    fs::write(
+        &patch,
+        "--- empty.txt\n+++ empty.txt\n@@ -0,0 +1,2 @@\n+alpha\n+beta\n",
+    )
+    .unwrap();
 
     cargo_bin_cmd!("patch")
         .arg(&patch)

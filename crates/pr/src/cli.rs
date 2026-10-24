@@ -6,8 +6,9 @@ use std::path::PathBuf;
     name = "pr",
     version,
     about = "Paginate or columnate FILE(s) for printing",
-    disable_version_flag = true
-, disable_help_flag = true)]
+    disable_version_flag = true,
+    disable_help_flag = true
+)]
 pub struct Args {
     // -h is the page header in GNU pr; help is long-only.
     #[arg(long = "help", action = clap::ArgAction::Help)]

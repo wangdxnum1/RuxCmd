@@ -10,7 +10,11 @@ fn main() {
 
     // Fields are numbered from 1 (GNU convention); 0 would underflow below.
     if args.field1 == 0 || args.field2 == 0 {
-        let bad = if args.field1 == 0 { args.field1 } else { args.field2 };
+        let bad = if args.field1 == 0 {
+            args.field1
+        } else {
+            args.field2
+        };
         eprintln!("join: invalid field number '{}'", bad);
         std::process::exit(1);
     }

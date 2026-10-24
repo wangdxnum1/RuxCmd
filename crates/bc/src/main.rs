@@ -93,7 +93,11 @@ fn process_line(line: &str, vars: &mut HashMap<String, i128>) -> Outcome {
     // A line is a list of statements separated by `;`.
     let mut outcome = Outcome::Ok;
     let mut start = 0usize;
-    for (idx, token) in tokens.iter().chain(std::iter::once(&Token::Semicolon)).enumerate() {
+    for (idx, token) in tokens
+        .iter()
+        .chain(std::iter::once(&Token::Semicolon))
+        .enumerate()
+    {
         let Token::Semicolon = token else { continue };
         match run_statement(&tokens[start..idx], vars) {
             Flow::Quit => return Outcome::Quit,

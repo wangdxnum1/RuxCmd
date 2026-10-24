@@ -52,7 +52,10 @@ fn repeated_line_number_patterns_keep_all_lines() {
 
     assert_eq!(std::fs::read(dir.path().join("out.00")).unwrap(), b"l1\n");
     assert_eq!(std::fs::read(dir.path().join("out.01")).unwrap(), b"l2\n");
-    assert_eq!(std::fs::read(dir.path().join("out.02")).unwrap(), b"l3\nl4\n");
+    assert_eq!(
+        std::fs::read(dir.path().join("out.02")).unwrap(),
+        b"l3\nl4\n"
+    );
 }
 
 /// GNU offset syntax `/re/+3` was silently swallowed by the old repeat-tail

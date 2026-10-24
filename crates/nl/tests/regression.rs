@@ -13,10 +13,7 @@ use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::str;
 
 fn nl_args(args: &[&str], input: &str) -> assert_cmd::assert::Assert {
-    cargo_bin_cmd!("nl")
-        .args(args)
-        .write_stdin(input)
-        .assert()
+    cargo_bin_cmd!("nl").args(args).write_stdin(input).assert()
 }
 
 /// Unnumbered line under the default `-w 6 -s \t`: 7 spaces, no tab.
@@ -47,9 +44,10 @@ fn utf8_lines_with_style_a_verbatim() {
 /// blank, `2 b`).
 #[test]
 fn default_numbers_nonempty_lines_only() {
-    nl_args(&[], "a\n\nb\n")
-        .success()
-        .stdout(format!("     1\ta\n{}\n     2\tb\n", BLANK.trim_end_matches('\n')));
+    nl_args(&[], "a\n\nb\n").success().stdout(format!(
+        "     1\ta\n{}\n     2\tb\n",
+        BLANK.trim_end_matches('\n')
+    ));
 }
 
 /// A line holding a single space counts as non-empty under `t` (GNU behavior).
@@ -77,9 +75,10 @@ fn style_n_numbers_nothing() {
 /// `-b t` is accepted and identical to the default.
 #[test]
 fn style_t_matches_default() {
-    nl_args(&["-b", "t"], "a\n\nb\n")
-        .success()
-        .stdout(format!("     1\ta\n{}\n     2\tb\n", BLANK.trim_end_matches('\n')));
+    nl_args(&["-b", "t"], "a\n\nb\n").success().stdout(format!(
+        "     1\ta\n{}\n     2\tb\n",
+        BLANK.trim_end_matches('\n')
+    ));
 }
 
 /// Unknown style is rejected with a GNU-style error message, exit code 1.
@@ -113,9 +112,10 @@ fn crlf_lines_have_trailing_cr_stripped() {
 /// A CRLF blank line is an unnumbered blank under the default style.
 #[test]
 fn crlf_blank_line_is_unnumbered() {
-    nl_args(&[], "a\r\n\r\nb\r\n")
-        .success()
-        .stdout(format!("     1\ta\n{}\n     2\tb\n", BLANK.trim_end_matches('\n')));
+    nl_args(&[], "a\r\n\r\nb\r\n").success().stdout(format!(
+        "     1\ta\n{}\n     2\tb\n",
+        BLANK.trim_end_matches('\n')
+    ));
 }
 
 // --- guards -------------------------------------------------------------------
@@ -123,7 +123,9 @@ fn crlf_blank_line_is_unnumbered() {
 /// Input without a final newline: GNU nl does not add one.
 #[test]
 fn missing_final_newline_is_not_invented() {
-    nl_args(&[], "a\nb").success().stdout("     1\ta\n     2\tb");
+    nl_args(&[], "a\nb")
+        .success()
+        .stdout("     1\ta\n     2\tb");
 }
 
 /// Empty input produces empty output.

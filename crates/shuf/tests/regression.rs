@@ -96,10 +96,7 @@ fn without_random_source_still_shuffles() {
         .stdout
         .clone();
     let text = String::from_utf8(out).unwrap();
-    let nums: Vec<i32> = text
-        .lines()
-        .map(|l| l.trim().parse().unwrap())
-        .collect();
+    let nums: Vec<i32> = text.lines().map(|l| l.trim().parse().unwrap()).collect();
     let mut sorted = nums.clone();
     sorted.sort();
     assert_eq!(nums.len(), 20);

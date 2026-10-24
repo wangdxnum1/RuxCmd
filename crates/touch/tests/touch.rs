@@ -84,12 +84,13 @@ fn touch_m_updates_mtime_but_leaves_atime() {
     let old = SystemTime::now() - Duration::from_secs(3600);
     force_times(&file, old, old);
 
-    cargo_bin_cmd!("touch").arg("-m").arg(&file).assert().success();
+    cargo_bin_cmd!("touch")
+        .arg("-m")
+        .arg(&file)
+        .assert()
+        .success();
 
-    assert!(
-        mtime(&file) > old,
-        "-m must update mtime"
-    );
+    assert!(mtime(&file) > old, "-m must update mtime");
     assert!(
         atime(&file) <= old + Duration::from_secs(2),
         "-m must not update atime (got {:?}, pre-set {:?})",
@@ -107,12 +108,13 @@ fn touch_a_updates_atime_but_leaves_mtime() {
     let old = SystemTime::now() - Duration::from_secs(3600);
     force_times(&file, old, old);
 
-    cargo_bin_cmd!("touch").arg("-a").arg(&file).assert().success();
+    cargo_bin_cmd!("touch")
+        .arg("-a")
+        .arg(&file)
+        .assert()
+        .success();
 
-    assert!(
-        atime(&file) > old,
-        "-a must update atime"
-    );
+    assert!(atime(&file) > old, "-a must update atime");
     assert!(
         mtime(&file) <= old + Duration::from_secs(2),
         "-a must not update mtime (got {:?}, pre-set {:?})",
@@ -158,7 +160,10 @@ fn no_create_on_existing_file_still_updates_mtime() {
         .assert()
         .success();
 
-    assert!(mtime(&file) > old, "-c on an existing file must still update mtime");
+    assert!(
+        mtime(&file) > old,
+        "-c on an existing file must still update mtime"
+    );
 }
 
 // --- Directories and read-only files ---
@@ -225,11 +230,7 @@ fn touch_multiple_files_updates_all() {
     force_times(&a, old, old);
     force_times(&b, old, old);
 
-    cargo_bin_cmd!("touch")
-        .arg(&a)
-        .arg(&b)
-        .assert()
-        .success();
+    cargo_bin_cmd!("touch").arg(&a).arg(&b).assert().success();
 
     assert!(mtime(&a) > old, "first file must be touched");
     assert!(mtime(&b) > old, "second file must be touched");
