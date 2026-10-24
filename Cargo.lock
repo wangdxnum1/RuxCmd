@@ -2906,8 +2906,10 @@ name = "w"
 version = "0.1.0"
 dependencies = [
  "assert_cmd",
+ "chrono",
  "clap",
  "predicates",
+ "windows",
 ]
 
 [[package]]
@@ -3065,7 +3067,9 @@ dependencies = [
 name = "who"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "clap",
+ "windows",
 ]
 
 [[package]]

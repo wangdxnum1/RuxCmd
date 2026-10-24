@@ -9,3 +9,5 @@ authors = ["Tim"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+windows = { workspace = true }
+chrono = "0.4"
