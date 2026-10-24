@@ -1,136 +1,506 @@
 mod cli;
 
-use clap::Parser;
-use cli::Args;
 use std::fs;
-use std::io::{self, BufRead, BufReader};
-use std::path::Path;
+use std::io::{self, BufWriter, Read, Write};
+use std::path::{Path, PathBuf};
+use std::process::ExitCode;
 
-fn parse_substitute_command(expr: &str) -> Option<(String, String, bool)> {
-    if !expr.starts_with('s') {
-        return None;
-    }
+// ---------- script model ----------
 
-    let chars: Vec<char> = expr.chars().collect();
-    let mut i = 1;
-    if i >= chars.len() {
-        return None;
-    }
-
-    let delimiter = chars[i];
-    i += 1;
-
-    let mut pattern = String::new();
-    while i < chars.len() && chars[i] != delimiter {
-        if chars[i] == '\\' && i + 1 < chars.len() {
-            i += 1;
-            pattern.push(chars[i]);
-        } else {
-            pattern.push(chars[i]);
-        }
-        i += 1;
-    }
-
-    if i >= chars.len() || chars[i] != delimiter {
-        return None;
-    }
-    i += 1;
-
-    let mut replacement = String::new();
-    while i < chars.len() && chars[i] != delimiter {
-        if chars[i] == '\\' && i + 1 < chars.len() {
-            i += 1;
-            replacement.push(chars[i]);
-        } else {
-            replacement.push(chars[i]);
-        }
-        i += 1;
-    }
-
-    if i >= chars.len() || chars[i] != delimiter {
-        return None;
-    }
-    i += 1;
-
-    let global = i < chars.len() && chars[i] == 'g';
-
-    Some((pattern, replacement, global))
+/// One address: a line number, `$` (last line), or a literal substring
+/// between slashes. Substring addresses are matched literally — this port
+/// does not use regular expressions.
+#[derive(Debug, Clone)]
+enum Address {
+    Line(u64),
+    LastLine,
+    Substring(String),
 }
 
-fn apply_expression(line: &str, expr: &str) -> String {
-    if let Some((pattern, replacement, global)) = parse_substitute_command(expr) {
-        if global {
-            line.replace(&pattern, &replacement)
-        } else {
-            line.replacen(&pattern, &replacement, 1)
+impl Address {
+    fn matches(&self, pattern_space: &[u8], line_num: u64, is_last: bool) -> bool {
+        match self {
+            Address::Line(n) => line_num == *n,
+            Address::LastLine => is_last,
+            Address::Substring(s) => bytes_contain(pattern_space, s.as_bytes()),
         }
-    } else {
-        line.to_string()
     }
 }
 
-fn process_stdin(args: &Args) -> io::Result<()> {
-    let stdin = io::stdin();
-    let reader = BufReader::new(stdin.lock());
+#[derive(Debug, Clone)]
+enum CmdKind {
+    Substitute {
+        pattern: Vec<u8>,
+        replacement: Vec<u8>,
+        global: bool,
+    },
+    Print,
+    Delete,
+    Quit,
+}
 
-    for line in reader.lines() {
-        let mut line = line?;
-        for expr in &args.expressions {
-            line = apply_expression(&line, expr);
+#[derive(Debug, Clone)]
+struct Command {
+    addr1: Option<Address>,
+    addr2: Option<Address>,
+    kind: CmdKind,
+}
+
+// ---------- script parsing ----------
+
+struct ExprParser<'a> {
+    src: &'a [u8],
+    pos: usize,
+    expr_no: usize,
+}
+
+impl<'a> ExprParser<'a> {
+    fn new(src: &'a str, expr_no: usize) -> Self {
+        ExprParser {
+            src: src.as_bytes(),
+            pos: 0,
+            expr_no,
         }
-        println!("{}", line);
     }
 
+    fn error(&self, pos: usize, msg: &str) -> String {
+        format!(
+            "sed: -e expression #{}, char {}: {}",
+            self.expr_no,
+            pos + 1,
+            msg
+        )
+    }
+
+    fn peek(&self) -> Option<u8> {
+        self.src.get(self.pos).copied()
+    }
+
+    fn skip_blanks(&mut self) {
+        while matches!(self.peek(), Some(b' ') | Some(b'\t')) {
+            self.pos += 1;
+        }
+    }
+
+    fn skip_blanks_and_semicolons(&mut self) {
+        while matches!(self.peek(), Some(b' ') | Some(b'\t') | Some(b';')) {
+            self.pos += 1;
+        }
+    }
+
+    fn parse_address(&mut self) -> Result<Option<Address>, String> {
+        match self.peek() {
+            Some(b'$') => {
+                self.pos += 1;
+                Ok(Some(Address::LastLine))
+            }
+            Some(c) if c.is_ascii_digit() => {
+                let start = self.pos;
+                while matches!(self.peek(), Some(c) if c.is_ascii_digit()) {
+                    self.pos += 1;
+                }
+                let digits = std::str::from_utf8(&self.src[start..self.pos]).unwrap_or_default();
+                Ok(Some(Address::Line(digits.parse().unwrap_or(u64::MAX))))
+            }
+            Some(b'/') => {
+                self.pos += 1;
+                let mut pattern = Vec::new();
+                loop {
+                    match self.peek() {
+                        None => {
+                            return Err(
+                                self.error(self.pos, "unterminated address regular expression")
+                            );
+                        }
+                        Some(b'\\') => {
+                            self.pos += 1;
+                            match self.peek() {
+                                None => {
+                                    return Err(
+                                        self.error(self.pos, "unterminated address regular expression")
+                                    );
+                                }
+                                Some(escaped) => {
+                                    pattern.push(escaped);
+                                    self.pos += 1;
+                                }
+                            }
+                        }
+                        Some(b'/') => {
+                            self.pos += 1;
+                            break;
+                        }
+                        Some(byte) => {
+                            pattern.push(byte);
+                            self.pos += 1;
+                        }
+                    }
+                }
+                Ok(Some(Address::Substring(
+                    String::from_utf8_lossy(&pattern).into_owned(),
+                )))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn parse_substitute(&mut self) -> Result<CmdKind, String> {
+        // Entry position: the delimiter right after the `s`.
+        let start = self.pos;
+        let delimiter = match self.peek() {
+            Some(c) if c != b'\\' && !c.is_ascii_whitespace() => c,
+            _ => return Err(self.error(start, "unterminated `s' command")),
+        };
+        self.pos += 1;
+        let pattern = self.read_delimited(delimiter)?;
+        let replacement = self.read_delimited(delimiter)?;
+
+        let mut global = false;
+        loop {
+            match self.peek() {
+                Some(b'g') => {
+                    global = true;
+                    self.pos += 1;
+                }
+                Some(c) if c.is_ascii_whitespace() || c == b';' => break,
+                Some(_) => return Err(self.error(self.pos, "unknown option to `s'")),
+                None => break,
+            }
+        }
+        Ok(CmdKind::Substitute {
+            pattern,
+            replacement,
+            global,
+        })
+    }
+
+    fn read_delimited(&mut self, delimiter: u8) -> Result<Vec<u8>, String> {
+        let mut out = Vec::new();
+        loop {
+            match self.peek() {
+                None => return Err(self.error(self.pos, "unterminated `s' command")),
+                Some(b'\\') => {
+                    self.pos += 1;
+                    match self.peek() {
+                        None => return Err(self.error(self.pos, "unterminated `s' command")),
+                        Some(escaped) => {
+                            out.push(escaped);
+                            self.pos += 1;
+                        }
+                    }
+                }
+                Some(c) if c == delimiter => {
+                    self.pos += 1;
+                    break;
+                }
+                Some(byte) => {
+                    out.push(byte);
+                    self.pos += 1;
+                }
+            }
+        }
+        Ok(out)
+    }
+}
+
+/// Parse one script expression (a single -e argument or the first positional
+/// argument) into a command list. Multiple commands may be separated by `;`.
+fn parse_expression(src: &str, expr_no: usize) -> Result<Vec<Command>, String> {
+    let mut p = ExprParser::new(src, expr_no);
+    let mut commands = Vec::new();
+    loop {
+        p.skip_blanks_and_semicolons();
+        if p.pos >= p.src.len() {
+            break;
+        }
+        let addr_start = p.pos;
+        let addr1 = p.parse_address()?;
+        p.skip_blanks();
+        let addr2 = if p.peek() == Some(b',') {
+            p.pos += 1;
+            p.skip_blanks();
+            match p.parse_address()? {
+                Some(addr) => Some(addr),
+                None => return Err(p.error(addr_start, "unexpected `,'")),
+            }
+        } else {
+            None
+        };
+        p.skip_blanks();
+        let cmd_pos = p.pos;
+        let Some(cmd) = p.peek() else {
+            return Err(p.error(cmd_pos, "expected a command"));
+        };
+        p.pos += 1;
+        let kind = match cmd {
+            b's' => p.parse_substitute()?,
+            b'p' => CmdKind::Print,
+            b'd' => CmdKind::Delete,
+            b'q' => CmdKind::Quit,
+            other => {
+                return Err(p.error(cmd_pos, &format!("unknown command: `{}`", other as char)));
+            }
+        };
+        commands.push(Command { addr1, addr2, kind });
+    }
+    Ok(commands)
+}
+
+// ---------- byte-level matching helpers ----------
+
+fn bytes_contain(haystack: &[u8], needle: &[u8]) -> bool {
+    !needle.is_empty() && haystack.windows(needle.len()).any(|window| window == needle)
+}
+
+fn replace_substring(
+    pattern_space: &[u8],
+    pattern: &[u8],
+    replacement: &[u8],
+    global: bool,
+) -> Vec<u8> {
+    if pattern.is_empty() {
+        return pattern_space.to_vec();
+    }
+    let mut out = Vec::with_capacity(pattern_space.len());
+    let mut i = 0;
+    while i < pattern_space.len() {
+        if pattern_space[i..].starts_with(pattern) {
+            out.extend_from_slice(replacement);
+            i += pattern.len();
+            if !global {
+                out.extend_from_slice(&pattern_space[i..]);
+                return out;
+            }
+        } else {
+            out.push(pattern_space[i]);
+            i += 1;
+        }
+    }
+    out
+}
+
+/// Split input into lines the way `read_until(b'\n')` would: the trailing
+/// newline is dropped (any `\r` stays part of the line so CRLF survives),
+/// and a final chunk without a newline is still a line.
+fn split_lines(data: &[u8]) -> Vec<&[u8]> {
+    let mut lines = Vec::new();
+    let mut start = 0;
+    for (i, byte) in data.iter().enumerate() {
+        if *byte == b'\n' {
+            lines.push(&data[start..i]);
+            start = i + 1;
+        }
+    }
+    if start < data.len() {
+        lines.push(&data[start..]);
+    }
+    lines
+}
+
+// ---------- execution ----------
+
+/// Apply the command list to one whole input stream (a file or stdin).
+/// Output lines always end with `\n`, matching GNU sed; invalid UTF-8 is
+/// matched lossily and echoed back as the original bytes.
+fn run_stream(commands: &[Command], data: &[u8], quiet: bool, out: &mut dyn Write) -> io::Result<()> {
+    let lines = split_lines(data);
+    let total = lines.len() as u64;
+    // Open/closed state per command for two-address ranges.
+    let mut range_open = vec![false; commands.len()];
+
+    for (index, raw) in lines.iter().enumerate() {
+        let line_num = index as u64 + 1;
+        let is_last = line_num == total;
+        let mut pattern_space = raw.to_vec();
+        let mut deleted = false;
+        let mut quit = false;
+
+        for (cmd_index, command) in commands.iter().enumerate() {
+            let selected = match (&command.addr1, &command.addr2) {
+                (None, _) => true,
+                (Some(addr1), None) => addr1.matches(&pattern_space, line_num, is_last),
+                (Some(addr1), Some(addr2)) => {
+                    if !range_open[cmd_index] {
+                        if addr1.matches(&pattern_space, line_num, is_last) {
+                            // A second address matching this same line
+                            // closes the (single-line) range immediately.
+                            range_open[cmd_index] =
+                                !addr2.matches(&pattern_space, line_num, is_last);
+                            true
+                        } else {
+                            false
+                        }
+                    } else {
+                        if addr2.matches(&pattern_space, line_num, is_last) {
+                            range_open[cmd_index] = false;
+                        }
+                        true
+                    }
+                }
+            };
+            if !selected {
+                continue;
+            }
+            match &command.kind {
+                CmdKind::Substitute {
+                    pattern,
+                    replacement,
+                    global,
+                } => {
+                    pattern_space =
+                        replace_substring(&pattern_space, pattern, replacement, *global);
+                }
+                CmdKind::Print => {
+                    out.write_all(&pattern_space)?;
+                    out.write_all(b"\n")?;
+                }
+                CmdKind::Delete => {
+                    deleted = true;
+                    break;
+                }
+                CmdKind::Quit => {
+                    quit = true;
+                    break;
+                }
+            }
+        }
+
+        if deleted {
+            continue;
+        }
+        if !quiet {
+            out.write_all(&pattern_space)?;
+            out.write_all(b"\n")?;
+        }
+        if quit {
+            break;
+        }
+    }
     Ok(())
 }
 
-fn process_file(args: &Args, file: &Path) -> io::Result<()> {
-    let content = fs::read_to_string(file)?;
-    let mut result = String::new();
+fn edit_file(
+    commands: &[Command],
+    quiet: bool,
+    file: &Path,
+    in_place: Option<&str>,
+) -> Result<(), String> {
+    let data = fs::read(file).map_err(|e| format!("sed: can't read {}: {}", file.display(), e))?;
 
-    for line in content.lines() {
-        let mut line = line.to_string();
-        for expr in &args.expressions {
-            line = apply_expression(&line, expr);
-        }
-        result.push_str(&line);
-        result.push('\n');
-    }
+    if let Some(suffix) = in_place {
+        // Path::new("..").file_name() is None — report it instead of panicking.
+        let name = match file.file_name() {
+            Some(name) => name.to_os_string(),
+            None => {
+                return Err(format!(
+                    "sed: cannot edit in place: {}: no file name component",
+                    file.display()
+                ));
+            }
+        };
 
-    if let Some(suffix) = &args.in_place {
         if !suffix.is_empty() {
-            let backup_path = file.with_file_name(format!(
-                "{}{}",
-                file.file_name().unwrap().to_string_lossy(),
-                suffix
-            ));
-            fs::copy(file, &backup_path)?;
+            let mut backup_name = name.clone();
+            backup_name.push(suffix);
+            let backup = file.with_file_name(backup_name);
+            fs::copy(file, &backup)
+                .map_err(|e| format!("sed: can't create backup {}: {}", backup.display(), e))?;
         }
-    }
 
-    if args.in_place.is_some() {
-        fs::write(file, &result)?;
+        // Write the edited content to a temp file next to the target and
+        // rename it over the original, so a failed write never truncates it.
+        let temp = file.with_file_name(format!(
+            ".{}.sed-tmp-{}",
+            name.to_string_lossy(),
+            std::process::id()
+        ));
+        let written = (|| -> io::Result<()> {
+            let tmp = fs::File::create(&temp)?;
+            let mut out = BufWriter::new(tmp);
+            run_stream(commands, &data, quiet, &mut out)?;
+            out.flush()?;
+            drop(out);
+            fs::rename(&temp, file)?;
+            Ok(())
+        })();
+        if written.is_err() {
+            let _ = fs::remove_file(&temp);
+        }
+        written.map_err(|e| format!("sed: {}: {}", file.display(), e))
     } else {
-        print!("{}", result);
+        let stdout = io::stdout();
+        let mut out = BufWriter::new(stdout.lock());
+        run_stream(commands, &data, quiet, &mut out)
+            .and_then(|()| out.flush())
+            .map_err(|e| format!("sed: {}: write error: {}", file.display(), e))
     }
-
-    Ok(())
 }
 
-fn main() -> io::Result<()> {
-    let args = Args::parse();
+fn main() -> ExitCode {
+    let args = cli::parse_args();
 
-    if args.expressions.is_empty() {
+    // -e scripts take precedence; without any, the first positional argument
+    // is the script and the rest are the files (GNU `sed 's/a/b/' file`).
+    let (scripts, files): (Vec<String>, Vec<PathBuf>) = if args.expressions.is_empty() {
+        match args.operands.split_first() {
+            Some((script, rest)) => (
+                vec![script.clone()],
+                rest.iter().map(PathBuf::from).collect(),
+            ),
+            None => (Vec::new(), Vec::new()),
+        }
+    } else {
+        (
+            args.expressions.clone(),
+            args.operands.iter().map(PathBuf::from).collect(),
+        )
+    };
+
+    if scripts.is_empty() {
         eprintln!("sed: no expression given");
-        std::process::exit(1);
+        return ExitCode::FAILURE;
     }
 
-    if args.files.is_empty() {
-        process_stdin(&args)
-    } else {
-        for file in &args.files {
-            process_file(&args, file)?;
+    // Parse every script up front so nothing is processed on a bad command.
+    let mut commands: Vec<Command> = Vec::new();
+    for (index, script) in scripts.iter().enumerate() {
+        match parse_expression(script, index + 1) {
+            Ok(mut parsed) => commands.append(&mut parsed),
+            Err(message) => {
+                eprintln!("{message}");
+                return ExitCode::FAILURE;
+            }
         }
-        Ok(())
+    }
+
+    let in_place = args.in_place.as_deref();
+    let mut failed = false;
+
+    if files.is_empty() {
+        let mut data = Vec::new();
+        if let Err(e) = io::stdin().read_to_end(&mut data) {
+            eprintln!("sed: read error on stdin: {e}");
+            return ExitCode::FAILURE;
+        }
+        let stdout = io::stdout();
+        let mut out = BufWriter::new(stdout.lock());
+        if let Err(e) = run_stream(&commands, &data, args.quiet, &mut out) {
+            eprintln!("sed: write error on stdout: {e}");
+            failed = true;
+        }
+        let _ = out.flush();
+    } else {
+        for file in &files {
+            if let Err(message) = edit_file(&commands, args.quiet, file, in_place) {
+                eprintln!("{message}");
+                failed = true;
+            }
+        }
+    }
+
+    if failed {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
     }
 }
