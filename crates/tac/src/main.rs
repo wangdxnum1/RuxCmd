@@ -3,7 +3,6 @@ mod cli;
 use clap::Parser;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::path::PathBuf;
 
 fn main() {
     let args = cli::Args::parse();
@@ -19,12 +18,14 @@ fn main() {
         args.separator.chars().collect()
     };
 
-    let mut lines: Vec<Vec<char>> = Vec::new();
+    // Each record carries its own separator (after the record body by
+    // default, before it with -b). Records are emitted in reverse order.
+    let mut records: Vec<Vec<char>> = Vec::new();
     let mut exit_code = 0i32;
 
     if args.files.is_empty() {
         let stdin = std::io::stdin();
-        if let Err(e) = read_file_reader(stdin.lock(), &sep, &mut lines) {
+        if let Err(e) = read_file_reader(stdin.lock(), &sep, args.before, &mut records) {
             eprintln!("tac: error reading stdin: {}", e);
             exit_code = 1;
         }
@@ -32,14 +33,14 @@ fn main() {
         for p in &args.files {
             if p.to_string_lossy() == "-" {
                 let stdin = std::io::stdin();
-                if let Err(e) = read_file_reader(stdin.lock(), &sep, &mut lines) {
+                if let Err(e) = read_file_reader(stdin.lock(), &sep, args.before, &mut records) {
                     eprintln!("tac: error reading stdin: {}", e);
                     exit_code = 1;
                 }
             } else {
                 match File::open(p) {
                     Ok(f) => {
-                        if let Err(e) = read_file_reader(f, &sep, &mut lines) {
+                        if let Err(e) = read_file_reader(f, &sep, args.before, &mut records) {
                             eprintln!("tac: {}: {}", p.display(), e);
                             exit_code = 1;
                         }
@@ -53,66 +54,80 @@ fn main() {
         }
     }
 
+    records.reverse();
+
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
 
-    let sep_bytes: Vec<u8> = sep
-        .iter()
-        .flat_map(|c| {
-            let mut b = [0u8; 4];
-            c.encode_utf8(&mut b).bytes().collect::<Vec<u8>>()
-        })
-        .collect();
-
-    lines.reverse();
-
-    for line in &lines {
-        let line_bytes: Vec<u8> = line
+    for record in &records {
+        let record_bytes: Vec<u8> = record
             .iter()
             .flat_map(|c| {
                 let mut b = [0u8; 4];
                 c.encode_utf8(&mut b).bytes().collect::<Vec<u8>>()
             })
             .collect();
-
-        if args.before {
-            // separator is BEFORE current line's body
-            let _ = out.write_all(&sep_bytes);
-            let _ = out.write_all(&line_bytes);
-        } else {
-            // separator is AFTER current line's body (FIXED: was duplicate BEFORE)
-            let _ = out.write_all(&line_bytes);
-            let _ = out.write_all(&sep_bytes);
-        }
+        let _ = out.write_all(&record_bytes);
     }
 
     std::process::exit(exit_code);
 }
 
+/// Split input into records, with the separator attached to each record the
+/// way GNU tac does:
+///
+/// - default: a record is `content + separator`; the final segment after the
+///   last separator is a record without separator when non-empty (a trailing
+///   separator produces no empty record).
+/// - `before`: a record is `separator + content`; the leading segment before
+///   the first separator is a record without separator when non-empty, and a
+///   trailing separator forms a record of just the separator (empty content).
 fn read_file_reader<R: Read>(
-    reader: R,
+    mut reader: R,
     sep: &[char],
-    lines: &mut Vec<Vec<char>>,
+    before: bool,
+    records: &mut Vec<Vec<char>>,
 ) -> Result<(), std::io::Error> {
     let mut buf = String::new();
-    let mut r = reader;
-    r.read_to_string(&mut buf)?;
+    reader.read_to_string(&mut buf)?;
     let chars: Vec<char> = buf.chars().collect();
     let sep_len = sep.len();
 
-    let mut start = 0usize;
+    // Non-overlapping separator occurrences, left to right.
+    let mut sep_positions: Vec<usize> = Vec::new();
     let mut i = 0usize;
     while i + sep_len <= chars.len() {
         if chars[i..i + sep_len] == sep[..] {
-            lines.push(chars[start..i].to_vec());
+            sep_positions.push(i);
             i += sep_len;
-            start = i;
         } else {
             i += 1;
         }
     }
-    if start <= chars.len() {
-        lines.push(chars[start..].to_vec());
+
+    if before {
+        let first_sep = sep_positions.first().copied().unwrap_or(chars.len());
+        if first_sep > 0 {
+            records.push(chars[..first_sep].to_vec());
+        }
+        for (idx, &start) in sep_positions.iter().enumerate() {
+            let end = sep_positions
+                .get(idx + 1)
+                .copied()
+                .unwrap_or(chars.len());
+            records.push(chars[start..end].to_vec());
+        }
+    } else {
+        let mut prev_end = 0usize;
+        for &start in &sep_positions {
+            let mut record = chars[prev_end..start].to_vec();
+            record.extend_from_slice(&chars[start..start + sep_len]);
+            records.push(record);
+            prev_end = start + sep_len;
+        }
+        if prev_end < chars.len() {
+            records.push(chars[prev_end..].to_vec());
+        }
     }
     Ok(())
 }
