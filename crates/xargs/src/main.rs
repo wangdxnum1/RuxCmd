@@ -49,6 +49,29 @@ fn main() {
     };
 
     const MAX_COMMAND_CHARS: usize = 8000;
+
+    // GNU xargs (without -r) runs the command once even with empty input.
+    if input_args.is_empty() {
+        let program = &command_template[0];
+        if args.verbose {
+            eprintln!("{} {}", program, command_template[1..].join(" "));
+        }
+        let status = Command::new(program)
+            .args(&command_template[1..])
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status();
+        match status {
+            Ok(s) if s.success() => return,
+            Ok(s) => std::process::exit(s.code().unwrap_or(1)),
+            Err(e) => {
+                eprintln!("xargs: {}: {}", program, e);
+                std::process::exit(1);
+            }
+        }
+    }
+
     let mut i = 0;
     while i < input_args.len() {
         // Respect -n but never exceed the Windows command-line length limit.

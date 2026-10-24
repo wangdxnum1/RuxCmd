@@ -21,19 +21,15 @@ fn pretty_days_reflect_uptime_not_epoch() {
 }
 
 #[test]
-fn plain_output_is_finite_seconds() {
-    // The non-pretty output must stay within plausible boot uptime seconds
-    // (< 1000 days), not epoch-seconds.
+fn plain_output_is_procps_format() {
+    // Round 12 B1: the default output is the procps line
+    // `HH:MM:SS up N days, H:MM, 0 users` (was bare epoch seconds).
     let output = cargo_bin_cmd!("uptime").output().unwrap();
     assert!(output.status.success(), "uptime must exit 0");
 
     let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-    let secs: u64 = stdout
-        .trim()
-        .parse()
-        .unwrap_or_else(|_| panic!("uptime must print a bare number, got: {stdout:?}"));
     assert!(
-        secs < 1000 * 86400,
-        "uptime printed {secs} seconds (epoch bug?)"
+        stdout.contains(" up ") && stdout.trim_end().ends_with(", 0 users"),
+        "uptime must print the procps format, got: {stdout:?}"
     );
 }
