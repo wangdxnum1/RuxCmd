@@ -9,10 +9,37 @@ use std::time::{Duration, Instant};
 /// handle inheritance), so the harness would keep waiting for pipe EOF until
 /// the orphaned grandchild exits even though timeout itself exited 124 long
 /// before. Waiting on the process handle measures timeout's own exit.
+
+/// Absolute path to the system ping: cargo test puts target/debug on PATH,
+/// and our own ping.exe would shadow the system one without -n support.
+fn system_ping() -> String {
+    let dir = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap()).join("System32");
+    let entry = std::fs::read_dir(&dir)
+        .expect("read System32")
+        .map(|e| e.expect("dir entry"))
+        .find(|e| {
+            e.file_name()
+                .to_string_lossy()
+                .eq_ignore_ascii_case("ping.exe")
+        })
+        .expect("ping.exe in System32");
+    entry.path().to_string_lossy().into_owned()
+}
+
 fn run_with_null_stdio(args: &[&str]) -> (Option<i32>, Duration) {
     let start = Instant::now();
     let status = Command::new(env!("CARGO_BIN_EXE_timeout"))
-        .args(args)
+        .args(
+            args.iter()
+                .map(|a| {
+                    if *a == "ping" {
+                        system_ping().leak()
+                    } else {
+                        *a
+                    }
+                })
+                .collect::<Vec<&str>>(),
+        )
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
