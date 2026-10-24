@@ -177,3 +177,6 @@
 - B2: complete (fix e434e6c — vmstat r 列归 0 声明差异、id 用 GetSystemTimes 真实 idle、死 extern 删除;free 补 -t/-s/-c/-w 与 available 列、-h Gi 后缀;df GetVolumeInformationW 真实类型 + -T、失败退出 1、Use% 向上取整、盘符根规范化)
 - C1: complete (fix 5ab7de5 — w/who 用 WTSEnumerateSessionsW/WTSQuerySessionInformationW 枚举真实会话;-b/启动时间经 GetTickCount64 换算本地时间;systeminfo/query 外壳删除,降级路径保留)
 - C2: complete (fix 76cf802 — %CPU 改存活期均值(procps 语义,start+GetProcessTimes);stat 真实化(Sleeping,声明差异);-C 精确匹配(.exe/大小写无关);token.rs 两处句柄泄漏修复;--headers-repeat 死选项移除;stime/排序键 P2 留待)
+- D1: complete (fix a796259 — grep/cut 字节化读行(非 UTF-8 原字节透传);grep 补 -E/-F/-w/-l/-h/-H/-A/-B/-C,单文件无前缀;cut -b 原始字节、只剥 \r)
+- D2: complete — sort 非UTF-8/`-`/exit 2/尾空白保留;head 字节透明+互斥+stdin 头;tail -c -f、+N 偏移、非法数值 exit 1
+- E1: complete — sed 地址(N/$//sub//范围)、p/d/q 命令、位置参数脚本、-n、-i 原子替换+备份后缀、未知命令报错(修静默忽略)
