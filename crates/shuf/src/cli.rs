@@ -21,7 +21,7 @@ pub struct Args {
     #[arg(short = 'o', long = "output", value_name = "FILE")]
     pub output: Option<PathBuf>,
 
-    #[arg(long = "random-source", value_name = "SEEDSTR")]
+    #[arg(long = "random-source", value_name = "FILE")]
     pub random_source: Option<String>,
 
     #[arg(value_name = "FILE")]

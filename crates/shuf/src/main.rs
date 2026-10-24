@@ -3,7 +3,6 @@ mod cli;
 use clap::Parser;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
-use std::path::PathBuf;
 
 fn main() {
     let args = cli::Args::parse();
@@ -14,7 +13,13 @@ fn main() {
     }
 
     let seed: u64 = match args.random_source.as_ref() {
-        Some(s) => hash_str_to_u64(s),
+        Some(path) => match seed_from_source(path) {
+            Ok(s) => s,
+            Err(msg) => {
+                eprintln!("{}", msg);
+                std::process::exit(1);
+            }
+        },
         None => {
             let nanos = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -113,9 +118,23 @@ fn parse_range(s: &str) -> Option<(i64, i64)> {
     if lo > hi { None } else { Some((lo, hi)) }
 }
 
-fn hash_str_to_u64(s: &str) -> u64 {
+/// Seed the shuffle from up to 64 KiB of the `--random-source` file's
+/// contents (FNV-1a). GNU reads random bytes from this file; hashing the
+/// contents gives the same observable contract: same file bytes, same
+/// permutation (approximation declared in compatibility.md).
+fn seed_from_source(path: &str) -> Result<u64, String> {
+    use std::io::Read;
+    let f = File::open(path).map_err(|e| format!("shuf: cannot open '{}': {}", path, e))?;
+    let mut buf = Vec::new();
+    f.take(64 * 1024)
+        .read_to_end(&mut buf)
+        .map_err(|e| format!("shuf: cannot read '{}': {}", path, e))?;
+    Ok(hash_bytes(&buf))
+}
+
+fn hash_bytes(bytes: &[u8]) -> u64 {
     let mut h: u64 = 0xcbf29ce484222325;
-    for b in s.bytes() {
+    for &b in bytes {
         h ^= b as u64;
         h = h.wrapping_mul(0x100000001b3);
     }
