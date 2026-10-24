@@ -13,3 +13,4 @@ windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }
 
 [dev-dependencies]
 assert_cmd.workspace = true
+predicates.workspace = true

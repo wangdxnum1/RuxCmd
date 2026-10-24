@@ -103,22 +103,20 @@ fn exact_name_kill_terminates_spawned_process() {
     assert_dies_quickly(child, Duration::from_secs(5));
 }
 
-/// Matching must be case-sensitive by default (procps semantics): a
-/// case-flipped `-x` pattern matches nothing (exit 1) and leaves the process
-/// alive; `-i` then matches and kills it.
+/// Image-name matching is ASCII case-insensitive on Windows (Toolhelp32
+/// casing is unreliable, same declared behavior as pgrep): a case-flipped
+/// `-x` pattern still matches, with or without -i.
 #[test]
-fn case_sensitive_default_and_ignore_case_flag() {
+fn case_insensitive_default_and_ignore_case_flag() {
     let _g = lock();
     let mut child = spawn_ping();
     let flipped = flipped_case(&ping_image());
 
     let out = run(&["-x", &flipped]);
-    assert_eq!(out.code, Some(1), "case-sensitive -x must not match");
-    assert!(
-        child.try_wait().expect("try_wait").is_none(),
-        "child must survive a non-matching pkill"
-    );
+    assert_eq!(out.code, Some(0), "stderr: {}", out.stderr);
+    assert_dies_quickly(child, Duration::from_secs(5));
 
+    let mut child = spawn_ping();
     let out = run(&["-x", "-i", &flipped]);
     assert_eq!(out.code, Some(0), "stderr: {}", out.stderr);
     assert_dies_quickly(child, Duration::from_secs(5));

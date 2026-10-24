@@ -1,4 +1,5 @@
 use assert_cmd::cargo::cargo_bin_cmd;
+use predicates::prelude::*;
 
 #[test]
 fn print_type_shows_real_filesystem() {
@@ -10,10 +11,13 @@ fn print_type_shows_real_filesystem() {
 
 #[test]
 fn missing_path_reports_and_exits_one() {
-    let out = cargo_bin_cmd!("df")
-        .arg("Q:\\")
-        .assert()
-        .failure()
-        .stderr(|s: &str| s.contains("cannot get filesystem statistics"));
+    let out =
+        cargo_bin_cmd!("df")
+            .arg("Q:\\")
+            .assert()
+            .failure()
+            .stderr(predicates::str::contains(
+                "cannot get filesystem statistics",
+            ));
     let _ = out;
 }

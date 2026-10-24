@@ -140,11 +140,13 @@ fn pcpu_shows_numbers_for_queryable_processes() {
     // Round 12 C2: %CPU was permanently "?" because the prev-sample pipeline
     // was never wired. It is now a lifetime average and numeric for any
     // process whose times are readable.
-    let out = cargo_bin_cmd!("ps")
+    let output = Command::cargo_bin("ps")
+        .unwrap()
         .args(["-o", "pid,pcpu", "--sort=-pcpu"])
-        .assert()
-        .success();
-    let stdout = String::from_utf8_lossy(&out.get_output().stdout);
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
     let numeric: Vec<&str> = stdout
         .lines()
         .skip(1)
@@ -162,11 +164,13 @@ fn pcpu_shows_numbers_for_queryable_processes() {
 
 #[test]
 fn stat_column_reports_sleeping_not_running() {
-    let out = cargo_bin_cmd!("ps")
+    let output = Command::cargo_bin("ps")
+        .unwrap()
         .args(["-o", "pid,stat"])
-        .assert()
-        .success();
-    let stdout = String::from_utf8_lossy(&out.get_output().stdout);
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
     let stat_values: Vec<&str> = stdout
         .lines()
         .skip(1)
@@ -182,7 +186,8 @@ fn stat_column_reports_sleeping_not_running() {
 #[test]
 fn headers_repeat_is_rejected() {
     // Round 12 C2: the never-implemented --headers-repeat was removed.
-    cargo_bin_cmd!("ps")
+    Command::cargo_bin("ps")
+        .unwrap()
         .arg("--headers-repeat=2")
         .assert()
         .failure();
