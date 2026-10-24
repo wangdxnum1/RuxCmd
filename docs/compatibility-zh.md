@@ -26,7 +26,7 @@
 | cut | --bytes, --characters, --delimiter, --fields, --only-delimited, --output-delimiter | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | date | --date, --nanoseconds, --seconds, --set, --utc, --version | 冒烟 + 行为测试 | -d/--date 与位置参数接受 @EPOCH、YYYY-MM-DD、YYYY-MM-DDTHH:MM[:SS]（空串=now，其他格式报错退出 1）；-s/--set 经 SetLocalTime 设置本地时钟。--seconds 作用于解析出的时刻；%N 恒为 0。 |
 | df | --human-readable, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| diff | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| diff | --unified, --ignore-case, --ignore-whitespace, --ignore-blank-lines, --version | 冒烟 + 行为测试 | 退出码遵循 GNU（0/1/2）。普通格式输出未合并的 d/a 命令，行号锚点与 GNU 一致；c 合并与区间折叠未实现。 |
 | dirname | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | du | --human-readable, --summarize, --total, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | echo | --version | 冒烟 + 行为测试 | 默认不解释转义（GNU 默认 -E）；-e 开启，-E 强制关闭；两者同给时 -E 生效。 |
@@ -85,7 +85,7 @@
 | shred | --force, --iterations, --remove, --verbose, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | shuf | --head-count, --input-range, --output, --random-source, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | sleep | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| sort | --check, --field-separator, --human-numeric-sort, --ignore-case, --key, --numeric-sort | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| sort | --check, --field-separator, --human-numeric-sort, --ignore-case, --key, --numeric-sort, --reverse, --unique | 冒烟 + 行为测试 | 已实现 -k F1[,F2] 与 -t SEP（单字符）；无 -t 时前导空白归入后一字段；-u 排序后按键去重；-c -r 检查逆序；-n 取前导数字（无则为 0）；-h 为 1024 进制全后缀。不支持字符偏移与按键修饰符（-k2.3/-k2n）。help 仅 --help。 |
 | split | --bytes, --lines, --number, --numeric-suffixes, --output, --suffix-length | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | stat | --file-system, --format, --terse, --version | 冒烟 + 行为测试 | -c 指令遵循 GNU 语义；设备号/inode/uid/gid/链接数为 0/1 占位，%b 为 ceil(size/512) 近似，%Z 近似 mtime，时间为本地时区秒级，-f 仅输出块与空间行。未知指令报错退出 1。 |
 | strings | --all, --bytes, --encoding, --print-file-name, --radix, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |

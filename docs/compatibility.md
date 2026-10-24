@@ -27,7 +27,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | cut | --bytes, --characters, --delimiter, --fields, --only-delimited, --output-delimiter | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | date | --date, --nanoseconds, --seconds, --set, --utc, --version | Smoke + behavior tests | -d/--date and the positional operand accept @EPOCH, YYYY-MM-DD, and YYYY-MM-DDTHH:MM[:SS] (empty = now, other formats error with exit 1); -s/--set sets the local clock via SetLocalTime. --seconds applies to the parsed instant; %N is always 0. |
 | df | --human-readable, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| diff | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| diff | --unified, --ignore-case, --ignore-whitespace, --ignore-blank-lines, --version | Smoke + behavior tests | Exit codes follow GNU (0/1/2). Normal format emits unmerged d/a commands with GNU-correct line anchors; c-merging and range folding are not implemented. |
 | dirname | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | du | --human-readable, --summarize, --total, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | echo | --version | Smoke + behavior tests | Escapes are off by default (GNU -E default); -e enables them, -E forces off. When both are given, -E wins. |
@@ -86,7 +86,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | shred | --force, --iterations, --remove, --verbose, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | shuf | --head-count, --input-range, --output, --random-source, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | sleep | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| sort | --check, --field-separator, --human-numeric-sort, --ignore-case, --key, --numeric-sort | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| sort | --check, --field-separator, --human-numeric-sort, --ignore-case, --key, --numeric-sort, --reverse, --unique | Smoke + behavior tests | -k F1[,F2] and -t SEP (single char) are implemented; without -t leading whitespace joins the following field; -u dedupes after sorting by key; -c -r checks reverse order; -n takes a leading number (0 if none); -h is 1024-based with all suffixes. Character offsets and per-key modifiers (-k2.3/-k2n) are unsupported. Help is --help only. |
 | split | --bytes, --lines, --number, --numeric-suffixes, --output, --suffix-length | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | stat | --file-system, --format, --terse, --version | Smoke + behavior tests | -c directives follow GNU semantics; device/inode/uid/gid/link fields are 0/1 placeholders, %b is ceil(size/512), %Z approximates mtime, times are local with second precision, and -f prints block/space lines only. Unknown directives error with exit 1. |
 | strings | --all, --bytes, --encoding, --print-file-name, --radix, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
