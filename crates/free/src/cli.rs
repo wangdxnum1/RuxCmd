@@ -10,8 +10,12 @@ pub enum Unit {
 }
 
 #[derive(Parser, Debug)]
-#[command(name = "free", version, about, disable_version_flag = true)]
+#[command(name = "free", version, about, disable_version_flag = true, disable_help_flag = true)]
+/// Help stays a long-only flag: -h keeps its GNU meaning in this command.
 pub struct Args {
+    #[arg(long = "help", action = clap::ArgAction::Help)]
+    pub help: (),
+
     #[arg(short = 'b', long = "bytes", conflicts_with_all = ["kilobytes", "megabytes", "gigabytes", "human_readable"])]
     pub bytes: bool,
 
