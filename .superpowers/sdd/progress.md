@@ -182,3 +182,5 @@
 - E1: complete — sed 地址(N/$//sub//范围)、p/d/q 命令、位置参数脚本、-n、-i 原子替换+备份后缀、未知命令报错(修静默忽略)
 - E2: complete — awk if 条件基于解析 token 求值(消灭 Debug 串 bug)、else/next、print 多参数、字段残留清理、NR/BEGIN/END 跨文件、for 解析报错、比较/真值语义修正;顺带修 == 拆分、括号 &&、Value 求值器
 - F1: complete — paste \r/-d 列表循环;join GNU 输出形状+空白默认分隔;fold 字节化+-b 守恒;unexpand ≥2 空白;fmt -c 无值 flag+下溢+断词;tr 转义/字符类/-c 补集/-s SET2/反序报错
+- F2: complete — mv 拒绝目录/非目录覆盖(绝不删树)+跨卷 copy+delete 回退+`.`/`..` 合并;rm -f 仅静默 ENOENT 其余报错 exit 1;ln 目标按书写形式存储(去 canonicalize 污染)+-v 改 verbose;cp -f 清只读位;open 改 ShellExecuteExW(修 -R 假失败/注入/URL & 截断,-W 经 NOCLOSEPROCESS 等待)
+- G1: complete — curl 默认仅 body、-d 隐含 POST、重定向可关(-L 手动 10 跳)、-f/-I/-s 真语义;wget 文件名解析(尾/、?截断、%XX)、超时、退出码 8、-O -;ping 丢包退出码、状态消息区分、-s 上限 65500、-t 改持续 ping(Windows 语义)
