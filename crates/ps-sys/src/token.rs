@@ -28,7 +28,10 @@ pub fn user(pid: u32) -> Result<UserInfo> {
             return Err(Error::PermissionDenied(pid));
         }
         let mut th = HANDLE::default();
-        OpenProcessToken(ph, TOKEN_QUERY, &mut th).map_err(Error::from)?;
+        if let Err(e) = OpenProcessToken(ph, TOKEN_QUERY, &mut th) {
+            let _ = CloseHandle(ph);
+            return Err(e.into());
+        }
         let _ = CloseHandle(ph);
 
         let mut needed = 0u32;
@@ -38,14 +41,16 @@ pub fn user(pid: u32) -> Result<UserInfo> {
             return Err(Error::PermissionDenied(pid));
         }
         let mut buf = vec![0u8; needed as usize];
-        GetTokenInformation(
+        if let Err(e) = GetTokenInformation(
             th,
             TokenUser,
             Some(buf.as_mut_ptr() as *mut _),
             needed,
             &mut needed,
-        )
-        .map_err(Error::from)?;
+        ) {
+            let _ = CloseHandle(th);
+            return Err(e.into());
+        }
         let _ = CloseHandle(th);
 
         let token_user: *const TOKEN_USER = buf.as_ptr() as *const _;

@@ -47,11 +47,13 @@ pub fn passes(p: &Process, sel: &Selector) -> bool {
     if !sel.comm_patterns.is_empty() {
         let name = p.cmdline.as_deref().unwrap_or(&p.name);
         let first = name.split_whitespace().next().unwrap_or("");
-        if !sel
-            .comm_patterns
-            .iter()
-            .any(|pat| first.contains(pat.as_str()) || p.name.contains(pat.as_str()))
-        {
+        if !sel.comm_patterns.iter().any(|pat| {
+            // procps -C matches the command exactly; Windows image names
+            // carry ".exe" and arbitrary casing, so compare stems exactly.
+            let stem = |s: &str| s.strip_suffix(".exe").unwrap_or(s).to_lowercase();
+            let pat_stem = stem(pat.as_str());
+            stem(first) == pat_stem || stem(&p.name) == pat_stem
+        }) {
             return false;
         }
     }

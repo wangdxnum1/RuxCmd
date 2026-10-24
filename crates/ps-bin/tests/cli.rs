@@ -134,3 +134,56 @@ fn pmem_values_are_bounded_by_total_memory() {
         "sum of %MEM values ({sum}) exceeds total physical memory (100%)"
     );
 }
+
+#[test]
+fn pcpu_shows_numbers_for_queryable_processes() {
+    // Round 12 C2: %CPU was permanently "?" because the prev-sample pipeline
+    // was never wired. It is now a lifetime average and numeric for any
+    // process whose times are readable.
+    let out = cargo_bin_cmd!("ps")
+        .args(["-o", "pid,pcpu", "--sort=-pcpu"])
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&out.get_output().stdout);
+    let numeric: Vec<&str> = stdout
+        .lines()
+        .skip(1)
+        .filter(|l| {
+            let cpu = l.split_whitespace().nth(1).unwrap_or("?");
+            cpu.chars().all(|c| c.is_ascii_digit() || c == '.')
+        })
+        .collect();
+    assert!(
+        numeric.len() >= 5,
+        "expected several numeric %CPU rows: {:?}",
+        stdout
+    );
+}
+
+#[test]
+fn stat_column_reports_sleeping_not_running() {
+    let out = cargo_bin_cmd!("ps")
+        .args(["-o", "pid,stat"])
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&out.get_output().stdout);
+    let stat_values: Vec<&str> = stdout
+        .lines()
+        .skip(1)
+        .filter_map(|l| l.split_whitespace().nth(1))
+        .collect();
+    assert!(
+        stat_values.iter().any(|s| s.contains('S')),
+        "expected at least one S row: {:?}",
+        stdout
+    );
+}
+
+#[test]
+fn headers_repeat_is_rejected() {
+    // Round 12 C2: the never-implemented --headers-repeat was removed.
+    cargo_bin_cmd!("ps")
+        .arg("--headers-repeat=2")
+        .assert()
+        .failure();
+}

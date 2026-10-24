@@ -150,15 +150,6 @@ pub struct Cli {
     #[arg(long = "write", value_name = "FILE", value_hint = ValueHint::FilePath, help_heading = "Output")]
     pub write: Option<PathBuf>,
 
-    /// Repeat header every N rows (0 = never)
-    #[arg(
-        long = "headers-repeat",
-        default_value_t = 0,
-        value_name = "N",
-        help_heading = "Output"
-    )]
-    pub headers_repeat: usize,
-
     /// Show version information
     #[arg(short = 'V', long = "version", action = ArgAction::Version)]
     pub version: (),

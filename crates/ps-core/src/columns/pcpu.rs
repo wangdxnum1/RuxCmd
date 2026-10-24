@@ -1,5 +1,6 @@
 use crate::column::{Column, ColumnKind, FormatCtx};
 use crate::process::Process;
+use std::time::SystemTime;
 
 #[derive(Default)]
 pub struct Pcpu;
@@ -17,19 +18,19 @@ impl Column for Pcpu {
         true
     }
     fn format(&self, p: &Process, ctx: &FormatCtx) -> String {
-        let Some(prev) = ctx.prev else {
+        // Lifetime average (procps %CPU semantics): CPU time over elapsed
+        // time since process start. No second sample is needed.
+        let Some(start) = p.start_time else {
             return "?".into();
         };
-        if prev.pid != p.pid {
-            return "?".into();
-        }
-        let dt = ctx.now.duration_since(prev.at).as_secs_f64();
-        if dt < 0.001 {
+        let alive = SystemTime::now()
+            .duration_since(start)
+            .map(|d| d.as_secs_f64())
+            .unwrap_or(0.0);
+        if alive < 0.001 {
             return "0.0".into();
         }
-        let dcpu = (p.kernel_time + p.user_time)
-            .saturating_sub(prev.cpu_total)
-            .as_secs_f64();
-        format!("{:.1}", 100.0 * dcpu / dt)
+        let cpu = (p.kernel_time + p.user_time).as_secs_f64();
+        format!("{:.1}", 100.0 * cpu / alive)
     }
 }

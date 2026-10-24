@@ -61,7 +61,9 @@ pub fn assemble_one(r: ProcessRaw) -> Process {
         image_path,
         cmdline: r.cmdline,
         user: user_info,
-        state: ProcessState::Running,
+        // Windows exposes no runnable-vs-sleeping state per process; every
+        // normal process reports Sleeping (declared difference from procps).
+        state: ProcessState::Sleeping,
         priority_class,
         nice,
         start_time: start,
