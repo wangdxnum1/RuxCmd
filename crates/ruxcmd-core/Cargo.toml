@@ -1,0 +1,10 @@
+[package]
+license.workspace = true
+repository.workspace = true
+name = "ruxcmd-core"
+version = "0.1.0"
+edition = "2021"
+description = "Shared helpers for RuxCmd commands (byte-safe lines, path normalization, CPU sampling)"
+
+[dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem", "Win32_Foundation", "Win32_System_Threading", "Win32_System_SystemInformation"] }
