@@ -103,9 +103,9 @@ fn shell_execute(file: &str, parameters: Option<&str>, wait: bool) -> Result<(),
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, HANDLE};
-    use windows_sys::Win32::System::Threading::{WaitForSingleObject, INFINITE};
+    use windows_sys::Win32::System::Threading::{INFINITE, WaitForSingleObject};
     use windows_sys::Win32::UI::Shell::{
-        ShellExecuteExW, SEE_MASK_NOASYNC, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW,
+        SEE_MASK_NOASYNC, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW, ShellExecuteExW,
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
@@ -126,12 +126,7 @@ fn shell_execute(file: &str, parameters: Option<&str>, wait: bool) -> Result<(),
     // shell must not defer the call to a DDE conversation that would die
     // with it. SEE_MASK_NOCLOSEPROCESS (only for -W) returns a process
     // handle we can wait on.
-    sei.fMask = SEE_MASK_NOASYNC
-        | if wait {
-            SEE_MASK_NOCLOSEPROCESS
-        } else {
-            0
-        };
+    sei.fMask = SEE_MASK_NOASYNC | if wait { SEE_MASK_NOCLOSEPROCESS } else { 0 };
     sei.lpVerb = verb_w.as_ptr();
     sei.lpFile = file_w.as_ptr();
     sei.lpParameters = match &params_w {

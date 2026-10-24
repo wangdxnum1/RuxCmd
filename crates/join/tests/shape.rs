@@ -24,11 +24,7 @@ fn run(args: &[&str]) -> std::process::Output {
 }
 
 fn temp_file(tag: &str, contents: &str) -> PathBuf {
-    let path = std::env::temp_dir().join(format!(
-        "ruxcmd-join-{}-{}.txt",
-        tag,
-        std::process::id()
-    ));
+    let path = std::env::temp_dir().join(format!("ruxcmd-join-{}-{}.txt", tag, std::process::id()));
     std::fs::write(&path, contents).expect("failed to write fixture");
     path
 }
@@ -62,10 +58,7 @@ fn whitespace_default_joins_space_separated_files() {
     let f1 = temp_file("ws1", "1 x\n2 y\n");
     let f2 = temp_file("ws2", "1 p\n2 q\n");
 
-    let out = run(&[
-        f1.to_string_lossy().as_ref(),
-        f2.to_string_lossy().as_ref(),
-    ]);
+    let out = run(&[f1.to_string_lossy().as_ref(), f2.to_string_lossy().as_ref()]);
     assert_eq!(out.status.code(), Some(0));
     assert_eq!(out.stdout, b"1 x p\n2 y q\n");
 }

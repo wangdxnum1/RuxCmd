@@ -89,7 +89,10 @@ fn default_mode_has_no_ascii_column_and_matches_t_o2() {
         .stdout
         .clone();
     assert_eq!(out_default, out_o2);
-    assert_eq!(String::from_utf8(out_default).unwrap(), "0000000 061141 000012\n0000003\n");
+    assert_eq!(
+        String::from_utf8(out_default).unwrap(),
+        "0000000 061141 000012\n0000003\n"
+    );
 }
 
 #[test]
@@ -109,10 +112,7 @@ fn t_x1z_appends_ascii_trailer() {
         .write_stdin("ab")
         .assert()
         .success()
-        .stdout(format!(
-            "0000000 61 62{}>ab<\n0000002\n",
-            " ".repeat(44)
-        ));
+        .stdout(format!("0000000 61 62{}>ab<\n0000002\n", " ".repeat(44)));
 }
 
 #[test]

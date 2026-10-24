@@ -62,7 +62,10 @@ fn directory_flag_create_and_extract() {
         .assert()
         .success();
 
-    assert_eq!(fs::read(base.path().join("out/sub/a.txt")).unwrap(), b"alpha");
+    assert_eq!(
+        fs::read(base.path().join("out/sub/a.txt")).unwrap(),
+        b"alpha"
+    );
     assert_eq!(fs::read(base.path().join("out/b.txt")).unwrap(), b"beta");
 }
 
@@ -88,7 +91,10 @@ fn to_stdout_prints_contents_without_files() {
         !work.join("two.txt").exists(),
         "-O must not create files on disk"
     );
-    assert!(!work.join("one.txt").exists(), "member selection must apply");
+    assert!(
+        !work.join("one.txt").exists(),
+        "member selection must apply"
+    );
 }
 
 /// `--exclude PATTERN` (glob with `*`/`?`) skips matching entries during
@@ -156,7 +162,11 @@ fn member_names_select_entries() {
     let archive = base.path().join("arc.tar");
     make_archive(
         &archive,
-        &[("one.txt", "1"), ("dir/two.txt", "2"), ("dir/three.txt", "3")],
+        &[
+            ("one.txt", "1"),
+            ("dir/two.txt", "2"),
+            ("dir/three.txt", "3"),
+        ],
     );
 
     // List only a directory member: prefix match includes its children.
@@ -172,7 +182,11 @@ fn member_names_select_entries() {
         .clone();
     let listing = String::from_utf8(listing).unwrap();
     assert!(listing.contains("dir/two.txt"), "listing was: {}", listing);
-    assert!(listing.contains("dir/three.txt"), "listing was: {}", listing);
+    assert!(
+        listing.contains("dir/three.txt"),
+        "listing was: {}",
+        listing
+    );
     assert!(!listing.contains("one.txt"), "listing was: {}", listing);
 
     // Extract only one member by exact name.
@@ -184,7 +198,10 @@ fn member_names_select_entries() {
         .assert()
         .success();
     assert!(base.path().join("one.txt").exists());
-    assert!(!base.path().join("dir").exists(), "only selected members extract");
+    assert!(
+        !base.path().join("dir").exists(),
+        "only selected members extract"
+    );
 }
 
 /// Extraction of a selected member writes correct content (guards against
@@ -195,7 +212,10 @@ fn selected_member_content_is_correct() {
     let archive = base.path().join("arc.tar");
     make_archive(
         &archive,
-        &[("first.txt", "first-payload"), ("second.txt", "second-payload")],
+        &[
+            ("first.txt", "first-payload"),
+            ("second.txt", "second-payload"),
+        ],
     );
 
     cargo_bin_cmd!("tar")

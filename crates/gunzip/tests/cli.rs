@@ -64,7 +64,10 @@ fn stdout_flag_writes_content_and_keeps_source() {
     assert_eq!(String::from_utf8_lossy(&out.stdout), "hello stdout\n");
 
     assert!(gz.exists(), "-c must keep the source archive");
-    assert!(!dir.join("data").exists(), "-c must not write an output file");
+    assert!(
+        !dir.join("data").exists(),
+        "-c must not write an output file"
+    );
 
     fs::remove_dir_all(&dir).unwrap();
 }
@@ -77,14 +80,13 @@ fn multi_member_stream_decompresses_completely() {
     let gz = dir.join("multi.gz");
     write_gz(&gz, &[b"first-part;", b"second-part"]);
 
-    let out = gunzip_cmd()
-        .arg(&gz)
-        .current_dir(&dir)
-        .output()
-        .unwrap();
+    let out = gunzip_cmd().arg(&gz).current_dir(&dir).output().unwrap();
     assert!(out.status.success(), "stderr: {:?}", out.stderr);
 
-    assert_eq!(fs::read(dir.join("multi")).unwrap(), b"first-part;second-part");
+    assert_eq!(
+        fs::read(dir.join("multi")).unwrap(),
+        b"first-part;second-part"
+    );
     assert!(!gz.exists(), "default mode removes the source");
 
     fs::remove_dir_all(&dir).unwrap();

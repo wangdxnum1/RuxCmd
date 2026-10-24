@@ -308,7 +308,15 @@ fn grep_reader<R: BufRead>(
                         }
                     };
                     for hit in &hits {
-                        emit_line(out, name, show_name, line_num, hit.as_bytes(), ':', args.line_number);
+                        emit_line(
+                            out,
+                            name,
+                            show_name,
+                            line_num,
+                            hit.as_bytes(),
+                            ':',
+                            args.line_number,
+                        );
                     }
                 } else {
                     emit_line(out, name, show_name, line_num, &raw, ':', args.line_number);

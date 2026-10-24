@@ -226,7 +226,11 @@ fn h_supports_peta_zetta_yotta_suffixes() {
 /// Runs sort with a file operand and returns raw stdout plus the exit code,
 /// so non-UTF-8 output can be compared byte for byte.
 fn sort_stdout_bytes(file: &std::path::Path) -> (Vec<u8>, Option<i32>) {
-    let output = cargo_bin_cmd!("sort").arg(file).assert().get_output().clone();
+    let output = cargo_bin_cmd!("sort")
+        .arg(file)
+        .assert()
+        .get_output()
+        .clone();
     (output.stdout.clone(), output.status.code())
 }
 

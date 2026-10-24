@@ -60,8 +60,7 @@ fn main() {
             None => {
                 // A deletion section (`+++ /dev/null`) patches the file
                 // named on the `---` line.
-                let raw_name = if section.new_name == "/dev/null"
-                    && section.old_name != "/dev/null"
+                let raw_name = if section.new_name == "/dev/null" && section.old_name != "/dev/null"
                 {
                     &section.old_name
                 } else {

@@ -146,7 +146,13 @@ fn expand_set(pattern: &str) -> Result<Vec<char>, String> {
     Ok(out)
 }
 
-fn translate_char(c: char, set1: &[char], set1_sorted: &[char], set2: &[char], complement: bool) -> char {
+fn translate_char(
+    c: char,
+    set1: &[char],
+    set1_sorted: &[char],
+    set2: &[char],
+    complement: bool,
+) -> char {
     let last = set2[set2.len() - 1];
 
     if complement {
@@ -222,7 +228,9 @@ fn main() -> io::Result<()> {
     let set2 = if cli.delete {
         None
     } else {
-        cli.set2.as_ref().map(|s| expand_set(s).unwrap_or_else(|e| die(&e)))
+        cli.set2
+            .as_ref()
+            .map(|s| expand_set(s).unwrap_or_else(|e| die(&e)))
     };
 
     let set1_set: HashSet<char> = set1.iter().copied().collect();

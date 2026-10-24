@@ -10,11 +10,7 @@ fn check_accepts_binary_star_marker() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join("data.bin"), b"hello").unwrap();
     // GNU md5sum -b output: "<hash> *<file>"
-    fs::write(
-        dir.path().join("chk"),
-        format!("{MD5_HELLO} *data.bin\n"),
-    )
-    .unwrap();
+    fs::write(dir.path().join("chk"), format!("{MD5_HELLO} *data.bin\n")).unwrap();
     cargo_bin_cmd!("md5sum")
         .current_dir(dir.path())
         .args(["-c", "chk"])
@@ -83,7 +79,11 @@ fn tag_format_for_file_and_stdin() {
 fn status_is_silent_and_reports_exit_code_only() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join("f.txt"), b"hello").unwrap();
-    fs::write(dir.path().join("bad"), format!("{} f.txt\n", "0".repeat(32))).unwrap();
+    fs::write(
+        dir.path().join("bad"),
+        format!("{} f.txt\n", "0".repeat(32)),
+    )
+    .unwrap();
     fs::write(dir.path().join("good"), format!("{MD5_HELLO} f.txt\n")).unwrap();
     cargo_bin_cmd!("md5sum")
         .current_dir(dir.path())

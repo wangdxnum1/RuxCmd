@@ -67,7 +67,10 @@ fn force_move_dir_onto_existing_dir_does_not_delete_tree() {
         fs::read_to_string(dst.join("src").join("old.txt")).unwrap(),
         "OLD"
     );
-    assert!(src.join("sub").join("n.txt").exists(), "source must survive");
+    assert!(
+        src.join("sub").join("n.txt").exists(),
+        "source must survive"
+    );
 }
 
 #[test]

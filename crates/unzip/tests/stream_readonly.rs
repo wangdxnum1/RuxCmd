@@ -128,7 +128,11 @@ fn readonly_target_is_skipped_without_overwrite() {
         .assert()
         .success();
 
-    assert_eq!(fs::read(&target).unwrap(), b"one", "target must be untouched");
+    assert_eq!(
+        fs::read(&target).unwrap(),
+        b"one",
+        "target must be untouched"
+    );
     assert!(
         fs::metadata(&target).unwrap().permissions().readonly(),
         "skipped target keeps its read-only attribute"

@@ -219,7 +219,7 @@ fn finds_ping_started_via_cmd() {
         .expect("spawn cmd");
     // cmd needs a beat to spawn its ping child before we enumerate.
     std::thread::sleep(std::time::Duration::from_millis(700));
-            let out = run(&["-i", "ping"]);
+    let out = run(&["-i", "ping"]);
     assert_eq!(out.code, Some(0), "stderr: {}", out.stderr);
     let found = pids(&out.stdout);
     assert!(!found.is_empty());

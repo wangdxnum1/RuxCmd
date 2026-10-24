@@ -49,8 +49,16 @@ fn reveal_file_in_explorer_succeeds() {
     fs::write(&file, "x").unwrap();
     // explorer.exe /select routinely exits with code 1 on success; open
     // must report exit 0 for both files and directories.
-    cargo_bin_cmd!("open").arg("-R").arg(&file).assert().success();
-    cargo_bin_cmd!("open").arg("-R").arg(dir.path()).assert().success();
+    cargo_bin_cmd!("open")
+        .arg("-R")
+        .arg(&file)
+        .assert()
+        .success();
+    cargo_bin_cmd!("open")
+        .arg("-R")
+        .arg(dir.path())
+        .assert()
+        .success();
 }
 
 #[test]

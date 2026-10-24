@@ -116,9 +116,10 @@ impl<'a> ExprParser<'a> {
                             self.pos += 1;
                             match self.peek() {
                                 None => {
-                                    return Err(
-                                        self.error(self.pos, "unterminated address regular expression")
-                                    );
+                                    return Err(self.error(
+                                        self.pos,
+                                        "unterminated address regular expression",
+                                    ));
                                 }
                                 Some(escaped) => {
                                     pattern.push(escaped);
@@ -249,7 +250,10 @@ fn parse_expression(src: &str, expr_no: usize) -> Result<Vec<Command>, String> {
 // ---------- byte-level matching helpers ----------
 
 fn bytes_contain(haystack: &[u8], needle: &[u8]) -> bool {
-    !needle.is_empty() && haystack.windows(needle.len()).any(|window| window == needle)
+    !needle.is_empty()
+        && haystack
+            .windows(needle.len())
+            .any(|window| window == needle)
 }
 
 fn replace_substring(
@@ -302,7 +306,12 @@ fn split_lines(data: &[u8]) -> Vec<&[u8]> {
 /// Apply the command list to one whole input stream (a file or stdin).
 /// Output lines always end with `\n`, matching GNU sed; invalid UTF-8 is
 /// matched lossily and echoed back as the original bytes.
-fn run_stream(commands: &[Command], data: &[u8], quiet: bool, out: &mut dyn Write) -> io::Result<()> {
+fn run_stream(
+    commands: &[Command],
+    data: &[u8],
+    quiet: bool,
+    out: &mut dyn Write,
+) -> io::Result<()> {
     let lines = split_lines(data);
     let total = lines.len() as u64;
     // Open/closed state per command for two-address ranges.

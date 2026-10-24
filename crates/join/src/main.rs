@@ -99,7 +99,8 @@ fn main() {
             let key = parts[field1].to_string();
             if let Some(matching_lines) = file2_map.get(&key) {
                 for fields2 in matching_lines {
-                    let mut out_fields: Vec<String> = Vec::with_capacity(parts.len() + fields2.len());
+                    let mut out_fields: Vec<String> =
+                        Vec::with_capacity(parts.len() + fields2.len());
                     out_fields.push(key.clone());
                     for (i, field) in parts.iter().enumerate() {
                         if i != field1 {

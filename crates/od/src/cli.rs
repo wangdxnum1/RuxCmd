@@ -80,7 +80,11 @@ impl Args {
     /// Resolve the display specification from the short flags or `-t`.
     pub fn get_format_spec(&self) -> Result<FormatSpec, String> {
         if self.ascii {
-            return Ok(FormatSpec { display: DisplayType::Char, size: 1, z: false });
+            return Ok(FormatSpec {
+                display: DisplayType::Char,
+                size: 1,
+                z: false,
+            });
         }
         if self.decimal {
             return Ok(FormatSpec {
@@ -90,7 +94,11 @@ impl Args {
             });
         }
         if self.octal {
-            return Ok(FormatSpec { display: DisplayType::Octal, size: 2, z: false });
+            return Ok(FormatSpec {
+                display: DisplayType::Octal,
+                size: 2,
+                z: false,
+            });
         }
         if self.hexadecimal {
             return Ok(FormatSpec {
@@ -102,7 +110,11 @@ impl Args {
         match &self.format {
             Some(f) => parse_format(f),
             // GNU default: "oS" — octal shorts, no ASCII column.
-            None => Ok(FormatSpec { display: DisplayType::Octal, size: 2, z: false }),
+            None => Ok(FormatSpec {
+                display: DisplayType::Octal,
+                size: 2,
+                z: false,
+            }),
         }
     }
 

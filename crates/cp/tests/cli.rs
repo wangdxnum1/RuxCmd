@@ -29,10 +29,20 @@ fn force_overwrites_readonly_destination() {
     fs::set_permissions(&b, perm).unwrap();
 
     // Default (no -f) still refuses to overwrite.
-    cargo_bin_cmd!("cp").arg(&a).arg(&b).assert().failure().code(1);
+    cargo_bin_cmd!("cp")
+        .arg(&a)
+        .arg(&b)
+        .assert()
+        .failure()
+        .code(1);
     assert_eq!(fs::read_to_string(&b).unwrap(), "OLD");
 
     // -f clears FILE_ATTRIBUTE_READONLY and overwrites.
-    cargo_bin_cmd!("cp").arg("-f").arg(&a).arg(&b).assert().success();
+    cargo_bin_cmd!("cp")
+        .arg("-f")
+        .arg(&a)
+        .arg(&b)
+        .assert()
+        .success();
     assert_eq!(fs::read_to_string(&b).unwrap(), "NEW");
 }

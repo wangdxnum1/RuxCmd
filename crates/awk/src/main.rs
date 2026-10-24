@@ -380,7 +380,9 @@ fn parse_program(tokens: &[Token]) -> Result<ParsedProgram, String> {
                 let end = expr_end(tokens, i);
                 let expr: Vec<Token> = tokens[i..end].to_vec();
                 if let Some(Token::Action(a)) = tokens.get(end) {
-                    parsed.pattern_actions.push((Pattern::Expr(expr), a.clone()));
+                    parsed
+                        .pattern_actions
+                        .push((Pattern::Expr(expr), a.clone()));
                     i = end + 1;
                 } else {
                     parsed
@@ -477,7 +479,9 @@ fn compare_values(a: &Value, b: &Value) -> Ordering {
         || matches!(b, Value::Num(_))
         || (num_str(a).is_some() && num_str(b).is_some());
     if numeric {
-        a.to_num().partial_cmp(&b.to_num()).unwrap_or(Ordering::Equal)
+        a.to_num()
+            .partial_cmp(&b.to_num())
+            .unwrap_or(Ordering::Equal)
     } else {
         a.to_str().cmp(&b.to_str())
     }
@@ -634,11 +638,7 @@ fn execute_block(tokens: &[Token], vars: &mut HashMap<String, String>) -> Flow {
 
 /// Executes the `if` statement starting at `start`. Returns the index after
 /// the whole if/else chain plus the control flow of the branch taken.
-fn execute_if(
-    tokens: &[Token],
-    start: usize,
-    vars: &mut HashMap<String, String>,
-) -> (usize, Flow) {
+fn execute_if(tokens: &[Token], start: usize, vars: &mut HashMap<String, String>) -> (usize, Flow) {
     let Some(close) = find_matching_paren(tokens, start + 1) else {
         return (start + 1, Flow::Normal);
     };

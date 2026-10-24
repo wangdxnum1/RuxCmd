@@ -40,14 +40,12 @@ fn move_file(source: &Path, dest: &Path, args: &cli::Args) -> Result<(), String>
         if !dest.is_dir() {
             return Err(format!("target '{}' is not a directory", dest.display()));
         }
-        let entries = fs::read_dir(source).map_err(|e| {
-            format!("cannot read directory '{}': {}", source.display(), e)
-        })?;
+        let entries = fs::read_dir(source)
+            .map_err(|e| format!("cannot read directory '{}': {}", source.display(), e))?;
         let mut first_error = None;
         for entry in entries {
-            let entry = entry.map_err(|e| {
-                format!("cannot read entry in '{}': {}", source.display(), e)
-            })?;
+            let entry =
+                entry.map_err(|e| format!("cannot read entry in '{}': {}", source.display(), e))?;
             if let Err(e) = move_file(&entry.path(), dest, args)
                 && first_error.is_none()
             {
@@ -244,7 +242,10 @@ mod tests {
         move_by_copy(&src, &dst).unwrap();
         assert!(!src.exists(), "source tree must be deleted after the copy");
         assert_eq!(fs::read_to_string(dst.join("a.txt")).unwrap(), "A");
-        assert_eq!(fs::read_to_string(dst.join("sub").join("b.txt")).unwrap(), "B");
+        assert_eq!(
+            fs::read_to_string(dst.join("sub").join("b.txt")).unwrap(),
+            "B"
+        );
     }
 
     #[test]
@@ -260,7 +261,10 @@ mod tests {
         let err = move_by_copy(&src, &dst).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::AlreadyExists);
         assert_eq!(fs::read_to_string(dst.join("old.txt")).unwrap(), "OLD");
-        assert!(src.join("a.txt").exists(), "source must survive the failure");
+        assert!(
+            src.join("a.txt").exists(),
+            "source must survive the failure"
+        );
     }
 
     #[test]

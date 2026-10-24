@@ -48,15 +48,15 @@ fn main() {
             args.one_file_system,
             args.no_preserve_root,
         ) {
-        Ok(()) => {}
-        Err(e) => {
-            // Report every failure, even under -f: only ENOENT is silenced
-            // by -f (see remove_path). The preserve-root refusal and
-            // EPERM/EACCES-class failures must reach the user.
-            eprintln!("rm: {}", e);
-            exit_code = 1;
+            Ok(()) => {}
+            Err(e) => {
+                // Report every failure, even under -f: only ENOENT is silenced
+                // by -f (see remove_path). The preserve-root refusal and
+                // EPERM/EACCES-class failures must reach the user.
+                eprintln!("rm: {}", e);
+                exit_code = 1;
+            }
         }
-    }
     }
 
     std::process::exit(exit_code);

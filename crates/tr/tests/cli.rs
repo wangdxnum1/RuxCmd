@@ -150,7 +150,9 @@ fn reverse_range_errors_with_exit_1() {
         .assert()
         .failure()
         .code(1)
-        .stderr(predicates::str::contains("reverse collating sequence order"))
+        .stderr(predicates::str::contains(
+            "reverse collating sequence order",
+        ))
         .stderr(predicates::str::contains("panicked").not());
 }
 

@@ -85,13 +85,7 @@ fn expression_flag_still_works_and_combines_in_order() {
     write_bytes(&file, b"abc\n");
 
     let out = sed(
-        &[
-            "-e",
-            "s/a/x/",
-            "-e",
-            "s/b/y/",
-            file.to_str().unwrap(),
-        ],
+        &["-e", "s/a/x/", "-e", "s/b/y/", file.to_str().unwrap()],
         b"",
     );
     assert_eq!(out.status.code(), Some(0));
@@ -346,8 +340,14 @@ fn in_place_with_backup_suffix_keeps_original_copy() {
     let out = sed(&["-i.bak", "s/one/ONE/", file.to_str().unwrap()], b"");
     assert_eq!(out.status.code(), Some(0));
     assert_eq!(std::fs::read(&file).unwrap(), b"ONE\ntwo\n");
-    assert_eq!(std::fs::read(dir.join("data.txt.bak")).unwrap(), b"one\ntwo\n");
-    assert_eq!(dir_entries(&dir), vec!["data.txt".to_string(), "data.txt.bak".to_string()]);
+    assert_eq!(
+        std::fs::read(dir.join("data.txt.bak")).unwrap(),
+        b"one\ntwo\n"
+    );
+    assert_eq!(
+        dir_entries(&dir),
+        vec!["data.txt".to_string(), "data.txt.bak".to_string()]
+    );
 }
 
 #[test]

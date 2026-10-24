@@ -115,10 +115,7 @@ mod tests {
 
     #[test]
     fn rewrite_converts_attached_short_form() {
-        let argv: Vec<OsString> = ["sed", "-i.bak", "x"]
-            .iter()
-            .map(OsString::from)
-            .collect();
+        let argv: Vec<OsString> = ["sed", "-i.bak", "x"].iter().map(OsString::from).collect();
         let rewritten = rewrite_attached_in_place(argv);
         assert_eq!(
             rewritten,

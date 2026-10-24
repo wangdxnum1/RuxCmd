@@ -23,11 +23,8 @@ fn run(args: &[&str]) -> std::process::Output {
 }
 
 fn temp_file(tag: &str, contents: &str) -> PathBuf {
-    let path = std::env::temp_dir().join(format!(
-        "ruxcmd-paste-{}-{}.txt",
-        tag,
-        std::process::id()
-    ));
+    let path =
+        std::env::temp_dir().join(format!("ruxcmd-paste-{}-{}.txt", tag, std::process::id()));
     std::fs::write(&path, contents).expect("failed to write fixture");
     path
 }
@@ -41,10 +38,7 @@ fn crlf_terminators_are_stripped() {
     let f1 = temp_file("crlf1", "a\r\nb\r\n");
     let f2 = temp_file("crlf2", "1\r\n2\r\n");
 
-    let out = run(&[
-        f1.to_string_lossy().as_ref(),
-        f2.to_string_lossy().as_ref(),
-    ]);
+    let out = run(&[f1.to_string_lossy().as_ref(), f2.to_string_lossy().as_ref()]);
     assert_eq!(out.status.code(), Some(0));
     assert_eq!(out.stdout, b"a\t1\nb\t2\n");
     assert_eq!(out.stderr, b"");
