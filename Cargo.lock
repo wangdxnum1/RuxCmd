@@ -144,6 +144,7 @@ checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 name = "basename"
 version = "1.0.0"
 dependencies = [
+ "assert_cmd",
  "clap",
 ]
 
@@ -534,6 +535,7 @@ dependencies = [
 name = "dirname"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
 ]
 
@@ -1347,9 +1349,11 @@ checksum = "4050469837a6ff301cd14c1f8f24f88549e6d548f24f64e2148eb0f72cebc51f"
 name = "ls"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "chrono",
  "clap",
  "colored",
+ "tempfile",
 ]
 
 [[package]]
@@ -1884,14 +1888,18 @@ dependencies = [
 name = "readlink"
 version = "1.0.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "tempfile",
 ]
 
 [[package]]
 name = "realpath"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "tempfile",
 ]
 
 [[package]]
@@ -3004,7 +3012,9 @@ dependencies = [
 name = "which"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "tempfile",
 ]
 
 [[package]]
