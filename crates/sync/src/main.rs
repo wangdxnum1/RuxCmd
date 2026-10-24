@@ -51,6 +51,10 @@ fn current_exe_canonical() -> PathBuf {
 /// install directory is on PATH. Returns the canonicalized path of the first
 /// usable candidate, or None when PATH holds no external sync.
 fn resolve_external(paths: &[PathBuf], self_exe: &Path) -> Option<PathBuf> {
+    // Normalize the self reference too: callers may hand in a non-canonical
+    // spelling (e.g. an 8.3 short name from TEMP), which would never match
+    // the canonicalized candidates.
+    let self_norm = fs::canonicalize(self_exe).unwrap_or_else(|_| self_exe.to_path_buf());
     for dir in paths {
         let candidate = dir.join("sync.exe");
         if !candidate.is_file() {
@@ -59,7 +63,7 @@ fn resolve_external(paths: &[PathBuf], self_exe: &Path) -> Option<PathBuf> {
         let Ok(resolved) = fs::canonicalize(&candidate) else {
             continue;
         };
-        if is_same_path(&resolved, self_exe) {
+        if is_same_path(&resolved, &self_norm) {
             continue;
         }
         return Some(resolved);
