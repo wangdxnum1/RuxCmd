@@ -52,7 +52,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | join | --separator, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | kill | --list, --signal, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | ln | --force, --symbolic, --version | Smoke only; behavior unverified | Windows symbolic links may require privileges or Developer Mode. |
-| ls | --all, --almost-all, --author, --block-size, --classify, --color | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| ls | --all, --almost-all, --author, --block-size, --classify, --color | Smoke + behavior tests | Long-format extra columns (-i/-s and symlink targets) are rendered by position index and are not lost when coloring is active. Full GNU behavior unverified. |
 | md5sum | --check, --quiet, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | mkdir | --mode, --parents, --verbose | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | mkfifo | --mode, --version | Smoke only; behavior unverified | Windows pipe semantics are not equivalent to POSIX FIFOs. |

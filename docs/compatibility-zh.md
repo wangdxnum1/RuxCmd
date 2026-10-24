@@ -51,7 +51,7 @@
 | join | --separator, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | kill | --list, --signal, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | ln | --force, --symbolic, --version | 仅冒烟；业务待验证 | Windows 符号链接可能需要权限或开发者模式。 |
-| ls | --all, --almost-all, --author, --block-size, --classify, --color | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| ls | --all, --almost-all, --author, --block-size, --classify, --color | 冒烟 + 行为测试 | 长格式附加列（-i/-s 与符号链接目标）按位置索引渲染，着色时不丢失。完整 GNU 行为未验证。 |
 | md5sum | --check, --quiet, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | mkdir | --mode, --parents, --verbose | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | mkfifo | --mode, --version | 仅冒烟；业务待验证 | Windows 管道语义与 POSIX FIFO 不等价。 |
