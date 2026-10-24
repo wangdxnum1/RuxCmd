@@ -2,8 +2,16 @@
 
 ## Unreleased
 
+- 完成第 11 轮 P0 缺陷修复(48 任务,覆盖审查报告全部 50 项 P0):每个修复附行为回归测试,涉及命令的验证状态由"仅冒烟"升级为"冒烟 + 行为测试"。
+  - 安全:tar/unzip 解包拒绝路径穿越条目(退出码 2);zip 参数经 PowerShell 单引号转义防注入;sync 防自递归并传播退出码。
+  - 数据正确性:cat 字节透明化;base64 解码重写;touch 经 SetFileTime 真实更新时间戳;echo 默认不解释转义;printf 实现格式串转义;bc 求值器重写。
+  - 进程控制:nice 改用优先级类并透传退出码;timeout 轮询子进程、超时返回 124 并实现 -k。
+  - 伪造数据清除:nslookup 经 DnsQuery_W 真实查询 MX/TXT/CNAME;id/groups 取自进程令牌;ps %MEM 用真实总内存;chown --group 正确设置组;tty 改用 IsTerminal;vmstat 逐帧采样。
+  - 输出与路径语义:which/readlink/realpath/dirname/basename 输出净化;ls 着色下长格式列不丢失;stat -c 对齐 GNU;sort 实现 -k/-t;diff 退出码与行号;uniq/tac/nl/wc/tee/tail/split/csplit/column/pr/shuf/du/grep/file 语义修复。
+  - 附加:df/du/free/pr/whoami/sort 的 -h 与 help 冲突(六命令 debug 构建启动即 panic)修复;test 的 clap 参数名冲突修复。
 - 完成全部 111 个命令的源码级代码审查(报告 docs/command-review-2026-10-07.md):50 个命令存在 P0 级缺陷,报告给出逐命令的功能/移植完整性/技术评估与 P0-P2 分级。
 - 制定第 11 轮 P0 缺陷修复设计与计划(specs/2026-10-07-p0-remediation-design.md、plans/2026-10-07-p0-remediation.md):安全(zip slip/命令注入/自递归)、数据损坏、panic、伪造数据清除四大类,48 个任务。
+- 清理提交进仓库的手工测试杂物(29 个 crate 根目录的 test_*/checksum/fixture 文件与 ls 的 .codegraph/reasonix.toml),.codegraph 加入 .gitignore。
 - 新增全仓库 MIT 许可证（LICENSE）、贡献者行为准则（CODE_OF_CONDUCT.md）与安全策略（SECURITY.md）。
 - 根 Cargo.toml 增加 `[workspace.package]`，113 个 crate 统一声明 license/repository 元数据。
 - 贡献规范、开发说明、命令兼容性表及脚本使用说明提供中英双语版本，中文版使用 `-zh.md` 后缀；两份 README 更新徽章、文档链接与许可证章节。

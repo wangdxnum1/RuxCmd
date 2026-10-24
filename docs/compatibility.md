@@ -11,14 +11,14 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | --- | --- | --- | --- |
 | awk | --assign, --field-separator, --file, --version | Smoke only; behavior unverified | The implementation simplifies some matching with substrings; it is not a full awk interpreter. |
 | base64 | --decode, --version, --wrap | Smoke + behavior tests | Decoding is strict like GNU: input without padding that is not a multiple of 4 produces decoded bytes but reports invalid input and exits 1. |
-| basename | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| basename | --suffix, --multiple, --version | Smoke + behavior tests | Trailing `.`/`..` components print `.`/`..`; `//` prints `/`; a drive root prints `C:`. The two-operand `basename NAME SUFFIX` form is unsupported. |
 | bc | --version | Smoke + behavior tests | Integer arithmetic on i128 with truncating / and % (GNU scale=0 default); supports + - * / % ^ ( ), variable assignment, ; separators, # comments, and quit. No arbitrary precision, scale, ibase/obase, or functions - unsupported constructs print a notice and the line is skipped. Banner is bc 0.1.0 (RuxCmd). |
 | cal | --version | Smoke + behavior tests | A single argument 1-12 is a month, 100-9999 a year; 13-99 is rejected. Full GNU behavior unverified. |
 | cat | --number, --number-nonblank, --show-all, --show-ends, --show-nonprinting, --show-tabs, --unbuffered | Smoke + behavior tests | Byte-transparent by default (CRLF, binary, and non-ASCII data pass through unchanged); -v uses byte-level ^/M- notation; -E does not mark an unterminated last line. Line numbering and empty-line compression state reset per file. |
 | chmod | --recursive, --verbose, --version | Smoke only; behavior unverified | Windows permission semantics are not equivalent to Unix modes. |
 | chown | --user, --group, --recursive, --verbose, --version | Smoke + behavior tests | --user sets the owner and --group the group (GROUP_SECURITY_INFORMATION), both may be given; any file failure exits 1. Changing the owner to another account usually requires privileges. Unix UID/GID semantics are not equivalent. |
 | clear | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| cmp | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| cmp | --silent, --verbose, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | column | --output-separator, --separator, --table, --table-header-repeat, --table-right, --version | Smoke + behavior tests | In -t mode without -s, runs of whitespace collapse into a single separator; an explicit -s splits per character without collapsing. The default fill mode is unimplemented. |
 | comm | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | cp | --force, --interactive, --preserve, --recursive, --symbolic-link, --verbose | Smoke + behavior tests | Sources ending in `.`/`..` merge their contents into an existing destination directory (error if it does not exist); with multiple sources the destination must be an existing directory. Full GNU behavior unverified. |
@@ -40,16 +40,16 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | fmt | --crown-margin, --split-only, --version, --width | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | fold | --bytes, --spaces, --version, --width | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | free | --bytes, --gigabytes, --human-readable, --kilobytes, --megabytes, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| grep | --count, --ignore-case, --invert-match, --line-number, --line-regexp, --only-matching | Smoke + behavior tests | Match/no-match exit codes verified, including single-file -c counts; recursive error propagation unverified. |
+| grep | --count, --ignore-case, --invert-match, --line-number, --line-regexp, --only-matching, --quiet, --recursive | Smoke + behavior tests | Match/no-match exit codes verified, including single-file -c counts; recursive error propagation unverified. |
 | groups | --version | Smoke + behavior tests | Prints the current user's real token groups (space-separated, locale-dependent names); only the current user is supported and other names error with exit 1. |
 | gunzip | --force, --keep, --verbose | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | head | --bytes, --lines, --quiet, --verbose | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| hexdump | --ascii, --canonical, --decimal, --hexadecimal, --length, --octal | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| hexdump | --ascii, --canonical, --decimal, --hexadecimal, --length, --octal, --skip | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | hostname | --fqdn, --ip-address, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | iconv | --from-code, --list, --output, --to-code, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | id | --group, --groups, --name, --user, --version | Smoke + behavior tests | uid/gid/groups derive from the process token SID RIDs; -u/-g/-G/-n follow GNU; group names are locale-dependent and fall back to the RID. |
 | iostat | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| join | --separator, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| join | --field1, --field2, --separator, --version | Smoke only; behavior unverified | Field numbers below 1 error with exit 1. The default separator is TAB (GNU splits on whitespace). |
 | kill | --list, --signal, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | ln | --force, --symbolic, --version | Smoke only; behavior unverified | Windows symbolic links may require privileges or Developer Mode. |
 | ls | --all, --almost-all, --author, --block-size, --classify, --color | Smoke + behavior tests | Long-format extra columns (-i/-s and symlink targets) are rendered by position index and are not lost when coloring is active. Full GNU behavior unverified. |
@@ -62,8 +62,8 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | nice | --adjustment, --version | Smoke + behavior tests | Spawns the command directly (no wmic) and applies a priority class: adjustment <=-15 High, -14..-5 Above normal, -4..4 Normal, 5..14 Below normal, >=15 Idle; the child exit code is passed through. |
 | nl | --body-numbering, --number-width, --separator, --version | Smoke + behavior tests | Reads UTF-8 lines without corruption; -b accepts t (default, non-blank lines), n (none), and a (all lines). |
 | nslookup | --type, --version | Smoke + behavior tests | Types A/AAAA/CNAME/MX/TXT resolve for real (getaddrinfo / DnsQuery_W); type names are case-insensitive; unsupported types error with exit 1. The SERVER positional argument was removed. |
-| numfmt | --delimiter, --field, --from, --from-unit, --grouping, --header | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| od | --address-radix, --ascii, --decimal, --format, --hexadecimal, --octal | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| numfmt | --delimiter, --field, --from, --from-unit, --grouping, --header, --padding, --round, --suffix, --to, --to-unit | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| od | --address-radix, --ascii, --decimal, --format, --hexadecimal, --octal, --read-bytes, --skip-bytes, --width | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | open | --application, --edit, --reveal, --version, --wait | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | paste | --delimiters, --serial, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | patch | --force, --reverse, --strip, --version | Smoke + behavior tests | --strip/-p strips N leading path components (default 0, GNU semantics); /dev/null and all-@@ -0,0 patches create the target file. Hunks are matched without line counts, one target file is used per run, and .rej files contain the error message. |
@@ -103,7 +103,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | tr | --complement, --delete, --squeeze, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | true | --version | Smoke + behavior tests | Full GNU behavior unverified. |
 | tty | --all, --silent, --version | Smoke + behavior tests | Detects a console via IsTerminal and prints CONIN$ as the name placeholder; -a checks all three streams with CONIN$/CONOUT$ placeholders; -s is quiet. |
-| uname | --all, --kernel-name, --kernel-release, --kernel-version, --machine, --nodename | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| uname | --all, --kernel-name, --kernel-release, --kernel-version, --machine, --nodename, --operating-system | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | unexpand | --all, --tabs, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | uniq | --count, --ignore-case, --repeated, --skip-fields, --unique, --version | Smoke + behavior tests | Comparison keys and printed lines are separate: -i and -f only affect comparison, original lines print unchanged. |
 | unzip | --directory, --list, --overwrite, --quiet, --version | Smoke + behavior tests | Unsafe entry paths (`..`, absolute, drive/UNC prefixes) are rejected with a warning and skipped; exit code 2 when any entry was rejected. Entry mtimes are not restored. Full GNU behavior unverified. |

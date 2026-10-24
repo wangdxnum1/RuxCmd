@@ -10,14 +10,14 @@
 | --- | --- | --- | --- |
 | awk | --assign, --field-separator, --file, --version | 仅冒烟；业务待验证 | 已有实现使用子串简化部分匹配；不是完整 awk 解释器。 |
 | base64 | --decode, --version, --wrap | 冒烟 + 行为测试 | 解码与 GNU 一致地严格：无填充且长度非 4 倍数的输入会输出已解码字节，但报 invalid input 并退出 1。 |
-| basename | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| basename | --suffix, --multiple, --version | 冒烟 + 行为测试 | 尾部 `.`/`..` 组件输出 `.`/`..`；`//` 输出 `/`；盘符根输出 `C:`。双操作数 `basename NAME SUFFIX` 形式不支持。 |
 | bc | --version | 冒烟 + 行为测试 | i128 整数运算，/ 与 % 向零截断（GNU scale=0 默认语义）；支持 + - * / % ^ ( )、变量赋值、; 分隔、# 注释与 quit。无任意精度、scale、ibase/obase 与函数——遇到不支持结构时打印提示并跳过该行。banner 为 bc 0.1.0 (RuxCmd)。 |
 | cal | --version | 冒烟 + 行为测试 | 单参数 1-12 视为月份，100-9999 视为年份；13-99 被拒绝。完整 GNU 行为未验证。 |
 | cat | --number, --number-nonblank, --show-all, --show-ends, --show-nonprinting, --show-tabs, --unbuffered | 冒烟 + 行为测试 | 默认字节透明（CRLF、二进制、非 ASCII 数据原样透传）；-v 使用字节级 ^/M- 记号；-E 不给未结尾的末行补 $。行号与空行压缩状态按文件重置。 |
 | chmod | --recursive, --verbose, --version | 仅冒烟；业务待验证 | Windows 权限语义与 Unix mode 不等价。 |
 | chown | --user, --group, --recursive, --verbose, --version | 冒烟 + 行为测试 | --user 设 owner、--group 设组（GROUP_SECURITY_INFORMATION），可同时给；任一文件失败退出 1。改 owner 为他人通常需要特权。Unix UID/GID 语义不等价。 |
 | clear | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| cmp | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| cmp | --silent, --verbose, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | column | --output-separator, --separator, --table, --table-header-repeat, --table-right, --version | 冒烟 + 行为测试 | -t 模式未给 -s 时连续空白折叠为单一分隔符；显式 -s 按字符切分不折叠。默认 fill 模式未实现。 |
 | comm | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | cp | --force, --interactive, --preserve, --recursive, --symbolic-link, --verbose | 冒烟 + 行为测试 | 以 `.`/`..` 结尾的源将内容并入已存在的目标目录（目标不存在时报错）；多源时目标必须是已存在目录。完整 GNU 行为未验证。 |
@@ -39,16 +39,16 @@
 | fmt | --crown-margin, --split-only, --version, --width | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | fold | --bytes, --spaces, --version, --width | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | free | --bytes, --gigabytes, --human-readable, --kilobytes, --megabytes, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| grep | --count, --ignore-case, --invert-match, --line-number, --line-regexp, --only-matching | 冒烟 + 行为测试 | 匹配/未匹配退出码已验证，含单文件 -c 计数；递归错误传播尚未验证。 |
+| grep | --count, --ignore-case, --invert-match, --line-number, --line-regexp, --only-matching, --quiet, --recursive | 冒烟 + 行为测试 | 匹配/未匹配退出码已验证，含单文件 -c 计数；递归错误传播尚未验证。 |
 | groups | --version | 冒烟 + 行为测试 | 输出当前用户的真实令牌组（空格分隔，组名与区域相关）；仅支持当前用户，其他名字报错退出 1。 |
 | gunzip | --force, --keep, --verbose | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | head | --bytes, --lines, --quiet, --verbose | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| hexdump | --ascii, --canonical, --decimal, --hexadecimal, --length, --octal | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| hexdump | --ascii, --canonical, --decimal, --hexadecimal, --length, --octal, --skip | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | hostname | --fqdn, --ip-address, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | iconv | --from-code, --list, --output, --to-code, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | id | --group, --groups, --name, --user, --version | 冒烟 + 行为测试 | uid/gid/groups 取自进程令牌 SID 的 RID；-u/-g/-G/-n 遵循 GNU；组名与区域相关，无法解析时回退为 RID。 |
 | iostat | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| join | --separator, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| join | --field1, --field2, --separator, --version | 仅冒烟；业务待验证 | 小于 1 的字段号报错退出 1。默认分隔符为 Tab（GNU 按空白切分）。 |
 | kill | --list, --signal, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | ln | --force, --symbolic, --version | 仅冒烟；业务待验证 | Windows 符号链接可能需要权限或开发者模式。 |
 | ls | --all, --almost-all, --author, --block-size, --classify, --color | 冒烟 + 行为测试 | 长格式附加列（-i/-s 与符号链接目标）按位置索引渲染，着色时不丢失。完整 GNU 行为未验证。 |
@@ -61,8 +61,8 @@
 | nice | --adjustment, --version | 冒烟 + 行为测试 | 直接 spawn 命令（不依赖 wmic）并应用优先级：adjustment <=-15 High、-14..-5 Above normal、-4..4 Normal、5..14 Below normal、>=15 Idle；透传子进程退出码。 |
 | nl | --body-numbering, --number-width, --separator, --version | 冒烟 + 行为测试 | 按 UTF-8 行读取不乱码；-b 接受 t（默认，仅非空行）、n（不编号）、a（全部行）。 |
 | nslookup | --type, --version | 冒烟 + 行为测试 | A/AAAA/CNAME/MX/TXT 经真实查询解析（getaddrinfo / DnsQuery_W）；类型名大小写不敏感；不支持的类型报错退出 1。SERVER 位置参数已移除。 |
-| numfmt | --delimiter, --field, --from, --from-unit, --grouping, --header | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| od | --address-radix, --ascii, --decimal, --format, --hexadecimal, --octal | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| numfmt | --delimiter, --field, --from, --from-unit, --grouping, --header, --padding, --round, --suffix, --to, --to-unit | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| od | --address-radix, --ascii, --decimal, --format, --hexadecimal, --octal, --read-bytes, --skip-bytes, --width | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | open | --application, --edit, --reveal, --version, --wait | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | paste | --delimiters, --serial, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | patch | --force, --reverse, --strip, --version | 冒烟 + 行为测试 | --strip/-p 剥离 N 个前导路径组件（默认 0，GNU 语义）；/dev/null 与全 `@@ -0,0` 补丁会创建目标文件。hunk 匹配不按行计数，每次运行只处理一个目标文件，.rej 内容为错误消息。 |
@@ -102,7 +102,7 @@
 | tr | --complement, --delete, --squeeze, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | true | --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
 | tty | --all, --silent, --version | 冒烟 + 行为测试 | 经 IsTerminal 判断控制台，名称输出占位 CONIN$；-a 检查三个流（CONIN$/CONOUT$ 占位）；-s 静默。 |
-| uname | --all, --kernel-name, --kernel-release, --kernel-version, --machine, --nodename | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| uname | --all, --kernel-name, --kernel-release, --kernel-version, --machine, --nodename, --operating-system | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | unexpand | --all, --tabs, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | uniq | --count, --ignore-case, --repeated, --skip-fields, --unique, --version | 冒烟 + 行为测试 | 比较键与输出行分离：-i 与 -f 只影响比较，输出保持原始行。 |
 | unzip | --directory, --list, --overwrite, --quiet, --version | 冒烟 + 行为测试 | 不安全条目路径（`..`、绝对路径、盘符/UNC 前缀）被拒并警告、跳过；发生拒绝时退出码 2。不恢复条目 mtime。完整 GNU 行为未验证。 |
