@@ -52,10 +52,16 @@ fn main() {
                 }
             };
             let parts: Vec<String> = if args.table {
-                split_by_any(&line, &args.separator)
-                    .into_iter()
-                    .map(|s| s.to_string())
-                    .collect()
+                match args.separator.as_deref() {
+                    Some(seps) => split_by_any(&line, seps)
+                        .into_iter()
+                        .map(|s| s.to_string())
+                        .collect(),
+                    None => split_whitespace_runs(&line)
+                        .into_iter()
+                        .map(|s| s.to_string())
+                        .collect(),
+                }
             } else {
                 line.split_whitespace().map(|s| s.to_string()).collect()
             };
@@ -135,6 +141,26 @@ fn split_by_any<'a>(line: &'a str, seps: &str) -> Vec<&'a str> {
         }
     }
     out.push(line[start..].into());
+    out
+}
+
+// GNU default for -t: a run of separator whitespace counts as a single
+// delimiter, and leading/trailing runs produce no empty columns.
+fn split_whitespace_runs(line: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut field_start: Option<usize> = None;
+    for (i, c) in line.char_indices() {
+        if c == ' ' || c == '\t' {
+            if let Some(s) = field_start.take() {
+                out.push(&line[s..i]);
+            }
+        } else if field_start.is_none() {
+            field_start = Some(i);
+        }
+    }
+    if let Some(s) = field_start {
+        out.push(&line[s..]);
+    }
     out
 }
 

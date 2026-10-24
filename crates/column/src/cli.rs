@@ -15,8 +15,10 @@ pub struct Args {
     #[arg(short = 't', long = "table", action = clap::ArgAction::SetTrue)]
     pub table: bool,
 
-    #[arg(short = 's', long = "separator", default_value = " \t")]
-    pub separator: String,
+    // None = GNU default: split on runs of whitespace (space/tab) with runs
+    // collapsed; Some(seps) = split on each separator character, no collapsing.
+    #[arg(short = 's', long = "separator", value_name = "SEP")]
+    pub separator: Option<String>,
 
     #[arg(short = 'o', long = "output-separator", default_value = "  ")]
     pub output_separator: String,
