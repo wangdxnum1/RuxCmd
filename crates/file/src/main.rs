@@ -47,24 +47,31 @@ fn detect_file_type(bytes: &[u8]) -> Option<FileType> {
             },
         ),
         (
+            b"\x1F\x8B" as &[u8],
+            FileType {
+                name: "gzip compressed data",
+                mime: "application/gzip",
+            },
+        ),
+        (
             b"\x78\x01" as &[u8],
             FileType {
-                name: "GZIP compressed",
-                mime: "application/gzip",
+                name: "zlib compressed data",
+                mime: "application/zlib",
             },
         ),
         (
             b"\x78\x9C" as &[u8],
             FileType {
-                name: "GZIP compressed",
-                mime: "application/gzip",
+                name: "zlib compressed data",
+                mime: "application/zlib",
             },
         ),
         (
             b"\x78\xDA" as &[u8],
             FileType {
-                name: "GZIP compressed",
-                mime: "application/gzip",
+                name: "zlib compressed data",
+                mime: "application/zlib",
             },
         ),
         (
@@ -135,13 +142,6 @@ fn detect_file_type(bytes: &[u8]) -> Option<FileType> {
             FileType {
                 name: "TIFF image (big-endian)",
                 mime: "image/tiff",
-            },
-        ),
-        (
-            b"\x57\x45\x42\x50" as &[u8],
-            FileType {
-                name: "WebP image",
-                mime: "image/webp",
             },
         ),
         (
@@ -377,6 +377,14 @@ fn detect_file_type(bytes: &[u8]) -> Option<FileType> {
         ),
     ];
 
+    // RIFF containers carry the format tag at offset 8 (e.g. WEBP).
+    if bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
+        return Some(FileType {
+            name: "WebP image",
+            mime: "image/webp",
+        });
+    }
+
     for (magic, ftype) in magic_rules {
         if bytes.len() >= magic.len() && &bytes[..magic.len()] == magic {
             return Some(ftype);
@@ -384,6 +392,40 @@ fn detect_file_type(bytes: &[u8]) -> Option<FileType> {
     }
 
     None
+}
+
+/// Minimal text detection: fully printable ASCII (plus common whitespace)
+/// classifies as "ASCII text"; valid UTF-8 containing multi-byte sequences
+/// classifies as "Unicode text, UTF-8 text". Anything else falls back to data.
+fn classify_text(bytes: &[u8]) -> Option<FileType> {
+    if bytes.is_empty() {
+        return None;
+    }
+    let text = std::str::from_utf8(bytes).ok()?;
+    let mut has_multibyte = false;
+    for c in text.chars() {
+        if c.is_ascii() {
+            let b = c as u8;
+            let printable = matches!(b, b'\t' | b'\n' | 0x0B | 0x0C | b'\r')
+                || (0x20..=0x7E).contains(&b);
+            if !printable {
+                return None;
+            }
+        } else {
+            has_multibyte = true;
+        }
+    }
+    Some(if has_multibyte {
+        FileType {
+            name: "Unicode text, UTF-8 text",
+            mime: "text/plain; charset=utf-8",
+        }
+    } else {
+        FileType {
+            name: "ASCII text",
+            mime: "text/plain; charset=us-ascii",
+        }
+    })
 }
 
 fn read_file_header(path: &str) -> std::io::Result<Vec<u8>> {
@@ -396,6 +438,7 @@ fn read_file_header(path: &str) -> std::io::Result<Vec<u8>> {
 
 fn main() {
     let cli = Cli::parse();
+    let prog = std::env::args().next().unwrap_or_default();
 
     if cli.version {
         println!("file 0.1.0");
@@ -407,36 +450,38 @@ fn main() {
         std::process::exit(1);
     }
 
+    let mut failed = false;
+
     for file_path in cli.files {
         match read_file_header(&file_path) {
             Ok(bytes) => {
-                if bytes.is_empty() {
-                    println!("{}: empty", file_path);
+                let prefix = if cli.brief {
+                    String::new()
                 } else {
-                    let file_type = detect_file_type(&bytes);
-                    match file_type {
-                        Some(ftype) => {
-                            if cli.mime {
-                                println!("{}: {}", file_path, ftype.mime);
-                            } else {
-                                println!("{}: {}", file_path, ftype.name);
-                            }
-                        }
-                        None => {
-                            println!("{}: data", file_path);
-                        }
+                    format!("{}: ", file_path)
+                };
+                if bytes.is_empty() {
+                    println!("{}empty", prefix);
+                } else if let Some(ftype) =
+                    detect_file_type(&bytes).or_else(|| classify_text(&bytes))
+                {
+                    if cli.mime {
+                        println!("{}{}", prefix, ftype.mime);
+                    } else {
+                        println!("{}{}", prefix, ftype.name);
                     }
+                } else {
+                    println!("{}data", prefix);
                 }
             }
             Err(e) => {
-                eprintln!(
-                    "{}: cannot open `{}' ({})",
-                    std::env::args().next().unwrap(),
-                    file_path,
-                    e
-                );
-                std::process::exit(1);
+                eprintln!("{}: cannot open `{}' ({})", prog, file_path, e);
+                failed = true;
             }
         }
+    }
+
+    if failed {
+        std::process::exit(1);
     }
 }
