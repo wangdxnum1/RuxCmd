@@ -34,38 +34,23 @@ fn main() {
     let mut pat_idx: usize = 0;
     while pat_idx < args.patterns.len() {
         let p = &args.patterns[pat_idx];
-        if let Some((digit_idx, repeat)) = try_repeat_tail(p) {
-            let base = p[..digit_idx].to_string();
-            for _ in 0..repeat {
-                let (end, offset) = match next_match(&base, &lines, cur) {
-                    Some(v) => v,
-                    None => break,
-                };
-                let start = cur;
-                if offset > 0 {
-                    splits.push((start, end));
-                    cur = end;
-                    let Some(next) = end.checked_add(offset).filter(|&next| next <= lines.len())
-                    else {
-                        break;
-                    };
-                    cur = next;
-                } else {
-                    splits.push((start, end + offset));
-                    cur = end + offset;
-                }
-            }
-            pat_idx += 1;
-        } else if p.starts_with("/") && p.ends_with("/") {
+        if p.starts_with('/') && p.ends_with('/') && p.len() >= 2 {
             let pat = &p[1..p.len() - 1];
             match find_pattern(pat, &lines, cur) {
                 Some(lineno) => {
+                    // The matched line starts the next output file, so it is
+                    // never dropped from the output.
                     splits.push((cur, lineno));
                     cur = lineno;
                 }
                 None => {
+                    eprintln!("csplit: '{}': match not found", p);
+                    exit_code = 1;
+                    // Flush the remaining input, then stop: GNU csplit aborts
+                    // on an unmatched pattern.
                     splits.push((cur, lines.len()));
                     cur = lines.len();
+                    break;
                 }
             }
             pat_idx += 1;
@@ -79,9 +64,13 @@ fn main() {
             }
             pat_idx += 1;
         } else {
+            // Only `/substring/` and line numbers are supported. In
+            // particular GNU offsets (`/re/+N`, `/re/-N`) and repeats
+            // (`/re/{N}`, the homemade `/re/N`) are invalid here and must
+            // fail loudly instead of being silently ignored.
             eprintln!("csplit: invalid pattern '{}'", p);
             exit_code = 1;
-            pat_idx += 1;
+            break;
         }
     }
     if cur < lines.len() {
@@ -145,31 +134,6 @@ fn read_input(p: &Option<PathBuf>) -> Result<Vec<String>, String> {
         }
     }
     Ok(out)
-}
-
-fn try_repeat_tail(p: &str) -> Option<(usize, usize)> {
-    if let Some(idx) = p.rfind(|c: char| !c.is_ascii_digit()) {
-        let digit_start = idx + 1;
-        if digit_start < p.len() {
-            let n: usize = p[digit_start..].parse().ok()?;
-            if n > 0 { Some((digit_start, n)) } else { None }
-        } else {
-            None
-        }
-    } else {
-        None
-    }
-}
-
-fn next_match(pat: &str, lines: &[String], cur: usize) -> Option<(usize, usize)> {
-    if pat.starts_with("/") && pat.ends_with("/") {
-        let inner = &pat[1..pat.len() - 1];
-        find_pattern(inner, lines, cur).map(|ln| (ln, 1))
-    } else if let Ok(n) = pat.parse::<usize>() {
-        if n < cur + 1 { None } else { Some((n - 1, 1)) }
-    } else {
-        None
-    }
 }
 
 fn find_pattern(pat: &str, lines: &[String], start: usize) -> Option<usize> {

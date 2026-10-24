@@ -15,9 +15,6 @@ pub struct Args {
     #[arg(short = 'f', long = "prefix", default_value = "xx")]
     pub prefix: String,
 
-    #[arg(short = 'b', long = "suffix-format", default_value = "%02d")]
-    pub suffix_format: String,
-
     #[arg(short = 'n', long = "digits", default_value_t = 2usize)]
     pub digits: usize,
 
