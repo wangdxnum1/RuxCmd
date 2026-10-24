@@ -180,3 +180,5 @@
 - D1: complete (fix a796259 — grep/cut 字节化读行(非 UTF-8 原字节透传);grep 补 -E/-F/-w/-l/-h/-H/-A/-B/-C,单文件无前缀;cut -b 原始字节、只剥 \r)
 - D2: complete — sort 非UTF-8/`-`/exit 2/尾空白保留;head 字节透明+互斥+stdin 头;tail -c -f、+N 偏移、非法数值 exit 1
 - E1: complete — sed 地址(N/$//sub//范围)、p/d/q 命令、位置参数脚本、-n、-i 原子替换+备份后缀、未知命令报错(修静默忽略)
+- E2: complete — awk if 条件基于解析 token 求值(消灭 Debug 串 bug)、else/next、print 多参数、字段残留清理、NR/BEGIN/END 跨文件、for 解析报错、比较/真值语义修正;顺带修 == 拆分、括号 &&、Value 求值器
+- F1: complete — paste \r/-d 列表循环;join GNU 输出形状+空白默认分隔;fold 字节化+-b 守恒;unexpand ≥2 空白;fmt -c 无值 flag+下溢+断词;tr 转义/字符类/-c 补集/-s SET2/反序报错
