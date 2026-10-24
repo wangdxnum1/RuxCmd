@@ -13,10 +13,17 @@ fn main() {
         args.paths
     };
 
+    // `-s` suppresses GNU's default per-subdirectory listing; this build
+    // only ever prints the argument line (declared P2 deviation), so the
+    // walk is the same with and without it: always recurse and report the
+    // accumulated total for the argument itself.
+    let _ = args.summarize;
+
     let mut grand_total: u64 = 0;
+    let mut had_error = false;
 
     for path in &paths {
-        let size = du(path, !args.summarize);
+        let size = du(path, &mut had_error);
         grand_total += size;
         println!(
             "{} {}",
@@ -28,27 +35,35 @@ fn main() {
     if args.total && paths.len() > 1 {
         println!("{} total", format_size(grand_total, args.human_readable));
     }
+
+    if had_error {
+        std::process::exit(1);
+    }
 }
 
-fn du(path: &Path, recursive: bool) -> u64 {
+fn du(path: &Path, had_error: &mut bool) -> u64 {
     let metadata = match fs::symlink_metadata(path) {
         Ok(m) => m,
         Err(e) => {
             eprintln!("du: {}: {}", path.display(), e);
+            *had_error = true;
             return 0;
         }
     };
 
     let mut size = metadata.len();
 
-    if metadata.is_dir() && recursive {
+    if metadata.is_dir() {
         match fs::read_dir(path) {
             Ok(entries) => {
                 for entry in entries.flatten() {
-                    size += du(&entry.path(), true);
+                    size += du(&entry.path(), had_error);
                 }
             }
-            Err(e) => eprintln!("du: {}: {}", path.display(), e),
+            Err(e) => {
+                eprintln!("du: {}: {}", path.display(), e);
+                *had_error = true;
+            }
         }
     }
 
