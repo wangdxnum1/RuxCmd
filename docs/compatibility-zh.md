@@ -34,12 +34,12 @@
 | expand | --initial, --tabs, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | factor | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | false | --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
-| file | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| file | 见 --help | 冒烟 + 行为测试 | -b 省略名称前缀；gzip（1F 8B）与 zlib（78 xx）区分识别；可打印 ASCII 与合法 UTF-8 报 ASCII text / UTF-8 text；打不开的操作数报错跳过，结束时如有失败退出 1。 |
 | find | --basename, --ignore-case, --maxdepth, --mindepth, --name, --regex | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | fmt | --crown-margin, --split-only, --version, --width | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | fold | --bytes, --spaces, --version, --width | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | free | --bytes, --gigabytes, --human-readable, --kilobytes, --megabytes, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| grep | --count, --ignore-case, --invert-match, --line-number, --line-regexp, --only-matching | 冒烟 + 行为测试 | 匹配/未匹配退出码已验证；递归错误传播尚未验证。 |
+| grep | --count, --ignore-case, --invert-match, --line-number, --line-regexp, --only-matching | 冒烟 + 行为测试 | 匹配/未匹配退出码已验证，含单文件 -c 计数；递归错误传播尚未验证。 |
 | groups | --version | 冒烟 + 行为测试 | 输出当前用户的真实令牌组（空格分隔，组名与区域相关）；仅支持当前用户，其他名字报错退出 1。 |
 | gunzip | --force, --keep, --verbose | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | head | --bytes, --lines, --quiet, --verbose | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
@@ -87,7 +87,7 @@
 | sleep | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | sort | --check, --field-separator, --human-numeric-sort, --ignore-case, --key, --numeric-sort | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | split | --bytes, --lines, --number, --numeric-suffixes, --output, --suffix-length | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| stat | --file-system, --format, --terse, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| stat | --file-system, --format, --terse, --version | 冒烟 + 行为测试 | -c 指令遵循 GNU 语义；设备号/inode/uid/gid/链接数为 0/1 占位，%b 为 ceil(size/512) 近似，%Z 近似 mtime，时间为本地时区秒级，-f 仅输出块与空间行。未知指令报错退出 1。 |
 | strings | --all, --bytes, --encoding, --print-file-name, --radix, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | sync | --version | 冒烟 + 行为测试 | 沿 PATH 解析外部 sync.exe（跳过与本程序相同的候选以防自递归）并传播其退出码；无可用外部命令时回退 rundll32 ProcessIdleTasks（stderr 英文提示）。 |
 | tac | --before, --separator, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |

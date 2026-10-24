@@ -35,12 +35,12 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | expand | --initial, --tabs, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | factor | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | false | --version | Smoke + behavior tests | Full GNU behavior unverified. |
-| file | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| file | See --help | Smoke + behavior tests | -b omits the name prefix; gzip (1F 8B) and zlib (78 xx) are distinguished; printable ASCII and UTF-8 report ASCII text / UTF-8 text; operands that cannot be opened are skipped with an error and exit 1 at the end. |
 | find | --basename, --ignore-case, --maxdepth, --mindepth, --name, --regex | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | fmt | --crown-margin, --split-only, --version, --width | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | fold | --bytes, --spaces, --version, --width | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | free | --bytes, --gigabytes, --human-readable, --kilobytes, --megabytes, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| grep | --count, --ignore-case, --invert-match, --line-number, --line-regexp, --only-matching | Smoke + behavior tests | Match/no-match exit codes verified; recursive error propagation unverified. |
+| grep | --count, --ignore-case, --invert-match, --line-number, --line-regexp, --only-matching | Smoke + behavior tests | Match/no-match exit codes verified, including single-file -c counts; recursive error propagation unverified. |
 | groups | --version | Smoke + behavior tests | Prints the current user's real token groups (space-separated, locale-dependent names); only the current user is supported and other names error with exit 1. |
 | gunzip | --force, --keep, --verbose | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | head | --bytes, --lines, --quiet, --verbose | Smoke only; behavior unverified | Full GNU behavior unverified. |
@@ -88,7 +88,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | sleep | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | sort | --check, --field-separator, --human-numeric-sort, --ignore-case, --key, --numeric-sort | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | split | --bytes, --lines, --number, --numeric-suffixes, --output, --suffix-length | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| stat | --file-system, --format, --terse, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| stat | --file-system, --format, --terse, --version | Smoke + behavior tests | -c directives follow GNU semantics; device/inode/uid/gid/link fields are 0/1 placeholders, %b is ceil(size/512), %Z approximates mtime, times are local with second precision, and -f prints block/space lines only. Unknown directives error with exit 1. |
 | strings | --all, --bytes, --encoding, --print-file-name, --radix, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | sync | --version | Smoke + behavior tests | Resolves an external sync.exe along PATH (candidates identical to this executable are skipped to prevent self-recursion) and propagates its exit code; falls back to rundll32 ProcessIdleTasks with a stderr notice when no external command is available. |
 | tac | --before, --separator, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
