@@ -1,13 +1,15 @@
 mod cli;
 
+use chrono::Local;
 use clap::Parser;
+use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 fn main() {
-    let args = cli::Args::parse();
+    let argv: Vec<OsString> = std::env::args_os().collect();
+    let args = cli::Args::parse_from(attach_bare_n_value(argv));
 
     if args.version {
         println!("pr 0.1.0");
@@ -56,7 +58,13 @@ fn main() {
         }
     }
 
-    let (num_sep, num_width) = parse_number_spec(&args.number_lines);
+    let (num_sep, num_width) = match parse_number_spec(&args.number_lines) {
+        Ok(v) => v,
+        Err(spec) => {
+            eprintln!("pr: invalid --number-lines argument '{}'", spec);
+            std::process::exit(1);
+        }
+    };
     let indent_str: String = " ".repeat(args.indent);
     let page_len = if args.length <= 10 { 66 } else { args.length };
     let header_lines = if args.omit_header { 0 } else { 5 };
@@ -97,7 +105,7 @@ fn main() {
         for (i, line) in body.iter().enumerate() {
             let mut out_line = String::new();
             out_line.push_str(&indent_str);
-            if let Some(sep) = num_sep.as_ref() {
+            if let Some(ref sep) = num_sep {
                 let num = start + i + 1;
                 out_line.push_str(&format!("{:>w$}{}", num, sep, w = num_width));
             }
@@ -125,41 +133,45 @@ fn main() {
 }
 
 fn format_date() -> String {
-    let secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
-    let y = 1970 + (secs / 31536000);
-    let m = ((secs / 2592000) % 12) + 1;
-    let d = ((secs / 86400) % 30) + 1;
-    format!("{:04}-{:02}-{:02}", y, m, d)
+    Local::now().format("%Y-%m-%d %H:%M").to_string()
 }
 
-fn parse_number_spec(spec: &Option<String>) -> (Option<String>, usize) {
-    match spec {
-        None => (None, 0),
-        Some(s) => {
-            let mut split = String::new();
-            let mut w: usize = 0;
-            let mut found_split = false;
-            for c in s.chars() {
-                if c.is_ascii_digit() && !found_split {
-                    w = w * 10 + (c as usize - '0' as usize);
-                } else {
-                    found_split = true;
-                    split.push(c);
-                }
-            }
-            if w == 0 {
-                w = 5;
-            }
-            let sep = if found_split {
-                split
-            } else {
-                String::from("\t")
-            };
-            (Some(sep), w)
+// GNU pr's -n takes its spec attached (`-n5`, `-n:5`); a bare `-n` must not
+// swallow the following file name, so force an explicit empty value for it.
+fn attach_bare_n_value(argv: Vec<OsString>) -> Vec<OsString> {
+    let mut out = Vec::with_capacity(argv.len() + 1);
+    for a in argv {
+        let bare = a == OsStr::new("-n");
+        out.push(a);
+        if bare {
+            out.push(OsString::from(""));
         }
+    }
+    out
+}
+
+// GNU syntax `-n[SEP][DIGITS]`: a non-digit first char is the separator,
+// remaining digits the width; bare/empty spec means TAB and width 5.
+fn parse_number_spec(spec: &Option<String>) -> Result<(Option<String>, usize), String> {
+    let Some(s) = spec else {
+        return Ok((None, 0));
+    };
+    if s.is_empty() {
+        return Ok((Some(String::from("\t")), 5));
+    }
+    let mut chars = s.chars();
+    let first = chars.next().unwrap();
+    let (sep, rest) = if first.is_ascii_digit() {
+        (String::from("\t"), s.clone())
+    } else {
+        (first.to_string(), chars.as_str().to_string())
+    };
+    if rest.is_empty() {
+        return Ok((Some(sep), 5));
+    }
+    match rest.parse::<usize>() {
+        Ok(w) => Ok((Some(sep), w.max(1))),
+        Err(_) => Err(s.clone()),
     }
 }
 
@@ -225,9 +237,6 @@ fn write_header<W: Write>(
     page_no: usize,
     page_w: usize,
 ) -> Result<(), std::io::Error> {
-    for _ in 0..=page_no.max(1) {
-        if page_no == 1 {}
-    }
     let total_inner = page_w - indent.len();
     let page_text = format!("Page {}", page_no);
     let center_head = center(header, total_inner);

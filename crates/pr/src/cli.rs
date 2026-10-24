@@ -34,7 +34,16 @@ pub struct Args {
     #[arg(short = 'f', long = "form-feed", action = clap::ArgAction::SetTrue)]
     pub form_feed: bool,
 
-    #[arg(short = 'n', long = "number-lines", value_name = "SEP[N]", default_value = None)]
+    // GNU `-n[SEP[DIGITS]]`: the value is optional and, when present, must be
+    // attached (`-n:5`, `-n5`). Bare `-n` means TAB separator + width 5; main
+    // rewrites a bare `-n` token so clap does not swallow the next operand.
+    #[arg(
+        short = 'n',
+        long = "number-lines",
+        value_name = "SEP[N]",
+        num_args = 0..=1,
+        default_missing_value = ""
+    )]
     pub number_lines: Option<String>,
 
     #[arg(short = 't', long = "omit-header", action = clap::ArgAction::SetTrue)]
