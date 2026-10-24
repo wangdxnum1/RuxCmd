@@ -172,3 +172,5 @@
 - Task 0: complete (plan 编写,2026-10-24)
 - A1: complete (fix 914d55e — pkill/pgrep 去 tasklist/wmic/taskkill,复用 ps-sys 快照 + OpenProcess/TerminateProcess,校验终止结果、排除自身、pgrep 无匹配 exit 1、补 -i/-x;kill 信号校验+`kill -9/-SIGNAME PID` 连写+-l 全表+信号 0 探测+失败退出 1;ps-sys snapshot 名称源从 PSAPI GetModuleBaseNameW(机器级故障面)改为 Toolhelp32 szExeFile 单次遍历)
   * 关键发现:cargo test 会把 target/debug 前置到 PATH,测试里 spawn 裸名命令(如 cmd /c ping)会解析到我们自己的 exe(我们的 ping 不支持 -n 而立即报错退出)——测试必须用绝对路径 spawn;已写入本 ledger,新测试注意。
+- A2: complete (fix c06cebb — iostat/mpstat/sar CPU 列接 GetSystemTimes 真实差值;假设备行/-d/-x/-P n 声明移除;-u 短参、HH:MM:SS 时间戳、Average 行;间隔采样 bug 修复:sleep 移到两次采样之间)
+- B1: complete (fix 431e9ad — time 经 GetProcessTimes 输出真实 user/sys(GNU 0m0.003s 格式,not-found 退出 127);top 头部真实 CPU% 与 up 时长、删 load average 假行;uptime 默认输出 procps 格式)
