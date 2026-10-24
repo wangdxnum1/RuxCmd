@@ -2,11 +2,26 @@ mod cli;
 
 use clap::Parser;
 use std::net::{IpAddr, ToSocketAddrs};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
 use windows_sys::Win32::NetworkManagement::IpHelper::{
     IcmpCloseHandle, IcmpCreateFile, IcmpSendEcho,
 };
+use windows_sys::Win32::System::Console::SetConsoleCtrlHandler;
+
+/// Largest payload accepted for -s/--size. Beyond this the request would be
+/// truncated by the u16 cast in IcmpSendEcho and fail with confusing errors;
+/// 65500 is the Windows ping limit.
+const MAX_SIZE: usize = 65500;
+
+/// IP_STATUS code for a timed-out echo request, used when IcmpSendEcho
+/// returns 0 without setting an extended error.
+const IP_REQ_TIMED_OUT: u32 = 11010;
+
+/// Set by the console control handler in -t (continuous) mode; the probe
+/// loop checks it and shuts down gracefully.
+static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 
 fn main() {
     let args = cli::Args::parse();
@@ -20,9 +35,26 @@ fn main() {
         eprintln!("ping: missing host");
         std::process::exit(1);
     });
-    let count = args.count;
-    let timeout = Duration::from_secs(args.timeout);
+
     let data_size = args.size;
+    if data_size > MAX_SIZE {
+        eprintln!(
+            "ping: invalid size {}: valid range is 0 to {}",
+            data_size, MAX_SIZE
+        );
+        std::process::exit(1);
+    }
+
+    let timeout = Duration::from_millis(args.wait_ms);
+
+    if args.continuous {
+        // -t pings until stopped (Windows semantics). The handler keeps the
+        // process alive so statistics can be printed on Ctrl+C; without -t
+        // the default termination behavior is preserved.
+        unsafe {
+            SetConsoleCtrlHandler(Some(console_ctrl_handler), 1);
+        }
+    }
 
     let ip = match resolve_host(host) {
         Ok(ip) => ip,
@@ -57,7 +89,22 @@ fn main() {
     let mut max_ms = 0;
     let mut total_ms = 0;
 
-    for i in 0..count {
+    let max_sends = if args.continuous {
+        None
+    } else {
+        Some(args.count)
+    };
+    let mut probes = 0usize;
+    loop {
+        if let Some(limit) = max_sends
+            && probes >= limit
+        {
+            break;
+        }
+        if SHUTDOWN.load(Ordering::SeqCst) {
+            break;
+        }
+        probes += 1;
         sent += 1;
 
         match send_icmp_echo(icmp_handle, ip_addr, data_size, timeout) {
@@ -74,8 +121,17 @@ fn main() {
             }
         }
 
-        if i < count - 1 {
-            std::thread::sleep(Duration::from_secs(1));
+        let last = max_sends.is_some_and(|limit| probes >= limit);
+        if !last {
+            if args.continuous {
+                // Sleep in slices so Ctrl+C takes effect promptly.
+                let deadline = Instant::now() + Duration::from_secs(1);
+                while Instant::now() < deadline && !SHUTDOWN.load(Ordering::SeqCst) {
+                    std::thread::sleep(Duration::from_millis(50));
+                }
+            } else {
+                std::thread::sleep(Duration::from_secs(1));
+            }
         }
     }
 
@@ -106,6 +162,18 @@ fn main() {
             total_ms / received
         );
     }
+
+    // Windows ping semantics: exit 1 when every packet was lost, 0 when at
+    // least one reply arrived (partial loss still exits 0).
+    if received == 0 {
+        std::process::exit(1);
+    }
+}
+
+unsafe extern "system" fn console_ctrl_handler(_ctrl: u32) -> i32 {
+    SHUTDOWN.store(true, Ordering::SeqCst);
+    // TRUE: handled; keep the process alive so statistics get printed.
+    1
 }
 
 fn resolve_host(host: &str) -> Result<IpAddr, String> {
@@ -117,10 +185,10 @@ fn resolve_host(host: &str) -> Result<IpAddr, String> {
             if let Some(addr) = addrs.next() {
                 Ok(addr.ip())
             } else {
-                Err(format!("Could not resolve"))
+                Err("Could not resolve".to_string())
             }
         }
-        Err(_) => Err(format!("Could not resolve")),
+        Err(_) => Err("Could not resolve".to_string()),
     }
 }
 
@@ -143,7 +211,7 @@ fn send_icmp_echo(
             icmp_handle,
             ip_addr,
             data.as_ptr() as *const std::ffi::c_void,
-            data_size as u16,
+            data_size as u16, // bounded by MAX_SIZE (65500)
             std::ptr::null_mut(),
             reply.as_mut_ptr() as *mut std::ffi::c_void,
             reply_size as u32,
@@ -154,14 +222,34 @@ fn send_icmp_echo(
     let elapsed = start.elapsed();
 
     if result == 0 {
-        Err("Request timed out.".to_string())
+        // IcmpSendEcho reports the IP_STATUS through GetLastError.
+        let status = std::io::Error::last_os_error().raw_os_error().unwrap_or(0) as u32;
+        let status = if status == 0 {
+            IP_REQ_TIMED_OUT
+        } else {
+            status
+        };
+        Err(status_message(status))
     } else {
         let reply: &ICMP_ECHO_REPLY = unsafe { &*(reply.as_ptr() as *const ICMP_ECHO_REPLY) };
         if reply.Status == 0 {
             Ok(elapsed)
         } else {
-            Err(format!("Request timed out."))
+            Err(status_message(reply.Status))
         }
+    }
+}
+
+/// Map an IcmpSendEcho IP_STATUS code to the message Windows ping prints,
+/// instead of reporting every failure as a timeout.
+fn status_message(status: u32) -> String {
+    match status {
+        11002 => "Destination net unreachable.".to_string(), // IP_DEST_NET_UNREACHABLE
+        11003 => "Destination host unreachable.".to_string(), // IP_DEST_HOST_UNREACHABLE
+        11010 => "Request timed out.".to_string(),           // IP_REQ_TIMED_OUT
+        11013 | 11014 => "TTL expired in transit.".to_string(), // IP_TTL_EXPIRED_*
+        11050 => "General failure.".to_string(),             // IP_GENERAL_FAILURE
+        other => format!("Request failed (status {}).", other),
     }
 }
 
@@ -183,4 +271,29 @@ struct IP_OPTION_INFORMATION {
     Flags: u8,
     OptionsSize: u8,
     OptionsData: *mut u8,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn status_messages_match_windows_ping() {
+        assert_eq!(status_message(11002), "Destination net unreachable.");
+        assert_eq!(status_message(11003), "Destination host unreachable.");
+        assert_eq!(status_message(11010), "Request timed out.");
+        assert_eq!(status_message(11013), "TTL expired in transit.");
+        assert_eq!(status_message(11014), "TTL expired in transit.");
+        assert_eq!(status_message(11050), "General failure.");
+    }
+
+    #[test]
+    fn unknown_status_is_reported_not_masked_as_timeout() {
+        let message = status_message(99999);
+        assert!(
+            message.contains("99999"),
+            "unknown status must be reported verbatim, got: {message}"
+        );
+        assert_ne!(message, "Request timed out.");
+    }
 }
