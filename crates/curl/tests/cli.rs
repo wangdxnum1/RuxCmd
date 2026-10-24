@@ -10,6 +10,7 @@
 
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener};
+use std::path::PathBuf;
 use std::process::{Command, Output};
 
 fn curl(args: &[&str]) -> Output {
@@ -216,6 +217,85 @@ fn silent_mode_suppresses_error_messages() {
     assert!(
         !out.stderr.is_empty(),
         "without -s the error must be reported"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Large-payload streaming regressions (loopback only; Round 13).
+// ---------------------------------------------------------------------------
+
+/// xorshift64 stream for the large-payload streaming regression tests.
+fn xorshift_bytes(seed: u64, len: usize) -> Vec<u8> {
+    let mut state = seed;
+    (0..len)
+        .map(|_| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state as u8
+        })
+        .collect()
+}
+
+/// Accept one connection and serve `body` bytes with a Content-Length
+/// response. The request is drained before writing so a 5MB body cannot
+/// deadlock the exchange.
+fn serve_bytes(status_line: &str, body: Vec<u8>) -> SocketAddr {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback");
+    let addr = listener.local_addr().expect("local addr");
+    let header = format!(
+        "{status_line}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        body.len()
+    );
+    std::thread::spawn(move || {
+        if let Ok((mut stream, _)) = listener.accept() {
+            let mut buf = [0u8; 8192];
+            let _ = stream.read(&mut buf);
+            let _ = stream.write_all(header.as_bytes());
+            let _ = stream.write_all(&body);
+        }
+    });
+    addr
+}
+
+fn temp_path(name: &str) -> PathBuf {
+    std::env::temp_dir().join(format!(
+        "ruxcmd-curl-test-{}-{}-{name}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ))
+}
+
+#[test]
+fn five_megabyte_download_to_file_is_byte_identical() {
+    let payload = xorshift_bytes(0x9E3779B97F4A7C15, 5 * 1024 * 1024);
+    let addr = serve_bytes("HTTP/1.1 200 OK", payload.clone());
+    let out_path = temp_path("big.bin");
+    let out = curl(&[
+        "-o",
+        out_path.to_str().expect("utf-8 temp path"),
+        &format!("http://{addr}/big.bin"),
+    ]);
+    assert_eq!(out.status.code(), Some(0), "stderr: {:?}", out.stderr);
+    let saved = std::fs::read(&out_path).expect("downloaded file must exist");
+    assert_eq!(saved.len(), payload.len());
+    assert!(saved == payload, "streamed download must be byte-identical");
+    let _ = std::fs::remove_file(&out_path);
+}
+
+#[test]
+fn five_megabyte_download_to_stdout_is_byte_identical() {
+    let payload = xorshift_bytes(0x0123456789ABCDEF, 5 * 1024 * 1024);
+    let addr = serve_bytes("HTTP/1.1 200 OK", payload.clone());
+    let out = curl(&[&format!("http://{addr}/big.bin")]);
+    assert_eq!(out.status.code(), Some(0), "stderr: {:?}", out.stderr);
+    assert_eq!(out.stdout.len(), payload.len());
+    assert!(
+        out.stdout == payload,
+        "streamed stdout must be byte-identical"
     );
 }
 

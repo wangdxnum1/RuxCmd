@@ -1,9 +1,13 @@
 mod cli;
 
 use clap::Parser;
-use encoding_rs::{CoderResult, Encoding};
-use std::fs;
-use std::io::{Read, Write};
+use encoding_rs::{CoderResult, Decoder, Encoder, Encoding};
+use std::fs::File;
+use std::io::{BufReader, BufWriter, Read, Write};
+
+/// Input is decoded 8 KiB at a time and re-encoded immediately; neither the
+/// whole input nor the whole output is ever held in memory.
+const CHUNK: usize = 8 * 1024;
 
 fn main() {
     let args = cli::Args::parse();
@@ -42,26 +46,121 @@ fn main() {
         }
     };
 
+    // Decode strictly according to -f: no BOM sniffing and no BOM removal.
+    // A UTF-8 BOM on the input of `iconv -f gbk` must be decoded as GBK
+    // bytes, exactly like GNU iconv does.
+    let mut converter = Converter::new(from_encoding, to_encoding);
+
+    // The output is opened first so an unwritable -o target fails the same
+    // way the previous fs::write-based version did.
+    let exit_code = if let Some(out_path) = &args.output {
+        let file = match File::create(out_path) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("iconv: {}: {}", out_path.display(), e);
+                std::process::exit(1);
+            }
+        };
+        let mut writer = BufWriter::new(file);
+        let code = convert_files(&args, &mut converter, &mut writer);
+        if let Err(e) = writer.flush() {
+            eprintln!("iconv: {}: {}", out_path.display(), e);
+            std::process::exit(1);
+        }
+        code
+    } else {
+        let stdout = std::io::stdout();
+        let mut writer = BufWriter::new(stdout.lock());
+        let code = convert_files(&args, &mut converter, &mut writer);
+        if let Err(e) = writer.flush() {
+            eprintln!("iconv: write error: {}", e);
+            std::process::exit(1);
+        }
+        code
+    };
+
+    std::process::exit(exit_code);
+}
+
+/// Read every input (concatenated, like the old all_input Vec) and push it
+/// through the converter. Returns the process exit code; write failures
+/// abort the process directly, matching the previous single-shot writer.
+fn convert_files<W: Write>(args: &cli::Args, converter: &mut Converter, writer: &mut W) -> i32 {
+    fn report_write_error(args: &cli::Args, e: &std::io::Error) {
+        match &args.output {
+            Some(out_path) => eprintln!("iconv: {}: {}", out_path.display(), e),
+            None => eprintln!("iconv: write error: {}", e),
+        }
+    }
+
+    let mut in_buf = vec![0u8; CHUNK];
     let mut exit_code = 0i32;
 
-    let mut all_input = Vec::new();
-
     if args.files.is_empty() {
-        if let Err(e) = std::io::stdin().read_to_end(&mut all_input) {
-            eprintln!("iconv: error reading stdin: {}", e);
-            std::process::exit(1);
+        let stdin = std::io::stdin();
+        let mut reader = stdin.lock();
+        loop {
+            match reader.read(&mut in_buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    if let Err(e) = converter.push(&in_buf[..n], writer) {
+                        let _ = writer.flush();
+                        report_write_error(args, &e);
+                        std::process::exit(1);
+                    }
+                }
+                Err(e) => {
+                    let _ = writer.flush();
+                    eprintln!("iconv: error reading stdin: {}", e);
+                    std::process::exit(1);
+                }
+            }
         }
     } else {
         for path in &args.files {
             let path_str = path.to_string_lossy();
             if path_str == "-" {
-                if let Err(e) = std::io::stdin().read_to_end(&mut all_input) {
-                    eprintln!("iconv: error reading stdin: {}", e);
-                    exit_code = 1;
+                let stdin = std::io::stdin();
+                let mut reader = stdin.lock();
+                loop {
+                    match reader.read(&mut in_buf) {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            if let Err(e) = converter.push(&in_buf[..n], writer) {
+                                let _ = writer.flush();
+                                report_write_error(args, &e);
+                                std::process::exit(1);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("iconv: error reading stdin: {}", e);
+                            exit_code = 1;
+                            break;
+                        }
+                    }
                 }
             } else {
-                match fs::read(path) {
-                    Ok(data) => all_input.extend(data),
+                match File::open(path) {
+                    Ok(file) => {
+                        let mut reader = BufReader::new(file);
+                        loop {
+                            match reader.read(&mut in_buf) {
+                                Ok(0) => break,
+                                Ok(n) => {
+                                    if let Err(e) = converter.push(&in_buf[..n], writer) {
+                                        let _ = writer.flush();
+                                        report_write_error(args, &e);
+                                        std::process::exit(1);
+                                    }
+                                }
+                                Err(e) => {
+                                    eprintln!("iconv: {}: {}", path.display(), e);
+                                    exit_code = 1;
+                                    break;
+                                }
+                            }
+                        }
+                    }
                     Err(e) => {
                         eprintln!("iconv: {}: {}", path.display(), e);
                         exit_code = 1;
@@ -71,46 +170,111 @@ fn main() {
         }
     }
 
-    // Decode strictly according to -f: no BOM sniffing and no BOM removal.
-    // A UTF-8 BOM on the input of `iconv -f gbk` must be decoded as GBK
-    // bytes, exactly like GNU iconv does.
-    let decoded = decode_strict(from_encoding, &all_input);
-    let (output_bytes, _, _) = to_encoding.encode(&decoded);
+    if let Err(e) = converter.finish(writer) {
+        let _ = writer.flush();
+        report_write_error(args, &e);
+        std::process::exit(1);
+    }
 
-    if let Some(out_path) = &args.output {
-        if let Err(e) = fs::write(out_path, &output_bytes) {
-            eprintln!("iconv: {}: {}", out_path.display(), e);
-            std::process::exit(1);
-        }
-    } else {
-        if let Err(e) = std::io::stdout().write_all(&output_bytes) {
-            eprintln!("iconv: write error: {}", e);
-            std::process::exit(1);
+    exit_code
+}
+
+/// Streaming -f -> -t conversion: bytes are decoded (strictly, without BOM
+/// handling) and immediately re-encoded. The decoder keeps partial input
+/// sequences across `push` calls, so a multi-byte character split over two
+/// chunks still converts correctly; ditto for the encoder's state.
+struct Converter {
+    decoder: Decoder,
+    encoder: Encoder,
+    decoded: String,
+    out_buf: Vec<u8>,
+}
+
+impl Converter {
+    fn new(from: &'static Encoding, to: &'static Encoding) -> Self {
+        Converter {
+            decoder: from.new_decoder_without_bom_handling(),
+            encoder: to.new_encoder(),
+            decoded: String::with_capacity(CHUNK * 3),
+            out_buf: Vec::with_capacity(CHUNK * 3),
         }
     }
 
-    std::process::exit(exit_code);
-}
-
-/// Decode the whole input with the given encoding, without BOM sniffing.
-/// Malformed sequences are replaced with U+FFFD (same as the previous
-/// `Encoding::decode` path, minus the heuristic).
-fn decode_strict(encoding: &'static Encoding, input: &[u8]) -> String {
-    let mut decoder = encoding.new_decoder_without_bom_handling();
-    // Worst-case UTF-8 growth is 3 bytes per input byte.
-    let mut decoded = String::with_capacity(input.len() * 3 + 4);
-    let mut src = input;
-    loop {
-        let (result, read, _) = decoder.decode_to_string(src, &mut decoded, true);
-        src = &src[read..];
-        match result {
-            CoderResult::InputEmpty => break,
-            CoderResult::OutputFull => {
-                decoded.reserve(src.len() * 3 + 4);
+    /// Feed one input chunk; converted bytes are written to `writer`.
+    fn push<W: Write>(&mut self, src: &[u8], writer: &mut W) -> Result<(), std::io::Error> {
+        let mut src = src;
+        loop {
+            let (result, read, _) = self.decoder.decode_to_string(src, &mut self.decoded, false);
+            src = &src[read..];
+            self.encode_decoded(writer)?;
+            match result {
+                CoderResult::InputEmpty => return Ok(()),
+                CoderResult::OutputFull => {
+                    // `decoded` was just drained by encode_decoded; make sure
+                    // the retry has head room.
+                    self.decoded.reserve(src.len() * 3 + 4);
+                }
             }
         }
     }
-    decoded
+
+    /// Flush decoder/encoder end states (pending partial sequences become
+    /// U+FFFD, exactly like decoding the whole input with `last = true`).
+    fn finish<W: Write>(&mut self, writer: &mut W) -> Result<(), std::io::Error> {
+        loop {
+            let (result, _, _) = self.decoder.decode_to_string(b"", &mut self.decoded, true);
+            self.encode_decoded(writer)?;
+            match result {
+                CoderResult::InputEmpty => break,
+                CoderResult::OutputFull => self.decoded.reserve(64),
+            }
+        }
+        loop {
+            let (result, _, _) = self
+                .encoder
+                .encode_from_utf8_to_vec("", &mut self.out_buf, true);
+            write_out(&mut self.out_buf, writer)?;
+            match result {
+                CoderResult::InputEmpty => break,
+                CoderResult::OutputFull => {}
+            }
+        }
+        Ok(())
+    }
+
+    /// Encode everything decoded so far and write it out.
+    fn encode_decoded<W: Write>(&mut self, writer: &mut W) -> Result<(), std::io::Error> {
+        if self.decoded.is_empty() {
+            return Ok(());
+        }
+        let mut consumed = 0usize;
+        loop {
+            let (result, read, _) = self.encoder.encode_from_utf8_to_vec(
+                &self.decoded[consumed..],
+                &mut self.out_buf,
+                false,
+            );
+            consumed += read;
+            write_out(&mut self.out_buf, writer)?;
+            match result {
+                CoderResult::InputEmpty => break,
+                CoderResult::OutputFull => {}
+            }
+        }
+        self.decoded.clear();
+        Ok(())
+    }
+}
+
+/// Write the converted bytes out and reset the staging buffer. A free
+/// function so the encoder loop can borrow `decoded` and `out_buf`
+/// independently.
+fn write_out<W: Write>(buf: &mut Vec<u8>, writer: &mut W) -> Result<(), std::io::Error> {
+    if !buf.is_empty() {
+        writer.write_all(buf)?;
+        buf.clear();
+    }
+    Ok(())
 }
 
 fn list_encodings() {

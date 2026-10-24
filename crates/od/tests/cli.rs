@@ -1,4 +1,6 @@
 use assert_cmd::cargo::cargo_bin_cmd;
+use std::fs;
+use tempfile::tempdir;
 
 #[test]
 fn t_x1_prints_single_byte_hex_without_ascii_column() {
@@ -202,4 +204,56 @@ fn skip_past_end_is_an_error() {
         .assert()
         .code(1)
         .stderr(predicates::str::contains("cannot skip past end"));
+}
+
+// --- Round 13 streaming: -j seek (file) / discard (stdin) + -N quota ---------
+
+#[test]
+fn skip_and_read_bytes_on_a_file() {
+    let dir = tempdir().unwrap();
+    let input = dir.path().join("sixteen.bin");
+    fs::write(&input, (0u8..16).collect::<Vec<u8>>()).unwrap();
+    cargo_bin_cmd!("od")
+        .args(["-j", "4", "-N", "4", "-t", "x1"])
+        .arg(&input)
+        .assert()
+        .success()
+        .stdout("0000004 04 05 06 07\n0000010\n");
+}
+
+#[test]
+fn skip_equal_to_file_length_dumps_nothing_but_final_offset() {
+    let dir = tempdir().unwrap();
+    let input = dir.path().join("four.bin");
+    fs::write(&input, [0x41u8, 0x42, 0x43, 0x44]).unwrap();
+    cargo_bin_cmd!("od")
+        .args(["-j", "4", "-t", "x1"])
+        .arg(&input)
+        .assert()
+        .success()
+        .stdout("0000004\n");
+}
+
+#[test]
+fn skip_past_end_of_file_is_an_error() {
+    let dir = tempdir().unwrap();
+    let input = dir.path().join("two.bin");
+    fs::write(&input, [0x41u8, 0x42]).unwrap();
+    cargo_bin_cmd!("od")
+        .args(["-j", "100", "-t", "x1"])
+        .arg(&input)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains("cannot skip past end"))
+        .stdout("");
+}
+
+#[test]
+fn read_bytes_on_stdin_stops_at_quota() {
+    cargo_bin_cmd!("od")
+        .args(["-N", "3", "-t", "x1"])
+        .write_stdin("abcdef")
+        .assert()
+        .success()
+        .stdout("0000000 61 62 63\n0000003\n");
 }

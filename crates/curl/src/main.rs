@@ -3,8 +3,8 @@ mod cli;
 use clap::Parser;
 use reqwest::blocking::{Client, RequestBuilder};
 use reqwest::redirect::Policy;
-use std::fs;
-use std::io::Write;
+use std::fs::File;
+use std::io::{BufWriter, Write};
 
 /// Maximum number of redirects followed with -L/--location.
 const MAX_REDIRECTS: usize = 10;
@@ -42,7 +42,7 @@ fn run(args: &cli::Args, url: &str) -> i32 {
     let mut current_method = method.to_string();
     let mut redirects = 0;
 
-    let response = loop {
+    let mut response = loop {
         let request = match build_request(&client, &current_method, &current_url, args) {
             Ok(r) => r,
             Err(e) => return fail(args, &e, 1),
@@ -105,13 +105,21 @@ fn run(args: &cli::Args, url: &str) -> i32 {
         println!();
     }
 
-    let body = match response.bytes() {
-        Ok(b) => b,
-        Err(e) => return fail(args, &format!("curl: read error: {}", e), 1),
-    };
-
+    // The body is streamed chunk-by-chunk to its destination and is never
+    // materialized in memory (the -f check above already rejected error
+    // statuses, so copying starts only for a body that will be output).
     if let Some(output) = &args.output {
-        if let Err(e) = fs::write(output, &body) {
+        let mut file = match File::create(output) {
+            Ok(f) => f,
+            Err(e) => {
+                return fail(
+                    args,
+                    &format!("curl: cannot write to {}: {}", output.display(), e),
+                    1,
+                );
+            }
+        };
+        if let Err(e) = std::io::copy(&mut response, &mut file) {
             return fail(
                 args,
                 &format!("curl: cannot write to {}: {}", output.display(), e),
@@ -121,10 +129,11 @@ fn run(args: &cli::Args, url: &str) -> i32 {
     } else {
         let stdout = std::io::stdout();
         let mut lock = stdout.lock();
-        if let Err(e) = lock.write_all(&body) {
+        let mut writer = BufWriter::new(&mut lock);
+        let result = std::io::copy(&mut response, &mut writer).and_then(|_| writer.flush());
+        if let Err(e) = result {
             return fail(args, &format!("curl: write error: {}", e), 1);
         }
-        let _ = lock.flush();
     }
 
     0

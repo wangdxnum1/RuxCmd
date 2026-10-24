@@ -29,17 +29,25 @@ fn wget_in(dir: &Path, args: &[&str]) -> Output {
 
 /// Serve exactly one HTTP response built from `status_line` + `body`.
 fn serve_once(status_line: &str, body: &str) -> SocketAddr {
+    serve_once_bytes(status_line, body.as_bytes().to_vec())
+}
+
+/// Serve exactly one HTTP response with a raw byte body (large-payload
+/// streaming regressions). The request is drained before writing so a 5MB
+/// body cannot deadlock the exchange.
+fn serve_once_bytes(status_line: &str, body: Vec<u8>) -> SocketAddr {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback");
     let addr = listener.local_addr().expect("local addr");
-    let response = format!(
-        "{status_line}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+    let header = format!(
+        "{status_line}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
         body.len()
     );
     std::thread::spawn(move || {
         if let Ok((mut stream, _)) = listener.accept() {
             let mut buf = [0u8; 8192];
             let _ = stream.read(&mut buf);
-            let _ = stream.write_all(response.as_bytes());
+            let _ = stream.write_all(header.as_bytes());
+            let _ = stream.write_all(&body);
         }
     });
     addr
@@ -138,6 +146,51 @@ fn http_error_exits_8() {
     assert!(
         dir.read_dir().expect("readdir").next().is_none(),
         "no file must be created on HTTP error"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+// ---------------------------------------------------------------------------
+// Large-payload streaming regressions (loopback only; Round 13).
+// ---------------------------------------------------------------------------
+
+/// xorshift64 stream for the large-payload streaming regression tests.
+fn xorshift_bytes(seed: u64, len: usize) -> Vec<u8> {
+    let mut state = seed;
+    (0..len)
+        .map(|_| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state as u8
+        })
+        .collect()
+}
+
+#[test]
+fn five_megabyte_download_is_byte_identical() {
+    let payload = xorshift_bytes(0x9E3779B97F4A7C15, 5 * 1024 * 1024);
+    let addr = serve_once_bytes("HTTP/1.1 200 OK", payload.clone());
+    let dir = temp_dir("big");
+    let out = wget_in(&dir, &[&format!("http://{addr}/big.bin")]);
+    assert_eq!(out.status.code(), Some(0), "stderr: {:?}", out.stderr);
+    let saved = std::fs::read(dir.join("big.bin")).expect("big.bin must exist");
+    assert_eq!(saved.len(), payload.len());
+    assert!(saved == payload, "streamed download must be byte-identical");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn five_megabyte_stdout_download_is_byte_identical() {
+    let payload = xorshift_bytes(0x0123456789ABCDEF, 5 * 1024 * 1024);
+    let addr = serve_once_bytes("HTTP/1.1 200 OK", payload.clone());
+    let dir = temp_dir("bigout");
+    let out = wget_in(&dir, &["-q", "-O", "-", &format!("http://{addr}/big.bin")]);
+    assert_eq!(out.status.code(), Some(0), "stderr: {:?}", out.stderr);
+    assert_eq!(out.stdout.len(), payload.len());
+    assert!(
+        out.stdout == payload,
+        "streamed stdout must be byte-identical"
     );
     let _ = std::fs::remove_dir_all(&dir);
 }

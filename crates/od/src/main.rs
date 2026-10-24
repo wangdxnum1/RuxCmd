@@ -2,7 +2,7 @@ mod cli;
 
 use clap::Parser;
 use std::fs::File;
-use std::io::{BufReader, Read, Write};
+use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 
 use cli::{AddressBase, DisplayType, FormatSpec};
 
@@ -36,22 +36,9 @@ fn main() {
         let path_str = path.to_string_lossy();
         if path_str == "-" {
             let stdin = std::io::stdin();
-            if let Err(e) = dump_reader(
-                &mut out,
-                stdin,
-                address_base,
-                &spec,
-                words_per_line,
-                skip_bytes,
-                read_bytes,
-            ) {
-                eprintln!("od: error reading stdin: {}", e);
-                exit_code = 1;
-            }
-        } else {
-            match File::open(path) {
-                Ok(file) => {
-                    let reader = BufReader::new(file);
+            let mut reader = BufReader::new(stdin.lock());
+            match skip_stdin(&mut reader, skip_bytes) {
+                Ok(()) => {
                     if let Err(e) = dump_reader(
                         &mut out,
                         reader,
@@ -61,10 +48,42 @@ fn main() {
                         skip_bytes,
                         read_bytes,
                     ) {
-                        eprintln!("od: {}: {}", path.display(), e);
+                        eprintln!("od: error reading stdin: {}", e);
                         exit_code = 1;
                     }
                 }
+                Err(SkipError::PastEnd) => {
+                    eprintln!("od: cannot skip past end of combined input");
+                    std::process::exit(1);
+                }
+                Err(SkipError::Io(e)) => {
+                    eprintln!("od: error reading stdin: {}", e);
+                    exit_code = 1;
+                }
+            }
+        } else {
+            match File::open(path) {
+                Ok(mut file) => match seek_file(&mut file, skip_bytes) {
+                    Ok(()) => {
+                        let reader = BufReader::new(file);
+                        if let Err(e) = dump_reader(
+                            &mut out,
+                            reader,
+                            address_base,
+                            &spec,
+                            words_per_line,
+                            skip_bytes,
+                            read_bytes,
+                        ) {
+                            eprintln!("od: {}: {}", path.display(), e);
+                            exit_code = 1;
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("od: {}: {}", path.display(), e);
+                        exit_code = 1;
+                    }
+                },
                 Err(e) => {
                     eprintln!("od: {}: {}", path.display(), e);
                     exit_code = 1;
@@ -73,22 +92,88 @@ fn main() {
         }
     } else {
         let stdin = std::io::stdin();
-        if let Err(e) = dump_reader(
-            &mut out,
-            stdin,
-            address_base,
-            &spec,
-            words_per_line,
-            skip_bytes,
-            read_bytes,
-        ) {
-            eprintln!("od: error reading stdin: {}", e);
-            exit_code = 1;
+        let mut reader = BufReader::new(stdin.lock());
+        match skip_stdin(&mut reader, skip_bytes) {
+            Ok(()) => {
+                if let Err(e) = dump_reader(
+                    &mut out,
+                    reader,
+                    address_base,
+                    &spec,
+                    words_per_line,
+                    skip_bytes,
+                    read_bytes,
+                ) {
+                    eprintln!("od: error reading stdin: {}", e);
+                    exit_code = 1;
+                }
+            }
+            Err(SkipError::PastEnd) => {
+                eprintln!("od: cannot skip past end of combined input");
+                std::process::exit(1);
+            }
+            Err(SkipError::Io(e)) => {
+                eprintln!("od: error reading stdin: {}", e);
+                exit_code = 1;
+            }
         }
     }
 
     let _ = out.flush();
     std::process::exit(exit_code);
+}
+
+/// Why a `-j` skip over a non-seekable input could not be completed.
+enum SkipError {
+    /// The input ended before `skip_bytes` bytes were consumed.
+    PastEnd,
+    /// The underlying read failed.
+    Io(std::io::Error),
+}
+
+/// Seek a regular file past `-j` bytes. Skipping past the end of the file is
+/// rejected exactly like GNU od; other failures are ordinary I/O errors.
+fn seek_file(file: &mut File, skip_bytes: usize) -> Result<(), std::io::Error> {
+    let len = file.metadata()?.len() as usize;
+    if skip_bytes > len {
+        eprintln!("od: cannot skip past end of combined input");
+        std::process::exit(1);
+    }
+    file.seek(SeekFrom::Start(skip_bytes as u64))?;
+    Ok(())
+}
+
+/// Skip `-j` bytes on a non-seekable input by reading and discarding.
+fn skip_stdin<R: Read>(reader: &mut R, skip_bytes: usize) -> Result<(), SkipError> {
+    let mut discard = [0u8; 8192];
+    let mut skipped = 0usize;
+    while skipped < skip_bytes {
+        let want = std::cmp::min(skip_bytes - skipped, discard.len());
+        match read_full(reader, &mut discard[..want]) {
+            Ok(0) => return Err(SkipError::PastEnd),
+            Ok(n) => skipped += n,
+            Err(e) => return Err(SkipError::Io(e)),
+        }
+    }
+    Ok(())
+}
+
+/// Read into `buf` until it is full or EOF; returns how many bytes were
+/// read (`Ok(0)` only at EOF).
+fn read_full<R: Read>(reader: &mut R, mut buf: &mut [u8]) -> Result<usize, std::io::Error> {
+    let mut filled = 0usize;
+    while !buf.is_empty() {
+        match reader.read(buf) {
+            Ok(0) => break,
+            Ok(n) => {
+                filled += n;
+                buf = &mut buf[n..];
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(filled)
 }
 
 fn format_address(addr: usize, base: &AddressBase) -> String {
@@ -306,6 +391,63 @@ fn format_word(data: &[u8], spec: &FormatSpec) -> String {
     }
 }
 
+/// Emit one output line for `line_data` (at most one full `-w` row of the
+/// chosen format; a short final row is legal). Rendering is byte-identical
+/// to the previous whole-buffer implementation.
+fn dump_line<W: Write>(
+    out: &mut W,
+    line_data: &[u8],
+    address_base: &AddressBase,
+    addr: usize,
+    spec: &FormatSpec,
+    width: usize,
+    words_per_line: usize,
+) -> Result<(), std::io::Error> {
+    let size = spec.size;
+
+    let addr_str = format_address(addr, address_base);
+    if !addr_str.is_empty() {
+        write!(out, "{addr_str}")?;
+    }
+
+    // GNU od prints every field right-aligned to the type's width with a
+    // single leading space; with -A n that space is all that remains of
+    // the address column.
+    let mut used = 0usize;
+    let mut word_offset = 0;
+    while word_offset < line_data.len() {
+        let word_end = std::cmp::min(word_offset + size, line_data.len());
+        let word_data = &line_data[word_offset..word_end];
+        let content = format_word(word_data, spec);
+        let pad = width.saturating_sub(content.len());
+        write!(out, " {}{}", " ".repeat(pad), content)?;
+        used += 1 + pad + content.len();
+        word_offset += size;
+    }
+
+    // `z` suffix: a `>ascii<` trailer column, as in GNU od -t x1z.
+    if spec.z {
+        let full_width = words_per_line * (width + 1);
+        let pad = full_width.saturating_sub(used) + 2;
+        write!(out, "{}>", " ".repeat(pad))?;
+        for &b in line_data {
+            let c = b as char;
+            if c.is_ascii_graphic() || b == b' ' {
+                write!(out, "{c}")?;
+            } else {
+                write!(out, ".")?;
+            }
+        }
+        write!(out, "<")?;
+    }
+
+    writeln!(out)?;
+    Ok(())
+}
+
+/// Dump the already-skipped input one output row at a time: at most
+/// `words_per_line * size` bytes (bounded by the remaining `-N` quota) are
+/// in memory at any moment.
 fn dump_reader<W: Write, R: Read>(
     out: &mut W,
     mut reader: R,
@@ -315,71 +457,43 @@ fn dump_reader<W: Write, R: Read>(
     skip_bytes: usize,
     read_bytes: Option<usize>,
 ) -> Result<(), std::io::Error> {
-    let mut buffer = Vec::new();
-    reader.read_to_end(&mut buffer)?;
-
-    if skip_bytes > buffer.len() {
-        eprintln!("od: cannot skip past end of combined input");
-        std::process::exit(1);
-    }
-
-    let buffer = &buffer[skip_bytes..];
-    let buffer = match read_bytes {
-        Some(n) => &buffer[..std::cmp::min(n, buffer.len())],
-        None => buffer,
-    };
-
     let width = field_width(&spec.display, spec.size);
     let size = spec.size;
+    let line_size = words_per_line * size;
 
-    let mut offset = 0;
-    while offset < buffer.len() {
-        let line_size = std::cmp::min(words_per_line * size, buffer.len() - offset);
-        let line_data = &buffer[offset..offset + line_size];
+    let mut chunk = vec![0u8; line_size];
+    let mut total = 0usize;
 
-        let addr = format_address(offset + skip_bytes, &address_base);
-        if !addr.is_empty() {
-            write!(out, "{addr}")?;
+    loop {
+        let want = match read_bytes {
+            Some(n) => std::cmp::min(line_size, n - total),
+            None => line_size,
+        };
+        if want == 0 {
+            break;
         }
-
-        // GNU od prints every field right-aligned to the type's width with a
-        // single leading space; with -A n that space is all that remains of
-        // the address column.
-        let mut used = 0usize;
-        let mut word_offset = 0;
-        while word_offset < line_size {
-            let word_end = std::cmp::min(word_offset + size, line_size);
-            let word_data = &line_data[word_offset..word_end];
-            let content = format_word(word_data, spec);
-            let pad = width.saturating_sub(content.len());
-            write!(out, " {}{}", " ".repeat(pad), content)?;
-            used += 1 + pad + content.len();
-            word_offset += size;
+        let got = read_full(&mut reader, &mut chunk[..want])?;
+        if got == 0 {
+            break;
         }
-
-        // `z` suffix: a `>ascii<` trailer column, as in GNU od -t x1z.
-        if spec.z {
-            let full_width = words_per_line * (width + 1);
-            let pad = full_width.saturating_sub(used) + 2;
-            write!(out, "{}>", " ".repeat(pad))?;
-            for &b in line_data {
-                let c = b as char;
-                if c.is_ascii_graphic() || b == b' ' {
-                    write!(out, "{c}")?;
-                } else {
-                    write!(out, ".")?;
-                }
-            }
-            write!(out, "<")?;
+        dump_line(
+            out,
+            &chunk[..got],
+            &address_base,
+            skip_bytes + total,
+            spec,
+            width,
+            words_per_line,
+        )?;
+        total += got;
+        if got < want {
+            break; // EOF reached mid-row; the tail row was just emitted.
         }
-
-        writeln!(out)?;
-        offset += line_size;
     }
 
     // GNU od finishes with a final offset line (suppressed by -A n).
     if !matches!(address_base, AddressBase::None) {
-        let end_addr = format_address(skip_bytes + buffer.len(), &address_base);
+        let end_addr = format_address(skip_bytes + total, &address_base);
         writeln!(out, "{end_addr}")?;
     }
 

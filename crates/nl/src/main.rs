@@ -1,7 +1,7 @@
 mod cli;
 
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 
 fn main() {
     let args = cli::parse_args();
@@ -12,9 +12,18 @@ fn main() {
 
     let mut exit_code = 0i32;
 
+    let stdout = std::io::stdout();
+    let mut out = BufWriter::new(stdout.lock());
+
     if args.files.is_empty() {
         let stdin = std::io::stdin();
-        if let Err(e) = nl_reader(stdin.lock(), body_numbering, &separator, number_width) {
+        if let Err(e) = nl_reader(
+            stdin.lock(),
+            &mut out,
+            body_numbering,
+            &separator,
+            number_width,
+        ) {
             eprintln!("nl: error reading stdin: {}", e);
             exit_code = 1;
         }
@@ -23,7 +32,13 @@ fn main() {
             let path_str = path.to_string_lossy();
             if path_str == "-" {
                 let stdin = std::io::stdin();
-                if let Err(e) = nl_reader(stdin.lock(), body_numbering, &separator, number_width) {
+                if let Err(e) = nl_reader(
+                    stdin.lock(),
+                    &mut out,
+                    body_numbering,
+                    &separator,
+                    number_width,
+                ) {
                     eprintln!("nl: error reading stdin: {}", e);
                     exit_code = 1;
                 }
@@ -31,7 +46,8 @@ fn main() {
                 match File::open(path) {
                     Ok(file) => {
                         let reader = BufReader::new(file);
-                        if let Err(e) = nl_reader(reader, body_numbering, &separator, number_width)
+                        if let Err(e) =
+                            nl_reader(reader, &mut out, body_numbering, &separator, number_width)
                         {
                             eprintln!("nl: {}: {}", path.display(), e);
                             exit_code = 1;
@@ -46,35 +62,48 @@ fn main() {
         }
     }
 
+    let _ = out.flush();
     std::process::exit(exit_code);
 }
 
-fn nl_reader<R: BufRead>(
+/// Number lines as they stream through: one line is read, formatted and
+/// written before the next one is fetched, so neither the input nor the
+/// output is ever buffered in full.
+fn nl_reader<R: BufRead, W: Write>(
     mut reader: R,
+    out: &mut W,
     body_numbering: cli::BodyNumbering,
     separator: &str,
     number_width: usize,
 ) -> Result<(), std::io::Error> {
-    let mut output = String::new();
     let mut line_num: usize = 0;
-    let mut raw = String::new();
+    let mut raw: Vec<u8> = Vec::new();
 
     loop {
         raw.clear();
-        // read_line keeps the trailing '\n' (if any) and, like BufRead::lines,
-        // decodes UTF-8 instead of mangling bytes through `byte as char`.
-        let bytes_read = reader.read_line(&mut raw)?;
+        // Byte-oriented variant of the previous `read_line` call: the line
+        // content is converted lossily below, so non-UTF-8 input no longer
+        // aborts the run (valid UTF-8 input is passed through verbatim,
+        // exactly as before).
+        let bytes_read = reader.read_until(b'\n', &mut raw)?;
         if bytes_read == 0 {
             break;
         }
 
         // Remember whether the line was '\n'-terminated so a missing final
         // newline is not invented in the output (GNU behavior).
-        let terminated = raw.ends_with('\n');
-        let line = raw.strip_suffix('\n').unwrap_or(raw.as_str());
-        // Drop only a trailing '\r' (CRLF input); '\r' inside a line is
-        // ordinary content and must be preserved.
-        let line = line.strip_suffix('\r').unwrap_or(line);
+        let terminated = raw.last() == Some(&b'\n');
+        if terminated {
+            raw.pop();
+        }
+        // Drop only a trailing '\r' (CRLF input, plus a trailing '\r' on an
+        // unterminated final line, matching the previous read_line version);
+        // '\r' inside a line is ordinary content and must be preserved.
+        if raw.last() == Some(&b'\r') {
+            raw.pop();
+        }
+
+        let line = String::from_utf8_lossy(&raw);
 
         let number_it = match body_numbering {
             cli::BodyNumbering::All => true,
@@ -84,22 +113,22 @@ fn nl_reader<R: BufRead>(
 
         if number_it {
             line_num += 1;
-            output.push_str(&format!(
+            write!(
+                out,
                 "{:width$}{}",
                 line_num,
                 separator,
                 width = number_width
-            ));
+            )?;
         } else {
             // GNU nl blanks out the whole "number + separator" field.
-            output.push_str(&" ".repeat(number_width + separator.len()));
+            write!(out, "{}", " ".repeat(number_width + separator.len()))?;
         }
-        output.push_str(line);
+        out.write_all(line.as_bytes())?;
         if terminated {
-            output.push('\n');
+            out.write_all(b"\n")?;
         }
     }
 
-    print!("{}", output);
     Ok(())
 }

@@ -3,8 +3,8 @@ mod cli;
 use clap::Parser;
 use reqwest::blocking::Client;
 use std::ffi::OsStr;
-use std::fs;
-use std::io::Write;
+use std::fs::{self, File};
+use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -55,7 +55,7 @@ fn main() {
         }
     };
 
-    let response = match client.get(url).send() {
+    let mut response = match client.get(url).send() {
         Ok(r) => r,
         Err(e) => {
             eprintln!("wget: connection failed: {}", e);
@@ -74,13 +74,10 @@ fn main() {
         std::process::exit(8);
     }
 
-    let content = match response.bytes() {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("wget: read error: {}", e);
-            std::process::exit(1);
-        }
-    };
+    // The body is streamed chunk-by-chunk to its destination and is never
+    // materialized in memory; the length line uses Content-Length because
+    // the total is not known up front when streaming (0 without a header).
+    let length = response.content_length().unwrap_or(0);
 
     if !args.quiet {
         println!(
@@ -88,7 +85,7 @@ fn main() {
             status.as_u16(),
             status.canonical_reason().unwrap_or("OK")
         );
-        println!("Length: {} [binary]", content.len());
+        println!("Length: {} [binary]", length);
         println!("Saving to: '{}'", display_name);
         println!();
     }
@@ -96,16 +93,24 @@ fn main() {
     if to_stdout {
         let stdout = std::io::stdout();
         let mut lock = stdout.lock();
-        if let Err(e) = lock.write_all(&content) {
+        let mut writer = BufWriter::new(&mut lock);
+        let result = std::io::copy(&mut response, &mut writer).and_then(|_| writer.flush());
+        if let Err(e) = result {
             eprintln!("wget: write error: {}", e);
             std::process::exit(1);
         }
-        let _ = lock.flush();
-    } else if let Some(path) = &output_path
-        && let Err(e) = fs::write(path, &content)
-    {
-        eprintln!("wget: cannot write to {}: {}", path.display(), e);
-        std::process::exit(1);
+    } else if let Some(path) = &output_path {
+        let mut file = match File::create(path) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("wget: cannot write to {}: {}", path.display(), e);
+                std::process::exit(1);
+            }
+        };
+        if let Err(e) = std::io::copy(&mut response, &mut file) {
+            eprintln!("wget: cannot write to {}: {}", path.display(), e);
+            std::process::exit(1);
+        }
     }
 
     if !args.quiet {
