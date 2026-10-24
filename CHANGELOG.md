@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 完成第 12 轮 P1 缺陷修复(批次 A1-I1,约 45 个命令):进程工具原生化(pkill/pgrep/kill 弃用 tasklist/wmic/taskkill,复用 ps-sys;w/who 改 WTSEnumerateSessions);真实数据源(iostat/mpstat/sar/time/top/vmstat 的 GetSystemTimes、ps 的存活期 %CPU);文本工具字节安全化(grep/cut/sort/head/tail/sed/fold 的非 UTF-8 透传);sed 地址与 p/d/q 命令;awk 条件求值重写;网络工具语义修正(curl body-only/-d POST/-L/-f、wget 退出码 8、ping -t 持续语义);netstat -o PID、xargs -0 与分批、find GNU maxdepth 与单横线选项;chmod 符号模式、test POSIX 子集、env 命令执行;md5sum/sha256sum --tag/--status、od 全规格、iconv 严格 -f、numfmt 分隔符;tar -C/-O/--exclude、patch 多文件按计数解析等。
 - 完成第 11 轮 P0 缺陷修复(48 任务,覆盖审查报告全部 50 项 P0):每个修复附行为回归测试,涉及命令的验证状态由"仅冒烟"升级为"冒烟 + 行为测试"。
   - 安全:tar/unzip 解包拒绝路径穿越条目(退出码 2);zip 参数经 PowerShell 单引号转义防注入;sync 防自递归并传播退出码。
   - 数据正确性:cat 字节透明化;base64 解码重写;touch 经 SetFileTime 真实更新时间戳;echo 默认不解释转义;printf 实现格式串转义;bc 求值器重写。

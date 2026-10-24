@@ -9,115 +9,115 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | Command | Explicit long options (from source) | Verification status | Windows differences / limitations |
 | --- | --- | --- | --- |
 | --- | --- | --- | --- |
-| awk | --assign, --field-separator, --file, --version | Smoke only; behavior unverified | The implementation simplifies some matching with substrings; it is not a full awk interpreter. |
+| awk | --assign, --field-separator, --file, --version | Smoke + behavior tests | Conditions, else/next and multi-argument print work; NR runs across files and BEGIN/END run once; for loops error out. Matching uses substrings (not regex); no arrays, built-in functions, or redirection. |
 | base64 | --decode, --version, --wrap | Smoke + behavior tests | Decoding is strict like GNU: input without padding that is not a multiple of 4 produces decoded bytes but reports invalid input and exits 1. |
-| basename | --suffix, --multiple, --version | Smoke + behavior tests | Trailing `.`/`..` components print `.`/`..`; `//` prints `/`; a drive root prints `C:`. The two-operand `basename NAME SUFFIX` form is unsupported. |
+| basename | --suffix, --multiple, --version | Smoke + behavior tests | Supports the two-operand `basename NAME SUFFIX` form. Trailing `.`/`..` components print `.`/`..`; `//` prints `/`; a drive root prints `C:`. |
 | bc | --version | Smoke + behavior tests | Integer arithmetic on i128 with truncating / and % (GNU scale=0 default); supports + - * / % ^ ( ), variable assignment, ; separators, # comments, and quit. No arbitrary precision, scale, ibase/obase, or functions - unsupported constructs print a notice and the line is skipped. Banner is bc 0.1.0 (RuxCmd). |
 | cal | --version | Smoke + behavior tests | A single argument 1-12 is a month, 100-9999 a year; 13-99 is rejected. Full GNU behavior unverified. |
 | cat | --number, --number-nonblank, --show-all, --show-ends, --show-nonprinting, --show-tabs, --unbuffered | Smoke + behavior tests | Byte-transparent by default (CRLF, binary, and non-ASCII data pass through unchanged); -v uses byte-level ^/M- notation; -E does not mark an unterminated last line. Line numbering and empty-line compression state reset per file. |
-| chmod | --recursive, --verbose, --version | Smoke only; behavior unverified | Windows permission semantics are not equivalent to Unix modes. |
+| chmod | --recursive, --verbose, --version | Smoke + behavior tests | Symbolic modes (u/g/o/a with +-=rwx) map onto the read-only bit; -R no longer follows junctions. Windows permission semantics are not equivalent to Unix modes. |
 | chown | --user, --group, --recursive, --verbose, --version | Smoke + behavior tests | --user sets the owner and --group the group (GROUP_SECURITY_INFORMATION), both may be given; any file failure exits 1. Changing the owner to another account usually requires privileges. Unix UID/GID semantics are not equivalent. |
 | clear | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | cmp | --silent, --verbose, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | column | --output-separator, --separator, --table, --table-header-repeat, --table-right, --version | Smoke + behavior tests | In -t mode without -s, runs of whitespace collapse into a single separator; an explicit -s splits per character without collapsing. The default fill mode is unimplemented. |
 | comm | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| cp | --force, --interactive, --preserve, --recursive, --symbolic-link, --verbose | Smoke + behavior tests | Sources ending in `.`/`..` merge their contents into an existing destination directory (error if it does not exist); with multiple sources the destination must be an existing directory. Full GNU behavior unverified. |
-| csplit | --digits, --elide-empty-files, --keep-files, --prefix, --quiet | Smoke + behavior tests | Patterns are substrings or line numbers only; /re/+N, {N}, and other GNU syntax error with exit 1; a non-matching pattern exits 1 (files removed without -k). --suffix-format was removed. |
-| curl | --data, --header, --output, --request, --silent, --version | Smoke only; behavior unverified | HTTPS/TLS and network behavior are unverified. |
-| cut | --bytes, --characters, --delimiter, --fields, --only-delimited, --output-delimiter | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| cp | --force, --interactive, --preserve, --recursive, --symbolic-link, --verbose | Smoke + behavior tests | -f clears the read-only attribute of an overwritten destination. Sources ending in `.`/`..` merge their contents into an existing destination directory (error if it does not exist); with multiple sources the destination must be an existing directory. |
+| csplit | --digits, --elide-empty-files, --keep-files, --prefix, --quiet | Smoke + behavior tests | Line numbers must be > 0, ascending, and within the file, else exit 1. Patterns are substrings or line numbers only; /re/+N, {N}, and other GNU syntax error with exit 1; a non-matching pattern exits 1 (files removed without -k). --suffix-format was removed. |
+| curl | --data, --header, --output, --request, --silent, --version, --include, --head, --fail, --location | Smoke + behavior tests | Prints only the body by default (-i adds headers); -d implies POST; redirects are off unless -L (max 10); -f exits 22 on HTTP >= 400. HTTPS/TLS and network behavior are unverified. |
+| cut | --bytes, --characters, --delimiter, --fields, --only-delimited, --output-delimiter | Smoke + behavior tests | Byte-safe: non-UTF-8 lines pass through and -b selects raw bytes (no -n); only the trailing \r is stripped. Full GNU behavior unverified. |
 | date | --date, --nanoseconds, --seconds, --set, --utc, --version | Smoke + behavior tests | -d/--date and the positional operand accept @EPOCH, YYYY-MM-DD, and YYYY-MM-DDTHH:MM[:SS] (empty = now, other formats error with exit 1); -s/--set sets the local clock via SetLocalTime. --seconds applies to the parsed instant; %N is always 0. |
 | df | --human-readable, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | diff | --unified, --ignore-case, --ignore-whitespace, --ignore-blank-lines, --version | Smoke + behavior tests | Exit codes follow GNU (0/1/2). Normal format emits unmerged d/a commands with GNU-correct line anchors; c-merging and range folding are not implemented. |
 | dirname | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | du | --human-readable, --summarize, --total, --version | Smoke + behavior tests | Both -s and the default mode recurse and print one apparent-size total per argument (per-subdirectory listing is unimplemented); unreadable paths report errors and exit 1. |
 | echo | --version | Smoke + behavior tests | Escapes are off by default (GNU -E default); -e enables them, -E forces off. When both are given, -E wins. |
-| env | --ignore-environment, --unset, --verbose, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| env | --ignore-environment, --unset, --verbose, --version | Smoke + behavior tests | NAME=VAL assignments execute a command (-i clears, -u removes, exit code passes through, 127 on spawn failure); without a command the environment prints. |
 | expand | --initial, --tabs, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | factor | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | false | --version | Smoke + behavior tests | Full GNU behavior unverified. |
 | file | See --help | Smoke + behavior tests | -b omits the name prefix; gzip (1F 8B) and zlib (78 xx) are distinguished; printable ASCII and UTF-8 report ASCII text / UTF-8 text; operands that cannot be opened are skipped with an error and exit 1 at the end. |
-| find | --basename, --ignore-case, --maxdepth, --mindepth, --name, --regex | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| fmt | --crown-margin, --split-only, --version, --width | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| fold | --bytes, --spaces, --version, --width | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| find | --basename, --ignore-case, --maxdepth, --mindepth, --name, --regex | Smoke + behavior tests | maxdepth follows GNU (0 = start point only, 1 includes children); GNU single-dash long options (-name, -type, ...) are accepted; unknown -type values and traversal errors exit 1; malformed globs no longer panic. |
+| fmt | --crown-margin, --split-only, --version, --width | Smoke + behavior tests | -c is a flag preserving the paragraph's leading indent; -s breaks at whitespace when possible. |
+| fold | --bytes, --spaces, --version, --width | Smoke + behavior tests | Non-UTF-8 input folds lossy instead of failing; -b splits on raw bytes. |
 | free | --bytes, --gigabytes, --human-readable, --kilobytes, --megabytes, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| grep | --count, --ignore-case, --invert-match, --line-number, --line-regexp, --only-matching, --quiet, --recursive | Smoke + behavior tests | Match/no-match exit codes verified, including single-file -c counts; recursive error propagation unverified. |
+| grep | --count, --ignore-case, --invert-match, --line-number, --line-regexp, --only-matching, --quiet, --recursive, --extended-regexp, --fixed-strings, --word-regexp, --files-with-matches, --with-filename, --no-filename, --after-context, --before-context, --context | Smoke + behavior tests | Byte-safe lines: non-UTF-8 input matches lossy and prints original bytes; single-file output has no prefix; -F matches literals. Recursive error propagation unverified. |
 | groups | --version | Smoke + behavior tests | Prints the current user's real token groups (space-separated, locale-dependent names); only the current user is supported and other names error with exit 1. |
-| gunzip | --force, --keep, --verbose | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| head | --bytes, --lines, --quiet, --verbose | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| gunzip | --force, --keep, --stdout, --list, --verbose | Smoke + behavior tests | Multi-member streams decompress fully; -c writes to stdout and keeps the source; -l reports sizes and ratio. |
+| head | --bytes, --lines, --quiet, --verbose | Smoke + behavior tests | Line mode is byte-transparent (CRLF, missing trailing newline, binary); -n and -c are mutually exclusive; -v prints a header for stdin. |
 | hexdump | --ascii, --canonical, --decimal, --hexadecimal, --length, --octal, --skip | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| hostname | --fqdn, --ip-address, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| iconv | --from-code, --list, --output, --to-code, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| hostname | --fqdn, --ip-address, --version | Smoke + behavior tests | Failures print an error and exit 1 instead of staying silent. Full GNU behavior unverified. |
+| iconv | --from-code, --list, --output, --to-code, --version | Smoke + behavior tests | Decoding follows -f strictly (no BOM sniffing); --list covers the full encoding table. |
 | id | --group, --groups, --name, --user, --version | Smoke + behavior tests | uid/gid/groups derive from the process token SID RIDs; -u/-g/-G/-n follow GNU; group names are locale-dependent and fall back to the RID. |
 | iostat | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| join | --field1, --field2, --separator, --version | Smoke only; behavior unverified | Field numbers below 1 error with exit 1. The default separator is TAB (GNU splits on whitespace). |
+| join | --field1, --field2, --separator, --version | Smoke + behavior tests | Output is key + remaining fields of both inputs; without -t fields split on whitespace runs (output joined with a space). Field numbers below 1 error with exit 1. |
 | kill | --list, --signal, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| ln | --force, --symbolic, --version | Smoke only; behavior unverified | Windows symbolic links may require privileges or Developer Mode. |
+| ln | --force, --symbolic, --verbose, --version | Smoke + behavior tests | Targets are stored as written (no verbatim \\?\ prefix); -v prints the created link. Windows symbolic links may require privileges or Developer Mode. |
 | ls | --all, --almost-all, --author, --block-size, --classify, --color | Smoke + behavior tests | Long-format extra columns (-i/-s and symlink targets) are rendered by position index and are not lost when coloring is active. Full GNU behavior unverified. |
-| md5sum | --check, --quiet, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| md5sum | --check, --quiet, --status, --tag, --version | Smoke + behavior tests | Check mode handles * markers and \-escaped names, aggregates failures, and exits 1 if any failed. |
 | mkdir | --mode, --parents, --verbose | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | mkfifo | --mode, --version | Smoke only; behavior unverified | Windows pipe semantics are not equivalent to POSIX FIFOs. |
 | mpstat | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| mv | --force, --interactive, --no-clobber, --verbose | Smoke + behavior tests | Full GNU behavior unverified. |
-| netstat | --all, --numeric, --protocol, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| mv | --force, --interactive, --no-clobber, --verbose | Smoke + behavior tests | Refuses to overwrite a directory with a non-directory (never deletes the target tree); falls back to copy+delete across volumes; src/. merges into an existing directory. |
+| netstat | --all, --numeric, --protocol, --version, --own-pid | Smoke + behavior tests | -a controls whether LISTENING/unbound entries are shown; -o adds the owning PID column (GetExtendedTcp/UdpTable); table errors exit 1. |
 | nice | --adjustment, --version | Smoke + behavior tests | Spawns the command directly (no wmic) and applies a priority class: adjustment <=-15 High, -14..-5 Above normal, -4..4 Normal, 5..14 Below normal, >=15 Idle; the child exit code is passed through. |
 | nl | --body-numbering, --number-width, --separator, --version | Smoke + behavior tests | Reads UTF-8 lines without corruption; -b accepts t (default, non-blank lines), n (none), and a (all lines). |
 | nslookup | --type, --version | Smoke + behavior tests | Types A/AAAA/CNAME/MX/TXT resolve for real (getaddrinfo / DnsQuery_W); type names are case-insensitive; unsupported types error with exit 1. The SERVER positional argument was removed. |
-| numfmt | --delimiter, --field, --from, --from-unit, --grouping, --header, --padding, --round, --suffix, --to, --to-unit | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| od | --address-radix, --ascii, --decimal, --format, --hexadecimal, --octal, --read-bytes, --skip-bytes, --width | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| open | --application, --edit, --reveal, --version, --wait | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| paste | --delimiters, --serial, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| patch | --force, --reverse, --strip, --version | Smoke + behavior tests | --strip/-p strips N leading path components (default 0, GNU semantics); /dev/null and all-@@ -0,0 patches create the target file. Hunks are matched without line counts, one target file is used per run, and .rej files contain the error message. |
+| numfmt | --delimiter, --field, --from, --from-unit, --grouping, --header, --padding, --round, --suffix, --to, --to-unit | Smoke + behavior tests | An explicit -d is preserved in output and does not collapse runs; --from=auto reads K=1000, Ki=1024. |
+| od | --address-radix, --ascii, --decimal, --format, --hexadecimal, --octal, --read-bytes, --skip-bytes, --width | Smoke + behavior tests | -t accepts x1/d1/o1/u1/a/c/z and f4/f8 with GNU field widths and little-endian order; no ASCII column unless the format includes c. |
+| open | --application, --edit, --reveal, --version, --wait | Smoke + behavior tests | Opens through ShellExecuteW (no shell quoting issues); -R ignores explorer's exit code; -W waits when the launch returns a process handle. |
+| paste | --delimiters, --serial, --version | Smoke + behavior tests | \r is stripped from line ends; -d accepts a character list that cycles per output column. |
+| patch | --force, --reverse, --strip, --version | Smoke + behavior tests | --strip/-p strips N leading path components (default 0); hunks are consumed exactly as their @@ counts declare (blank context lines and \\ No newline handled); multi-file patches apply per section; .rej files contain the rejected hunk; successful hunks are written back. |
 | pgrep | --full, --list-name, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| ping | --count, --size, --timeout, --version | Smoke only; behavior unverified | Network behavior and permission requirements are unverified. |
+| ping | --count, --size, --version | Smoke + behavior tests | Zero replies exit 1; failure statuses are distinguished; -s is capped at 65500; -t means continuous ping (Windows semantics) with -w as the per-reply timeout. |
 | pkill | --full, --signal, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | pr | --double-space, --form-feed, --header, --indent, --length, --number-lines | Smoke + behavior tests | Page headers show the real local date/time; -n follows GNU -n[SEP][DIGITS] (bare -n = TAB + width 5, invalid specs exit 1); help is --help only (-h is the header). |
 | printf | --version | Smoke + behavior tests | Implements format-string backslash escapes (\n \r \t \ \" \0NNN \xHH), empty string/0 for missing arguments, and exit code 1 for invalid numeric arguments. Width/precision/flags and format reuse are not implemented. |
 | ps | --ascii, --comm, --everyone, --extra-full, --forest, --format | Smoke + behavior tests | Native Windows process information; unreadable fields may show ?. %MEM uses the real total physical memory (GlobalMemoryStatusEx); requesting an unregistered column warns on stderr and skips it. |
-| pwd | --logical, --physical, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| pwd | --logical, --physical, --version | Smoke + behavior tests | UNC paths print as //server/share. Full GNU behavior unverified. |
 | readlink | --canonicalize, --no-newline, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | realpath | --strip-components, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | reset | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | rev | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| rm | --dir, --force, --no-preserve-root, --one-file-system, --preserve-root, --verbose | Smoke + behavior tests | Full GNU behavior unverified. |
+| rm | --dir, --force, --no-preserve-root, --one-file-system, --preserve-root, --verbose | Smoke + behavior tests | -f silences only missing paths; every other failure prints an error and exits 1, and preserve-root refusals are never suppressed. |
 | sar | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| sed | --expression, --in-place, --separate, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| sed | --expression, --quiet, --in-place, --separate, --version | Smoke + behavior tests | Supports positional SCRIPT plus p/d/q commands and line, $, /substring/ and range addresses; -i writes atomically with optional backup suffix; unknown commands error. s and addresses are literal substrings (no regex, no &/\1); line numbers restart per file. |
 | seq | --equal-width, --format, --separator, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| sha256sum | --check, --quiet, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| sha256sum | --check, --quiet, --status, --tag, --version | Smoke + behavior tests | Like md5sum: * markers, BOM stripping, aggregated exit codes, and `-` for stdin. |
 | shred | --force, --iterations, --remove, --verbose, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | shuf | --head-count, --input-range, --output, --random-source, --version | Smoke + behavior tests | --random-source seeds from the file's first 64 KiB (FNV): same content reproduces the same shuffle; an unreadable source errors with exit 1. |
-| sleep | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| sort | --check, --field-separator, --human-numeric-sort, --ignore-case, --key, --numeric-sort, --reverse, --unique | Smoke + behavior tests | -k F1[,F2] and -t SEP (single char) are implemented; without -t leading whitespace joins the following field; -u dedupes after sorting by key; -c -r checks reverse order; -n takes a leading number (0 if none); -h is 1024-based with all suffixes. Character offsets and per-key modifiers (-k2.3/-k2n) are unsupported. Help is --help only. |
+| sleep | --version | Smoke + behavior tests | Fractional durations (0.5) work; negative/overflowing intervals are rejected. |
+| sort | --check, --field-separator, --human-numeric-sort, --ignore-case, --key, --numeric-sort, --reverse, --unique | Smoke + behavior tests | -k F1[,F2] and -t SEP (single char) are implemented; without -t leading whitespace joins the following field; -u dedupes after sorting by key; -c -r checks reverse order; -n takes a leading number (0 if none); -h is 1024-based with all suffixes. Byte-safe ordering with original bytes on output; `-` reads stdin; unopenable operands exit 2. Character offsets and per-key modifiers (-k2.3/-k2n) are unsupported. Help is --help only. |
 | split | --bytes, --lines, --number, --numeric-suffixes, --output, --suffix-length | Smoke + behavior tests | Letter suffixes follow GNU order (aa..az, ba..); exhausted suffixes error with exit 1; -l 0 is rejected; line mode is byte-transparent. |
 | stat | --file-system, --format, --terse, --version | Smoke + behavior tests | -c directives follow GNU semantics; device/inode/uid/gid/link fields are 0/1 placeholders, %b is ceil(size/512), %Z approximates mtime, times are local with second precision, and -f prints block/space lines only. Unknown directives error with exit 1. |
 | strings | --all, --bytes, --encoding, --print-file-name, --radix, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | sync | --version | Smoke + behavior tests | Resolves an external sync.exe along PATH (candidates identical to this executable are skipped to prevent self-recursion) and propagates its exit code; falls back to rundll32 ProcessIdleTasks with a stderr notice when no external command is available. |
 | tac | --before, --separator, --version | Smoke + behavior tests | Separators travel with their records; trailing separators produce no empty record and unterminated last records stay unterminated. |
-| tail | --bytes, --follow, --lines, --quiet, --verbose | Smoke + behavior tests | Reads stdin with no operand or `-`; -n N -f follows from EOF after the initial tail; multi-file -f polls every file with GNU-style headers. stdin cannot be followed and -c ignores -f. |
-| tar | --create, --extract, --file, --gzip, --list, --verbose | Smoke + behavior tests | Extraction rejects entries with absolute paths, drive/UNC prefixes, or '..' components (skipped with an error; exit code 2 when any entry was rejected). Full GNU behavior unverified. |
+| tail | --bytes, --follow, --lines, --quiet, --verbose | Smoke + behavior tests | Reads stdin with no operand or `-`; -n/-c accept +N offsets; -c -f follows too; multi-file -f polls every file with GNU-style headers; invalid counts exit 1. stdin cannot be followed. |
+| tar | --create, --extract, --file, --gzip, --list, --verbose, --directory, --to-stdout, --exclude | Smoke + behavior tests | -C prefixes paths, -O prints contents to stdout, --exclude globs entries, and member names select extract/list targets. Extraction rejects entries with absolute paths, drive/UNC prefixes, or '..' components (exit code 2 when any entry was rejected). |
 | tee | --append, --ignore-interrupts, --version | Smoke + behavior tests | Byte-transparent (binary, CRLF, and unterminated input pass through unchanged); -i has no effect on Windows. |
-| test | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| test | --version | Smoke + behavior tests | POSIX subset: single-operand strings, -z/-n, !, numeric -eq/-ne/-lt/-le/-gt/-ge, file -e/-f/-d/-s and -r/-w/-x (Windows approximations: -r/-x mean exists, -w means not read-only). Usage errors exit 2. |
 | time | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | timeout | --kill-after, --version | Smoke + behavior tests | Polls the child and returns its exit code, or 124 on expiry; -k/--kill-after escalates after the grace period. Durations accept decimals with s/m/h/d suffixes; the command may start with '-'. Only the direct child is killed. |
 | top | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | touch | --no-create, --version | Smoke + behavior tests | Updates atime/mtime via SetFileTime on existing files, directories, and read-only files; -a and -m select which time to update. -d/--date, -t, and -r/--reference are not implemented. |
-| tr | --complement, --delete, --squeeze, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| tr | --complement, --delete, --squeeze, --version | Smoke + behavior tests | Escapes (\n, \t, octal) and POSIX classes ([:alpha:] etc.) work; -c applies to substitution and squeezing; -s squeezes per SET2; reversed ranges error with exit 1. Operates on chars, not bytes. |
 | true | --version | Smoke + behavior tests | Full GNU behavior unverified. |
 | tty | --all, --silent, --version | Smoke + behavior tests | Detects a console via IsTerminal and prints CONIN$ as the name placeholder; -a checks all three streams with CONIN$/CONOUT$ placeholders; -s is quiet. |
 | uname | --all, --kernel-name, --kernel-release, --kernel-version, --machine, --nodename, --operating-system | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| unexpand | --all, --tabs, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| unexpand | --all, --tabs, --version | Smoke + behavior tests | At least two spaces are required before a run becomes a tab (GNU rule); -t accepts a single value only. |
 | uniq | --count, --ignore-case, --repeated, --skip-fields, --unique, --version | Smoke + behavior tests | Comparison keys and printed lines are separate: -i and -f only affect comparison, original lines print unchanged. |
-| unzip | --directory, --list, --overwrite, --quiet, --version | Smoke + behavior tests | Unsafe entry paths (`..`, absolute, drive/UNC prefixes) are rejected with a warning and skipped; exit code 2 when any entry was rejected. Entry mtimes are not restored. Full GNU behavior unverified. |
+| unzip | --directory, --list, --overwrite, --quiet, --version | Smoke + behavior tests | Streams entries instead of buffering them; -o clears a read-only target before overwrite. Unsafe entry paths (`..`, absolute, drive/UNC prefixes) are rejected with a warning and skipped; exit code 2 when any entry was rejected. Entry mtimes are not restored. |
 | uptime | See --help | Smoke + behavior tests | Reports seconds since boot via GetTickCount64; -p prints a Chinese-language duration. |
 | vmstat | See --help | Smoke + behavior tests | swpd/free are sampled every frame; the -h short option is help (--header-once remains the long name). Full GNU behavior unverified. |
 | w | --header, --help, --ignore-username, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | wc | --bytes, --chars, --lines, --max-line-length, --version, --words | Smoke + behavior tests | -m counts UTF-8 characters (byte fallback on invalid sequences); -L excludes the newline; unreadable files report an error and exit 1. stdin output carries a <stdin> label, unlike GNU's unlabeled output. |
-| wget | --directory-prefix, --output-document, --quiet, --version | Smoke only; behavior unverified | HTTPS/TLS and network behavior are unverified. |
+| wget | --directory-prefix, --output-document, --quiet, --version | Smoke + behavior tests | -O - writes to stdout; URL names are decoded (trailing / becomes index.html); HTTP errors exit 8; connect timeout of 10s. HTTPS/TLS and network behavior are unverified. |
 | whereis | --version | Smoke only; behavior unverified | Keeps historical fixed search paths; a dedicated fix is pending. |
 | which | --all, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | who | --all, --boot, --dead, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | whoami | --hostname, --username, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| xargs | --interactive, --max-args, --replace, --verbose, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| yes | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| xargs | --interactive, --max-args, --replace, --verbose, --version, --null | Smoke + behavior tests | -0 reads NUL-delimited input; batches respect the Windows command-line length limit; empty input still runs the command once; -p prompts on the console. |
+| yes | --version | Smoke + behavior tests | Multiple operands are joined with spaces; a closed pipe exits 0 silently. |
 | zcat | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | zip | --recurse, --version | Smoke + behavior tests | Wrapper around PowerShell 5.1 Compress-Archive; file and destination arguments are single-quoted with embedded quotes doubled (injection-safe). Other GNU zip flags unsupported. |
 
