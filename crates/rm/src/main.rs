@@ -48,14 +48,15 @@ fn main() {
             args.one_file_system,
             args.no_preserve_root,
         ) {
-            Ok(()) => {}
-            Err(e) => {
-                if !force {
-                    eprintln!("rm: {}", e);
-                }
-                exit_code = 1;
-            }
+        Ok(()) => {}
+        Err(e) => {
+            // Report every failure, even under -f: only ENOENT is silenced
+            // by -f (see remove_path). The preserve-root refusal and
+            // EPERM/EACCES-class failures must reach the user.
+            eprintln!("rm: {}", e);
+            exit_code = 1;
         }
+    }
     }
 
     std::process::exit(exit_code);
@@ -146,7 +147,8 @@ fn remove_path(
     let metadata = match fs::symlink_metadata(path) {
         Ok(m) => m,
         Err(e) => {
-            if force {
+            // -f only silences missing operands, not other stat failures.
+            if force && is_missing(&e) {
                 return Ok(());
             }
             return Err(format!("cannot remove '{}': {}", path.display(), e));
@@ -237,20 +239,20 @@ fn remove_path(
                 Ok(())
             }
             Err(e) => {
-                if force {
-                    if verbose {
-                        eprintln!(
-                            "rm: cannot remove '{}': {} (ignored due to --force)",
-                            path.display(),
-                            e
-                        );
-                    }
+                // -f keeps ENOENT silent; EPERM/EACCES-class failures are
+                // reported and make the command exit 1.
+                if force && is_missing(&e) {
                     return Ok(());
                 }
                 Err(format!("cannot remove '{}': {}", path.display(), e))
             }
         }
     }
+}
+
+/// True when the error means the operand is already gone (silenced by -f).
+fn is_missing(e: &std::io::Error) -> bool {
+    e.kind() == std::io::ErrorKind::NotFound
 }
 
 /// Recursively remove directory contents, then the directory itself.
@@ -265,6 +267,10 @@ fn remove_dir_recursive(
     let entries = match fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(e) => {
+            // The directory vanished mid-recursion: nothing left to remove.
+            if force && is_missing(&e) {
+                return Ok(());
+            }
             return Err(format!("cannot read directory '{}': {}", dir.display(), e));
         }
     };
@@ -273,10 +279,10 @@ fn remove_dir_recursive(
         let entry = match entry {
             Ok(e) => e,
             Err(e) => {
-                if !force {
-                    return Err(format!("cannot read entry in '{}': {}", dir.display(), e));
+                if force && is_missing(&e) {
+                    continue;
                 }
-                continue;
+                return Err(format!("cannot read entry in '{}': {}", dir.display(), e));
             }
         };
 
@@ -284,10 +290,10 @@ fn remove_dir_recursive(
         let metadata = match fs::symlink_metadata(&path) {
             Ok(m) => m,
             Err(e) => {
-                if !force {
-                    return Err(format!("cannot stat '{}': {}", path.display(), e));
+                if force && is_missing(&e) {
+                    continue;
                 }
-                continue;
+                return Err(format!("cannot stat '{}': {}", path.display(), e));
             }
         };
 
@@ -325,7 +331,7 @@ fn remove_dir_recursive(
             }
 
             if let Err(e) = fs::remove_file(&path) {
-                if !force {
+                if !(force && is_missing(&e)) {
                     return Err(format!("cannot remove '{}': {}", path.display(), e));
                 }
             } else if verbose {
@@ -335,5 +341,11 @@ fn remove_dir_recursive(
     }
 
     // Remove the top-level directory itself
-    fs::remove_dir(dir).map_err(|e| format!("cannot remove '{}': {}", dir.display(), e))
+    if let Err(e) = fs::remove_dir(dir) {
+        if force && is_missing(&e) {
+            return Ok(());
+        }
+        return Err(format!("cannot remove '{}': {}", dir.display(), e));
+    }
+    Ok(())
 }

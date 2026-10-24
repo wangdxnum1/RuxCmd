@@ -424,6 +424,7 @@ dependencies = [
  "clap",
  "predicates",
  "tempfile",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1341,7 +1342,10 @@ checksum = "4ee93343901ab17bd981295f2cf0026d4ad018c7c31ba84549a4ddbb47a45104"
 name = "ln"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
+ "tempfile",
 ]
 
 [[package]]
@@ -1561,7 +1565,10 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 name = "open"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "tempfile",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

@@ -14,10 +14,23 @@ fn main() {
         std::process::exit(1);
     }
 
-    let target = fs::canonicalize(&args.target).unwrap_or_else(|_| args.target.clone());
+    // GNU ln stores the link target exactly as the user wrote it — no
+    // canonicalization (which would embed a `\\?\` verbatim prefix and leak
+    // machine-specific absolute paths into the link).
+    let target = args.target.clone();
 
     let link_path = if args.link_name.is_dir() {
-        args.link_name.join(target.file_name().unwrap())
+        match target.file_name() {
+            Some(name) => args.link_name.join(name),
+            None => {
+                eprintln!(
+                    "ln: cannot link '{}' into '{}': no usable final path component",
+                    target.display(),
+                    args.link_name.display()
+                );
+                std::process::exit(1);
+            }
+        }
     } else {
         args.link_name
     };
@@ -44,7 +57,21 @@ fn main() {
     };
 
     match result {
-        Ok(_) => (),
+        Ok(_) => {
+            if args.verbose {
+                let kind = if args.symbolic {
+                    "symbolic link"
+                } else {
+                    "hard link"
+                };
+                println!(
+                    "created {} '{}' -> '{}'",
+                    kind,
+                    link_path.display(),
+                    target.display()
+                );
+            }
+        }
         Err(e) => {
             eprintln!("ln: failed to create link '{}': {}", link_path.display(), e);
             std::process::exit(1);
