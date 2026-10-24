@@ -24,10 +24,17 @@ fn main() {
 }
 
 fn get_basename(path: &str) -> String {
-    let p = Path::new(path);
-    p.file_name()
-        .map(|s| s.to_string_lossy().to_string())
-        .unwrap_or_else(|| path.to_string())
+    if let Some(name) = Path::new(path).file_name() {
+        return name.to_string_lossy().to_string();
+    }
+    // No final component: trailing `.`/`..` segments and roots. POSIX strips
+    // trailing separators first; the last non-empty segment is the basename.
+    let trimmed = path.trim_end_matches(['/', '\\']);
+    match trimmed.rsplit(['/', '\\']).next() {
+        Some(last) if !last.is_empty() => last.to_string(),
+        _ if trimmed.is_empty() && !path.is_empty() => "/".to_string(),
+        _ => path.to_string(),
+    }
 }
 
 fn remove_suffix(basename: &str, suffix: &str) -> String {

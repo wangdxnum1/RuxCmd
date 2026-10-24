@@ -17,15 +17,21 @@ fn main() {
 
     match result {
         Ok(target) => {
-            if let Some(target_str) = target.to_str() {
-                if cli.no_newline {
-                    print!("{}", target_str);
-                } else {
-                    println!("{}", target_str);
-                }
+            let target_str = if cli.canonicalize {
+                strip_verbatim(&target)
             } else {
-                eprintln!("readlink: cannot convert target path to string");
-                std::process::exit(1);
+                match target.to_str() {
+                    Some(s) => s.to_string(),
+                    None => {
+                        eprintln!("readlink: cannot convert target path to string");
+                        std::process::exit(1);
+                    }
+                }
+            };
+            if cli.no_newline {
+                print!("{}", target_str);
+            } else {
+                println!("{}", target_str);
             }
         }
         Err(e) => {
@@ -33,4 +39,15 @@ fn main() {
             std::process::exit(1);
         }
     }
+}
+
+/// Strip the `\\?\` verbatim prefix (mapping `\\?\UNC\` to `//`) and normalize
+/// backslashes to forward slashes so the output is directly reusable.
+fn strip_verbatim(path: &Path) -> String {
+    let s = path.to_string_lossy();
+    if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+        return format!("//{}", rest.replace('\\', "/"));
+    }
+    let s = s.strip_prefix(r"\\?\").unwrap_or(&s);
+    s.replace('\\', "/")
 }

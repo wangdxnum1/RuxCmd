@@ -1,7 +1,7 @@
 mod cli;
 
 use clap::Parser;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 fn main() {
     let args = cli::Args::parse();
@@ -41,17 +41,28 @@ fn find_command(cmd: &str, path_dirs: &[&str], all: bool) -> bool {
             let file_name = format!("{}{}", cmd, ext);
             let full_path = dir_path.join(&file_name);
 
-            if full_path.exists() && full_path.is_file() {
-                if let Some(path) = full_path.canonicalize().ok() {
-                    println!("{}", path.display());
-                    found = true;
-                    if !all {
-                        return true;
-                    }
+            if full_path.is_file()
+                && let Ok(path) = full_path.canonicalize()
+            {
+                println!("{}", strip_verbatim(&path));
+                found = true;
+                if !all {
+                    return true;
                 }
             }
         }
     }
 
     found
+}
+
+/// Strip the `\\?\` verbatim prefix (mapping `\\?\UNC\` to `//`) and normalize
+/// backslashes to forward slashes so the output is directly reusable.
+fn strip_verbatim(path: &Path) -> String {
+    let s = path.to_string_lossy();
+    if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+        return format!("//{}", rest.replace('\\', "/"));
+    }
+    let s = s.strip_prefix(r"\\?\").unwrap_or(&s);
+    s.replace('\\', "/")
 }

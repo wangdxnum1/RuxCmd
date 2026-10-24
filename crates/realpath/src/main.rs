@@ -1,7 +1,7 @@
 mod cli;
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process;
 
 fn main() {
@@ -14,7 +14,7 @@ fn main() {
 
     match result {
         Ok(p) => {
-            println!("{}", format_path(&p));
+            println!("{}", strip_verbatim(&p));
         }
         Err(e) => {
             eprintln!("realpath: {}: {}", path.display(), e);
@@ -28,27 +28,40 @@ fn strip_components(path: PathBuf, count: usize) -> Result<PathBuf, std::io::Err
         return Ok(path);
     }
 
-    let components: Vec<_> = path.components().collect();
+    // Prefix (drive letter / UNC) and RootDir are structural parts of the
+    // path, not name components: filter them out, then strip `count` leading
+    // components from what remains.
+    let mut result = PathBuf::new();
+    let mut available = 0usize;
+    for comp in path.components() {
+        match comp {
+            Component::Prefix(_) | Component::RootDir => {}
+            _ => {
+                available += 1;
+                if available > count {
+                    result.push(comp);
+                }
+            }
+        }
+    }
 
-    if components.len() <= count {
+    if available <= count {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
             format!("cannot strip {} components from path", count),
         ));
     }
 
-    let remaining: Vec<_> = components.into_iter().skip(count).collect();
-
-    let mut result = PathBuf::new();
-    for comp in remaining {
-        result.push(comp);
-    }
-
     Ok(result)
 }
 
-fn format_path(path: &Path) -> String {
+/// Strip the `\\?\` verbatim prefix (mapping `\\?\UNC\` to `//`) and normalize
+/// backslashes to forward slashes so the output is directly reusable.
+fn strip_verbatim(path: &Path) -> String {
     let s = path.to_string_lossy();
+    if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+        return format!("//{}", rest.replace('\\', "/"));
+    }
     let s = s.strip_prefix(r"\\?\").unwrap_or(&s);
     s.replace('\\', "/")
 }

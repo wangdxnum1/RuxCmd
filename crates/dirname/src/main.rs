@@ -1,6 +1,6 @@
 mod cli;
 
-use std::path::Path;
+use std::path::{Component, Path};
 
 fn main() {
     let args = cli::Args::parse_or_exit();
@@ -13,45 +13,35 @@ fn main() {
 fn dirname(path: &str) -> String {
     let p = Path::new(path);
 
-    if p.components().count() == 0 {
-        return ".".to_string();
+    if let Some(root) = single_root_component(p) {
+        return root;
     }
 
-    let parent = p.parent();
-
-    match parent {
+    match p.parent() {
         Some(parent) => {
-            if parent.components().count() == 0 {
-                if p.is_absolute() {
-                    let root = p
-                        .components()
-                        .next()
-                        .unwrap()
-                        .as_os_str()
-                        .to_string_lossy()
-                        .to_string();
-                    root
-                } else {
-                    ".".to_string()
-                }
+            if parent.as_os_str().is_empty() {
+                ".".to_string()
             } else {
                 format_path(parent)
             }
         }
-        None => {
-            if p.is_absolute() {
-                let root = p
-                    .components()
-                    .next()
-                    .unwrap()
-                    .as_os_str()
-                    .to_string_lossy()
-                    .to_string();
-                root
-            } else {
-                ".".to_string()
-            }
-        }
+        None => format_path(p),
+    }
+}
+
+// Root-only forms: "/" and "//" print "/" (Windows does not report them as
+// absolute, so the parent-based logic would lose them); a bare drive prefix
+// ("C:") has no directory part and falls back to ".".
+fn single_root_component(p: &Path) -> Option<String> {
+    let mut comps = p.components();
+    let first = comps.next()?;
+    if comps.next().is_some() {
+        return None;
+    }
+    match first {
+        Component::RootDir => Some("/".to_string()),
+        Component::Prefix(_) => Some(".".to_string()),
+        _ => None,
     }
 }
 
