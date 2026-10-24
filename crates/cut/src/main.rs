@@ -2,7 +2,7 @@ mod cli;
 
 use clap::Parser;
 use std::fs;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 
 fn main() {
     let args = cli::Args::parse();
@@ -13,9 +13,19 @@ fn main() {
         .clone()
         .unwrap_or_else(|| delimiter.to_string());
 
+    let stdout = std::io::stdout();
+    let mut out = std::io::BufWriter::new(stdout.lock());
+
     if args.files.is_empty() {
         let stdin = std::io::stdin();
-        process_lines(stdin.lock(), "<stdin>", &args, delimiter, &output_delimiter);
+        process_lines(
+            stdin.lock(),
+            "<stdin>",
+            &args,
+            delimiter,
+            &output_delimiter,
+            &mut out,
+        );
     } else {
         for file in &args.files {
             let file_name = file.display().to_string();
@@ -26,41 +36,77 @@ fn main() {
                     &args,
                     delimiter,
                     &output_delimiter,
+                    &mut out,
                 ),
                 Err(e) => eprintln!("cut: {}: {}", file_name, e),
             }
         }
     }
+
+    let _ = out.flush();
 }
 
+/// Read lines as raw bytes: field/character selection matches on lossy UTF-8,
+/// `-b` and the no-selection passthrough echo the original bytes. A read error
+/// is reported on stderr instead of silently truncating the rest of the input.
 fn process_lines<R: BufRead>(
     mut reader: R,
-    _name: &str,
+    name: &str,
     args: &cli::Args,
     delimiter: char,
     output_delimiter: &str,
+    out: &mut dyn Write,
 ) {
-    let mut buf = String::new();
-    while reader.read_line(&mut buf).unwrap_or(0) > 0 {
-        let line = buf.trim_end();
+    let mut raw: Vec<u8> = Vec::new();
+    loop {
+        raw.clear();
+        match reader.read_until(b'\n', &mut raw) {
+            Ok(0) => break,
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("cut: {}: read error: {}", name, e);
+                break;
+            }
+        }
 
+        let ends_with_newline = raw.last() == Some(&b'\n');
+        if ends_with_newline {
+            raw.pop();
+            if raw.last() == Some(&b'\r') {
+                raw.pop();
+            }
+        }
+
+        let line = String::from_utf8_lossy(&raw);
+
+        // P2 (unchanged this round): -s also applies to -b/-c modes.
         if args.only_delimited && !line.contains(delimiter) {
-            buf.clear();
+            continue;
+        }
+
+        if let Some(bytes_spec) = &args.bytes {
+            let indices = parse_spec(bytes_spec, raw.len());
+            for &i in &indices {
+                if i < raw.len() {
+                    let _ = out.write_all(&raw[i..i + 1]);
+                }
+            }
+            let _ = out.write_all(b"\n");
             continue;
         }
 
         let result = if let Some(fields_spec) = &args.fields {
-            cut_fields(line, fields_spec, delimiter, output_delimiter)
-        } else if let Some(bytes_spec) = &args.bytes {
-            cut_bytes(line, bytes_spec)
+            cut_fields(&line, fields_spec, delimiter, output_delimiter)
         } else if let Some(chars_spec) = &args.characters {
-            cut_chars(line, chars_spec)
+            cut_chars(&line, chars_spec)
         } else {
-            line.to_string()
+            // No selection mode: pass the original line through byte for byte.
+            let _ = out.write_all(&raw);
+            let _ = out.write_all(b"\n");
+            continue;
         };
 
-        println!("{}", result);
-        buf.clear();
+        let _ = writeln!(out, "{}", result);
     }
 }
 
@@ -74,17 +120,6 @@ fn cut_fields(line: &str, spec: &str, delimiter: char, output_delimiter: &str) -
         .map(|&i| fields[i])
         .collect::<Vec<&str>>()
         .join(output_delimiter)
-}
-
-fn cut_bytes(line: &str, spec: &str) -> String {
-    let bytes = line.as_bytes();
-    let indices = parse_spec(spec, bytes.len());
-
-    indices
-        .iter()
-        .filter(|&&i| i < bytes.len())
-        .map(|&i| bytes[i] as char)
-        .collect()
 }
 
 fn cut_chars(line: &str, spec: &str) -> String {
