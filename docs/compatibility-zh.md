@@ -21,7 +21,7 @@
 | column | --output-separator, --separator, --table, --table-header-repeat, --table-right, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | comm | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | cp | --force, --interactive, --preserve, --recursive, --symbolic-link, --verbose | 冒烟 + 行为测试 | 以 `.`/`..` 结尾的源将内容并入已存在的目标目录（目标不存在时报错）；多源时目标必须是已存在目录。完整 GNU 行为未验证。 |
-| csplit | --digits, --elide-empty-files, --keep-files, --prefix, --quiet, --suffix-format | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| csplit | --digits, --elide-empty-files, --keep-files, --prefix, --quiet | 冒烟 + 行为测试 | 模式仅支持子串与行号；/re/+N、{N} 等 GNU 语法报错退出 1；模式不匹配退出 1（无 -k 时删除输出文件）。--suffix-format 已移除。 |
 | curl | --data, --header, --output, --request, --silent, --version | 仅冒烟；业务待验证 | HTTPS/TLS 与联网行为尚未验证。 |
 | cut | --bytes, --characters, --delimiter, --fields, --only-delimited, --output-delimiter | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | date | --date, --nanoseconds, --seconds, --set, --utc, --version | 冒烟 + 行为测试 | -d/--date 与位置参数接受 @EPOCH、YYYY-MM-DD、YYYY-MM-DDTHH:MM[:SS]（空串=now，其他格式报错退出 1）；-s/--set 经 SetLocalTime 设置本地时钟。--seconds 作用于解析出的时刻；%N 恒为 0。 |
@@ -86,14 +86,14 @@
 | shuf | --head-count, --input-range, --output, --random-source, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | sleep | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | sort | --check, --field-separator, --human-numeric-sort, --ignore-case, --key, --numeric-sort, --reverse, --unique | 冒烟 + 行为测试 | 已实现 -k F1[,F2] 与 -t SEP（单字符）；无 -t 时前导空白归入后一字段；-u 排序后按键去重；-c -r 检查逆序；-n 取前导数字（无则为 0）；-h 为 1024 进制全后缀。不支持字符偏移与按键修饰符（-k2.3/-k2n）。help 仅 --help。 |
-| split | --bytes, --lines, --number, --numeric-suffixes, --output, --suffix-length | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| split | --bytes, --lines, --number, --numeric-suffixes, --output, --suffix-length | 冒烟 + 行为测试 | 字母后缀遵循 GNU 顺序（aa..az、ba..）；后缀耗尽报错退出 1；-l 0 被拒绝；行模式字节透明。 |
 | stat | --file-system, --format, --terse, --version | 冒烟 + 行为测试 | -c 指令遵循 GNU 语义；设备号/inode/uid/gid/链接数为 0/1 占位，%b 为 ceil(size/512) 近似，%Z 近似 mtime，时间为本地时区秒级，-f 仅输出块与空间行。未知指令报错退出 1。 |
 | strings | --all, --bytes, --encoding, --print-file-name, --radix, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | sync | --version | 冒烟 + 行为测试 | 沿 PATH 解析外部 sync.exe（跳过与本程序相同的候选以防自递归）并传播其退出码；无可用外部命令时回退 rundll32 ProcessIdleTasks（stderr 英文提示）。 |
 | tac | --before, --separator, --version | 冒烟 + 行为测试 | 分隔符跟随其记录；尾分隔符不产生空记录，未结尾的末段输出时保持无分隔符。 |
-| tail | --bytes, --follow, --lines, --quiet, --verbose | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| tail | --bytes, --follow, --lines, --quiet, --verbose | 冒烟 + 行为测试 | 无操作数或 `-` 时读 stdin；-n N -f 在初始输出后从 EOF 开始 follow；多文件 -f 轮询全部文件并带 GNU 风格头。stdin 不可 follow，-c 忽略 -f。 |
 | tar | --create, --extract, --file, --gzip, --list, --verbose | 冒烟 + 行为测试 | 解包拒绝绝对路径、盘符/UNC 前缀或含 `..` 组件的条目（跳过并报错；发生拒绝时退出码 2）。完整 GNU 行为未验证。 |
-| tee | --append, --ignore-interrupts, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| tee | --append, --ignore-interrupts, --version | 冒烟 + 行为测试 | 字节透明（二进制、CRLF、无尾换行输入原样透传）；-i 在 Windows 上无操作。 |
 | test | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | time | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | timeout | --kill-after, --version | 冒烟 + 行为测试 | 轮询子进程：正常结束透传退出码，超时返回 124；-k/--kill-after 在宽限期后升级终止。时长支持小数与 s/m/h/d 后缀；子命令允许以 '-' 开头。仅终止直接子进程。 |
