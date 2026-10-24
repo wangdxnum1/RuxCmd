@@ -9,8 +9,10 @@ pub struct Args {
     #[arg(short = 'w', long = "width", default_value = "75")]
     pub width: usize,
 
-    #[arg(short = 'c', long = "crown-margin")]
-    pub crown_margin: Option<usize>,
+    /// Preserve the indentation of the first two lines of a paragraph
+    /// (crown margin); `fmt -c` takes no value.
+    #[arg(short = 'c', long = "crown-margin", action = clap::ArgAction::SetTrue)]
+    pub crown_margin: bool,
 
     #[arg(short = 's', long = "split-only", action = clap::ArgAction::SetTrue)]
     pub split_only: bool,

@@ -77,6 +77,20 @@ fn process_reader<R: BufRead>(mut reader: R, args: &cli::Args) -> Result<(), std
     Ok(())
 }
 
+/// Width in columns of a line's leading whitespace (tabs advance to the next
+/// multiple of 8), used by crown-margin mode.
+fn indent_width(line: &str) -> usize {
+    let mut col = 0usize;
+    for ch in line.chars() {
+        match ch {
+            ' ' => col += 1,
+            '\t' => col = (col / 8 + 1) * 8,
+            _ => break,
+        }
+    }
+    col
+}
+
 fn format_paragraph(paragraph: &[String], args: &cli::Args) {
     if args.split_only {
         for line in paragraph {
@@ -94,17 +108,30 @@ fn format_paragraph(paragraph: &[String], args: &cli::Args) {
         return;
     }
 
-    let first_line_indent = args.crown_margin.unwrap_or(0);
-    let subsequent_indent = args.crown_margin.map(|c| c / 2).unwrap_or(0);
+    // Crown margin: the first output line keeps the first input line's
+    // indent; every following line keeps the second input line's indent
+    // (falling back to the first when the paragraph has a single line).
+    let (first_line_indent, subsequent_indent) = if args.crown_margin {
+        let first = paragraph.first().map(|l| indent_width(l)).unwrap_or(0);
+        let second = paragraph.get(1).map(|l| indent_width(l)).unwrap_or(first);
+        (first, second)
+    } else {
+        (0, 0)
+    };
+
+    // saturating_sub: the indent can exceed -w (underflow used to make
+    // `width - indent` wrap around and silently disable wrapping).
+    let first_line_width = args.width.saturating_sub(first_line_indent);
+    let subsequent_line_width = args.width.saturating_sub(subsequent_indent);
 
     let mut current_line = String::new();
     let mut is_first_line = true;
 
     for word in words {
         let line_width = if is_first_line {
-            args.width - first_line_indent
+            first_line_width
         } else {
-            args.width - subsequent_indent
+            subsequent_line_width
         };
 
         if current_line.is_empty() {
@@ -147,8 +174,8 @@ fn print_line(line: &str, is_first_line: bool, first_indent: usize, sub_indent: 
 }
 
 fn split_line(line: &str, width: usize, indent: usize) {
-    let mut remaining = line;
     let available_width = width.saturating_sub(indent);
+    let mut remaining = line.to_string();
 
     while !remaining.is_empty() {
         if remaining.len() <= available_width {
@@ -159,26 +186,31 @@ fn split_line(line: &str, width: usize, indent: usize) {
             break;
         }
 
-        let mut split_pos = available_width;
-        while split_pos > 0 && !remaining.is_char_boundary(split_pos) {
-            split_pos -= 1;
+        // Break at the last whitespace inside the width window so words are
+        // not cut in half; only a window without any whitespace falls back
+        // to a hard cut at a character boundary.
+        let mut cut = available_width.min(remaining.len());
+        while cut > 0 && !remaining.is_char_boundary(cut) {
+            cut -= 1;
         }
+        let head = &remaining[..cut];
 
-        if split_pos == 0 {
-            split_pos = available_width;
-            while !remaining.is_char_boundary(split_pos) {
-                split_pos += 1;
+        let (chunk, next): (String, String) = match head.rfind(char::is_whitespace) {
+            Some(pos) => {
+                let chunk = head[..pos].trim_end().to_string();
+                // The tail after the last whitespace continues the same word
+                // beyond the window, so it carries over intact.
+                let mut next = head[pos..].trim_start().to_string();
+                next.push_str(&remaining[cut..]);
+                (chunk, next)
             }
-        }
-
-        let (chunk, rest) = remaining.split_at(split_pos);
-        let trimmed_chunk = chunk.trim_end();
+            None => (head.trim_end().to_string(), remaining[cut..].to_string()),
+        };
 
         if indent > 0 {
             print!("{}", " ".repeat(indent));
         }
-        println!("{}", trimmed_chunk);
-
-        remaining = rest.trim_start();
+        println!("{}", chunk);
+        remaining = next;
     }
 }

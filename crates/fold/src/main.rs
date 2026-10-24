@@ -2,7 +2,7 @@ mod cli;
 
 use clap::Parser;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 
 fn main() {
     let args = cli::Args::parse();
@@ -50,50 +50,61 @@ fn main() {
     std::process::exit(exit_code);
 }
 
+/// Read lines as raw bytes (`read_until`), so non-UTF-8 input is folded
+/// instead of aborting with an encoding error. Only the `\n` terminator is
+/// removed; any `\r` stays part of the content, as before.
 fn process_reader<R: BufRead>(mut reader: R, args: &cli::Args) -> Result<(), std::io::Error> {
-    let mut line = String::new();
+    let stdout = std::io::stdout();
+    let mut out = stdout.lock();
+    let mut raw: Vec<u8> = Vec::new();
+
     loop {
-        let bytes_read = reader.read_line(&mut line)?;
+        raw.clear();
+        let bytes_read = reader.read_until(b'\n', &mut raw)?;
         if bytes_read == 0 {
             break;
         }
 
-        let has_newline = line.ends_with('\n');
-        let content = if has_newline {
-            line.trim_end_matches('\n')
-        } else {
-            line.as_str()
-        };
-
-        fold_line(content, args);
-
+        let has_newline = raw.last() == Some(&b'\n');
         if has_newline {
-            println!();
+            raw.pop();
         }
 
-        line.clear();
+        if args.bytes {
+            // Pure byte slicing: segments are written back verbatim, so the
+            // input bytes are conserved regardless of encoding.
+            fold_bytes(&mut out, &raw, args.width, args.spaces)?;
+        } else {
+            // Character mode works on the lossy text (invalid bytes become
+            // U+FFFD) so every character still counts as one column.
+            let content = String::from_utf8_lossy(&raw);
+            fold_chars(
+                &mut out,
+                &content.chars().collect::<Vec<char>>(),
+                args.width,
+                args.spaces,
+            )?;
+        }
+
+        if has_newline {
+            out.write_all(b"\n")?;
+        }
     }
     Ok(())
 }
 
-fn fold_line(line: &str, args: &cli::Args) {
-    let width = args.width;
+fn fold_chars<W: Write>(
+    out: &mut W,
+    chars: &[char],
+    width: usize,
+    split_on_spaces: bool,
+) -> Result<(), std::io::Error> {
     if width == 0 {
-        print!("{}", line);
-        return;
+        let line: String = chars.iter().collect();
+        return out.write_all(line.as_bytes());
     }
 
-    if args.bytes {
-        fold_by_bytes(line, width, args.spaces);
-    } else {
-        fold_by_chars(line, width, args.spaces);
-    }
-}
-
-fn fold_by_chars(line: &str, width: usize, split_on_spaces: bool) {
-    let chars: Vec<char> = line.chars().collect();
     let mut start = 0;
-
     while start < chars.len() {
         let mut end = start + width;
         if end > chars.len() {
@@ -114,20 +125,27 @@ fn fold_by_chars(line: &str, width: usize, split_on_spaces: bool) {
         }
 
         let segment: String = chars[start..end].iter().collect();
-        print!("{}", segment);
+        out.write_all(segment.as_bytes())?;
 
         start = end;
-
         if start < chars.len() {
-            println!();
+            out.write_all(b"\n")?;
         }
     }
+    Ok(())
 }
 
-fn fold_by_bytes(line: &str, width: usize, split_on_spaces: bool) {
-    let bytes = line.as_bytes();
-    let mut start = 0;
+fn fold_bytes<W: Write>(
+    out: &mut W,
+    bytes: &[u8],
+    width: usize,
+    split_on_spaces: bool,
+) -> Result<(), std::io::Error> {
+    if width == 0 {
+        return out.write_all(bytes);
+    }
 
+    let mut start = 0;
     while start < bytes.len() {
         let mut end = start + width;
         if end > bytes.len() {
@@ -147,13 +165,12 @@ fn fold_by_bytes(line: &str, width: usize, split_on_spaces: bool) {
             }
         }
 
-        let segment = &bytes[start..end];
-        print!("{}", String::from_utf8_lossy(segment));
+        out.write_all(&bytes[start..end])?;
 
         start = end;
-
         if start < bytes.len() {
-            println!();
+            out.write_all(b"\n")?;
         }
     }
+    Ok(())
 }

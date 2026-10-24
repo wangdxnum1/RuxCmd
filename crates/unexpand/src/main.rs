@@ -62,7 +62,10 @@ fn process<R: BufRead>(reader: R, n: usize, all: bool) -> Result<(), std::io::Er
                     if in_leading || all {
                         space_run += 1;
                         let next_col = col + 1;
-                        if next_col % n == 0 && space_run >= 1 {
+                        // GNU unexpand converts a run of blanks to a tab only
+                        // when the run reaches a tab stop AND spans at least
+                        // two blanks; a single space stays a space.
+                        if next_col % n == 0 && space_run >= 2 {
                             out.write_all(b"\t")?;
                             col = next_col;
                             space_run = 0;

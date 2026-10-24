@@ -7,7 +7,13 @@ use std::io::{BufRead, BufReader};
 fn main() {
     let args = cli::Args::parse();
 
-    let delimiter = args.delimiters.unwrap_or_else(|| "\t".to_string());
+    // GNU paste: `-d LIST` uses the list's characters in turn between output
+    // columns, restarting from the first character once the list is exhausted.
+    // An explicitly empty list means no separator; without `-d` it is TAB.
+    let delimiters: Vec<char> = args
+        .delimiters
+        .map(|d| d.chars().collect())
+        .unwrap_or_else(|| vec!['\t']);
     let serial = args.serial;
 
     let mut exit_code = 0i32;
@@ -40,12 +46,12 @@ fn main() {
     }
 
     if serial {
-        if let Err(e) = paste_serial(readers, &delimiter) {
+        if let Err(e) = paste_serial(readers, &delimiters) {
             eprintln!("paste: {}", e);
             exit_code = 1;
         }
     } else {
-        if let Err(e) = paste_parallel(readers, &delimiter) {
+        if let Err(e) = paste_parallel(readers, &delimiters) {
             eprintln!("paste: {}", e);
             exit_code = 1;
         }
@@ -54,9 +60,26 @@ fn main() {
     std::process::exit(exit_code);
 }
 
+/// Strip the end-of-line terminator: `\n`, or the `\r\n` pair. A `\r` that is
+/// not part of the terminator (e.g. a lone `\r` on the unterminated last
+/// line) is kept.
+fn strip_eol(line: &str) -> &str {
+    let s = line.strip_suffix('\n').unwrap_or(line);
+    s.strip_suffix('\r').unwrap_or(s)
+}
+
+/// Delimiter between output column `index` and the next one, cycling through
+/// the `-d` character list. Without `-d` (empty list) there is no separator.
+fn delimiter_for(delimiters: &[char], index: usize) -> String {
+    if delimiters.is_empty() {
+        return String::new();
+    }
+    delimiters[index % delimiters.len()].to_string()
+}
+
 fn paste_parallel(
     mut readers: Vec<Box<dyn BufRead>>,
-    delimiter: &str,
+    delimiters: &[char],
 ) -> Result<(), std::io::Error> {
     let mut lines: Vec<Option<String>> = readers.iter_mut().map(|_| None).collect();
     let mut eof_flags: Vec<bool> = readers.iter().map(|_| false).collect();
@@ -72,7 +95,7 @@ fn paste_parallel(
                         active_readers -= 1;
                     }
                     Ok(_) => {
-                        lines[i] = Some(line.trim_end_matches('\n').to_string());
+                        lines[i] = Some(strip_eol(&line).to_string());
                     }
                     Err(e) => return Err(e),
                 }
@@ -83,12 +106,14 @@ fn paste_parallel(
             break;
         }
 
-        let output: Vec<String> = lines
-            .iter()
-            .map(|line| line.as_deref().unwrap_or("").to_string())
-            .collect();
-
-        println!("{}", output.join(delimiter));
+        let mut output = String::new();
+        for (i, line) in lines.iter().enumerate() {
+            if i > 0 {
+                output.push_str(&delimiter_for(delimiters, i - 1));
+            }
+            output.push_str(line.as_deref().unwrap_or(""));
+        }
+        println!("{}", output);
 
         for line in lines.iter_mut() {
             *line = None;
@@ -98,7 +123,10 @@ fn paste_parallel(
     Ok(())
 }
 
-fn paste_serial(mut readers: Vec<Box<dyn BufRead>>, delimiter: &str) -> Result<(), std::io::Error> {
+fn paste_serial(
+    mut readers: Vec<Box<dyn BufRead>>,
+    delimiters: &[char],
+) -> Result<(), std::io::Error> {
     for reader in readers.iter_mut() {
         let mut lines: Vec<String> = Vec::new();
         let mut line = String::new();
@@ -107,7 +135,7 @@ fn paste_serial(mut readers: Vec<Box<dyn BufRead>>, delimiter: &str) -> Result<(
             match reader.read_line(&mut line) {
                 Ok(0) => break,
                 Ok(_) => {
-                    lines.push(line.trim_end_matches('\n').to_string());
+                    lines.push(strip_eol(&line).to_string());
                     line.clear();
                 }
                 Err(e) => return Err(e),
@@ -115,7 +143,14 @@ fn paste_serial(mut readers: Vec<Box<dyn BufRead>>, delimiter: &str) -> Result<(
         }
 
         if !lines.is_empty() {
-            println!("{}", lines.join(delimiter));
+            let mut output = String::new();
+            for (i, line) in lines.iter().enumerate() {
+                if i > 0 {
+                    output.push_str(&delimiter_for(delimiters, i - 1));
+                }
+                output.push_str(line);
+            }
+            println!("{}", output);
         }
     }
 
