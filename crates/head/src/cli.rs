@@ -6,8 +6,8 @@ use std::path::PathBuf;
 #[command(name = "head", version, about)]
 pub struct Args {
     /// Print the first N lines instead of the first 10
-    #[arg(short = 'n', long = "lines", default_value = "10")]
-    pub lines: i64,
+    #[arg(short = 'n', long = "lines", value_name = "N")]
+    pub lines: Option<i64>,
 
     /// Print the first N bytes
     #[arg(short = 'c', long = "bytes")]

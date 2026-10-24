@@ -208,3 +208,112 @@ fn follow_multi_polls_every_file() {
     let _ = std::fs::remove_file(&b);
     assert_eq!(got, expected.as_bytes());
 }
+
+// --- `+N`: output from line/byte N onward (P1, Round 12 D2) ------------------
+
+/// GNU `tail -n +2` prints from the second line onward. Four input lines so
+/// the expectation differs from "last 2 lines" (which would drop `b`).
+#[test]
+fn plus_n_starts_from_line_n() {
+    let out = run_tail(&["-n", "+2"], b"a\nb\nc\nd\n");
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, b"b\nc\nd\n");
+}
+
+#[test]
+fn plus_n_zero_and_one_print_everything() {
+    let out = run_tail(&["-n", "+1"], b"a\nb\n");
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, b"a\nb\n");
+    let out = run_tail(&["-n", "+0"], b"a\nb\n");
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, b"a\nb\n");
+}
+
+#[test]
+fn plus_n_beyond_line_count_prints_nothing() {
+    let out = run_tail(&["-n", "+9"], b"a\nb\n");
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, b"");
+}
+
+/// GNU `tail -c +3` prints from the third byte onward.
+#[test]
+fn plus_c_starts_from_byte_n() {
+    let out = run_tail(&["-c", "+3"], b"abcdef");
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, b"cdef");
+    let out = run_tail(&["-c", "+1"], b"abcdef");
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, b"abcdef");
+}
+
+// --- byte-transparent line mode (P1, Round 12 D2) ----------------------------
+
+/// The final line without a newline gets none appended.
+#[test]
+fn line_mode_preserves_unterminated_final_line() {
+    let out = run_tail(&["-n", "1"], b"a\r\nb");
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, b"b");
+}
+
+/// The `\r` of CRLF terminators is part of the output.
+#[test]
+fn line_mode_preserves_crlf_terminators() {
+    let out = run_tail(&["-n", "2"], b"a\r\nb\r\nc\r\n");
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, b"b\r\nc\r\n");
+}
+
+/// Lines that are not valid UTF-8 pass through unchanged.
+#[test]
+fn line_mode_preserves_non_utf8_bytes() {
+    let out = run_tail(&["-n", "1"], b"x\n\xFF\xFE bin");
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, b"\xFF\xFE bin");
+}
+
+// --- `-c` no longer disables `-f` (P1, Round 12 D2) --------------------------
+
+/// `tail -c 2 -f`: last-bytes initial output, then appended bytes stream.
+#[test]
+fn follow_with_bytes_option_streams_appends() {
+    let path = temp_path("fc");
+    std::fs::write(&path, b"abc\n").unwrap();
+    let mut child = spawn_tail(&["-c", "2", "-f", path.to_str().unwrap()]);
+    let initial = read_exact_with_deadline(&mut child, 2, Duration::from_secs(10));
+    append(&path, b"XY");
+    let more = read_exact_with_deadline(&mut child, 2, Duration::from_secs(10));
+    let _ = child.kill();
+    let _ = std::fs::remove_file(&path);
+    assert_eq!(initial, b"c\n");
+    assert_eq!(more, b"XY");
+}
+
+/// `-n +N -f` prints from line N onward before following.
+#[test]
+fn follow_with_plus_n_prints_from_line_n() {
+    let path = temp_path("fp");
+    std::fs::write(&path, b"l1\nl2\n").unwrap();
+    let mut child = spawn_tail(&["-n", "+2", "-f", path.to_str().unwrap()]);
+    let initial = read_exact_with_deadline(&mut child, 3, Duration::from_secs(10));
+    append(&path, b"l3\n");
+    let more = read_exact_with_deadline(&mut child, 3, Duration::from_secs(10));
+    let _ = child.kill();
+    let _ = std::fs::remove_file(&path);
+    assert_eq!(initial, b"l2\n");
+    assert_eq!(more, b"l3\n");
+}
+
+// --- invalid `-n`/`-c` values (GNU diagnostics, exit 1) -----------------------
+
+#[test]
+fn invalid_number_values_report_and_exit_1() {
+    let out = run_tail(&["-n", "abc"], b"");
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("invalid number of lines"));
+    let out = run_tail(&["-c", "abc"], b"");
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("invalid number of bytes"));
+}

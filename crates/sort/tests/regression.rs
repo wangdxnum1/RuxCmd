@@ -220,3 +220,66 @@ fn h_supports_peta_zetta_yotta_suffixes() {
     sort_args(&["-h"], "1E\n1P\n").success().stdout("1P\n1E\n");
     sort_args(&["-h"], "1Y\n1Z\n").success().stdout("1Z\n1Y\n");
 }
+
+// --- P1: byte transparency, exit codes, `-` stdin (Round 12 D2) -------------
+
+/// Runs sort with a file operand and returns raw stdout plus the exit code,
+/// so non-UTF-8 output can be compared byte for byte.
+fn sort_stdout_bytes(file: &std::path::Path) -> (Vec<u8>, Option<i32>) {
+    let output = cargo_bin_cmd!("sort").arg(file).assert().get_output().clone();
+    (output.stdout.clone(), output.status.code())
+}
+
+/// Lines that are not valid UTF-8 must be sorted (on their lossy text) and
+/// echoed with their original bytes; the pre-fix `read_line` replaced
+/// invalid bytes with U+FFFD on output.
+#[test]
+fn non_utf8_lines_keep_original_bytes() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("bin.txt");
+    let data = b"\xFF banana\napple\n\xFE cherry\n";
+    fs::write(&path, data).unwrap();
+    let (stdout, code) = sort_stdout_bytes(&path);
+    assert_eq!(code, Some(0));
+    // The lossy text of both marker lines starts with U+FFFD, so both sort
+    // after "apple" and order between themselves by the readable remainder.
+    assert_eq!(stdout, b"apple\n\xFF banana\n\xFE cherry\n");
+}
+
+/// Trailing blanks are part of the line: only the `\r` of a CRLF terminator
+/// is stripped, other trailing whitespace survives (pre-fix `trim_end()`
+/// stripped spaces and tabs from every line).
+#[test]
+fn trailing_whitespace_is_preserved() {
+    sort_args(&[], "b \na\n").success().stdout("a\nb \n");
+    sort_args(&[], "b\t\na\n").success().stdout("a\nb\t\n");
+}
+
+/// CRLF terminators are still removed from the sort key and the output.
+#[test]
+fn crlf_terminators_are_stripped() {
+    sort_args(&[], "b\r\na\r\n").success().stdout("a\nb\n");
+}
+
+/// A file that cannot be opened is reported and makes sort exit 2 (GNU),
+/// while the readable operands are still processed and printed.
+#[test]
+fn unopenable_file_exits_2() {
+    let dir = tempfile::tempdir().unwrap();
+    let missing = dir.path().join("missing.txt");
+    let ok = dir.path().join("ok.txt");
+    fs::write(&ok, "b\na\n").unwrap();
+    cargo_bin_cmd!("sort")
+        .arg(&missing)
+        .arg(&ok)
+        .assert()
+        .code(2)
+        .stdout("a\nb\n")
+        .stderr(str::contains("missing.txt"));
+}
+
+/// `sort -` reads standard input (GNU operand semantics).
+#[test]
+fn dash_operand_reads_stdin() {
+    sort_args(&["-"], "b\na\nc\n").success().stdout("a\nb\nc\n");
+}

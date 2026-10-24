@@ -8,15 +8,27 @@ use std::path::Path;
 fn main() {
     let args = cli::Args::parse();
 
+    // Usage error (exit 1): `-n` and `-c` cannot be combined.
+    if args.lines.is_some() && args.bytes.is_some() {
+        eprintln!("head: cannot specify both -n and -c");
+        std::process::exit(1);
+    }
+
+    let lines = args.lines.unwrap_or(10).max(0) as usize;
+    let bytes = args.bytes.map(|b| b.max(0) as usize);
+
     if args.files.is_empty() {
         let stdin = std::io::stdin();
-        if let Err(e) = head_reader(stdin.lock(), "<stdin>", &args, false) {
+        // `-v` prints the header for standard input too (GNU name, like tail).
+        if let Err(e) = head_reader(stdin.lock(), "standard input", lines, bytes, args.verbose) {
             eprintln!("head: {}", e);
             std::process::exit(1);
         }
     } else {
         let multiple_files = args.files.len() > 1;
-        let show_header = |i: usize| -> bool {
+        // The per-file index does not influence the decision: -v forces the
+        // header for every operand, -q suppresses it for all.
+        let show_header = |_i: usize| -> bool {
             if args.verbose {
                 true
             } else if args.quiet {
@@ -32,7 +44,7 @@ fn main() {
             let file_name = file.display().to_string();
             let header = show_header(i);
 
-            if let Err(e) = head_file(file, &file_name, &args, header) {
+            if let Err(e) = head_file(file, &file_name, lines, bytes, header) {
                 eprintln!("head: {}: {}", file_name, e);
                 exit_code = 1;
             }
@@ -46,42 +58,56 @@ fn main() {
     }
 }
 
-fn head_file(path: &Path, name: &str, args: &cli::Args, show_header: bool) -> Result<(), String> {
+fn head_file(
+    path: &Path,
+    name: &str,
+    lines: usize,
+    bytes: Option<usize>,
+    show_header: bool,
+) -> Result<(), String> {
     let file = fs::File::open(path).map_err(|e| format!("cannot open file: {}", e))?;
     let reader = BufReader::new(file);
-    head_reader(reader, name, args, show_header)
+    head_reader(reader, name, lines, bytes, show_header)
 }
 
 fn head_reader<R: Read>(
     mut reader: R,
     name: &str,
-    args: &cli::Args,
+    lines: usize,
+    bytes: Option<usize>,
     show_header: bool,
 ) -> Result<(), String> {
     if show_header {
         println!("==> {} <==", name);
     }
 
-    if let Some(bytes) = args.bytes {
-        let bytes = bytes.max(0) as usize;
+    let mut stdout = std::io::stdout();
+
+    if let Some(bytes) = bytes {
         let mut buf = vec![0u8; bytes];
         let n = reader
             .read(&mut buf)
             .map_err(|e| format!("cannot read: {}", e))?;
-        std::io::stdout()
+        stdout
             .write_all(&buf[..n])
             .map_err(|e| format!("cannot write: {}", e))?;
     } else {
-        let lines = args.lines.max(0) as usize;
-        let reader = BufReader::new(reader);
-        let mut stdout = std::io::stdout();
-
-        for (i, line) in reader.lines().enumerate() {
-            if i >= lines {
-                break;
+        // Byte-safe line mode: every line is echoed with its original
+        // terminator, so the `\r` of a CRLF survives, a final line without a
+        // newline is not padded, and invalid UTF-8 passes through (the
+        // pre-fix `lines()` + `writeln!` rewrote all three).
+        let mut reader = BufReader::new(reader);
+        let mut raw: Vec<u8> = Vec::new();
+        for _ in 0..lines {
+            raw.clear();
+            match reader.read_until(b'\n', &mut raw) {
+                Ok(0) => break,
+                Ok(_) => {}
+                Err(e) => return Err(format!("cannot read: {}", e)),
             }
-            let line = line.map_err(|e| format!("cannot read line: {}", e))?;
-            writeln!(stdout, "{}", line).map_err(|e| format!("cannot write: {}", e))?;
+            stdout
+                .write_all(&raw)
+                .map_err(|e| format!("cannot write: {}", e))?;
         }
     }
 

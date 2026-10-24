@@ -3,7 +3,7 @@ mod cli;
 use clap::Parser;
 use std::cmp::Ordering;
 use std::fs;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 
 fn main() {
     let args = cli::Args::parse();
@@ -11,52 +11,115 @@ fn main() {
     let separator = parse_separator(&args);
     let key = args.key.as_deref().map(parse_key_spec);
 
-    let mut lines = Vec::new();
+    let mut lines: Vec<Line> = Vec::new();
+    // GNU sort exits 2 when an operand cannot be read, while still
+    // processing and printing the remaining input.
+    let mut failures = 0usize;
 
     if args.files.is_empty() {
         let stdin = std::io::stdin();
-        read_lines(stdin.lock(), &mut lines);
+        if !read_lines(stdin.lock(), &mut lines) {
+            failures += 1;
+        }
     } else {
         for file in &args.files {
+            // `-` means standard input, like GNU sort.
+            if file.as_os_str() == "-" {
+                let stdin = std::io::stdin();
+                if !read_lines(stdin.lock(), &mut lines) {
+                    failures += 1;
+                }
+                continue;
+            }
             let file_name = file.display().to_string();
             match fs::File::open(file) {
-                Ok(f) => read_lines(BufReader::new(f), &mut lines),
-                Err(e) => eprintln!("sort: {}: {}", file_name, e),
+                Ok(f) => {
+                    if !read_lines(BufReader::new(f), &mut lines) {
+                        failures += 1;
+                    }
+                }
+                Err(e) => {
+                    eprintln!("sort: {}: {}", file_name, e);
+                    failures += 1;
+                }
             }
         }
     }
 
     if args.check {
-        if is_sorted(&lines, key, separator, &args) {
-            std::process::exit(0);
-        } else {
+        if !is_sorted(&lines, key, separator, &args) {
             eprintln!("sort: disorder detected");
             std::process::exit(1);
         }
+    } else {
+        lines.sort_by(|a, b| compare_lines(&a.text, &b.text, key, separator, &args));
+
+        if args.unique {
+            // Deduplicate after sorting: two lines are duplicates when their
+            // sort keys compare equal (with -k the key, not the whole line,
+            // decides).
+            lines.dedup_by(|a, b| {
+                compare_keys(&a.text, &b.text, key, separator, &args) == Ordering::Equal
+            });
+        }
+
+        if args.reverse {
+            lines.reverse();
+        }
+
+        let mut stdout = std::io::stdout().lock();
+        for line in &lines {
+            // Echo the original bytes (invalid UTF-8 included); the line
+            // terminator is always rebuilt as `\n`.
+            let _ = stdout.write_all(&line.raw);
+            let _ = stdout.write_all(b"\n");
+        }
+        let _ = stdout.flush();
     }
 
-    lines.sort_by(|a, b| compare_lines(a, b, key, separator, &args));
-
-    if args.unique {
-        // Deduplicate after sorting: two lines are duplicates when their sort
-        // keys compare equal (with -k the key, not the whole line, decides).
-        lines.dedup_by(|a, b| compare_keys(a, b, key, separator, &args) == Ordering::Equal);
-    }
-
-    if args.reverse {
-        lines.reverse();
-    }
-
-    for line in &lines {
-        println!("{}", line);
+    if failures > 0 {
+        std::process::exit(2);
     }
 }
 
-fn read_lines<R: BufRead>(mut reader: R, lines: &mut Vec<String>) {
-    let mut buf = String::new();
-    while reader.read_line(&mut buf).unwrap_or(0) > 0 {
-        lines.push(buf.trim_end().to_string());
-        buf.clear();
+/// One input line: the original bytes with the line terminator removed, plus
+/// a lossy UTF-8 view used for key extraction and comparison, so lines that
+/// are not valid UTF-8 are sorted and echoed instead of being truncated.
+struct Line {
+    raw: Vec<u8>,
+    text: String,
+}
+
+impl Line {
+    fn new(raw: Vec<u8>) -> Self {
+        let text = String::from_utf8_lossy(&raw).into_owned();
+        Line { raw, text }
+    }
+}
+
+/// Reads lines as raw bytes (matching happens on the lossy UTF-8 view, output
+/// echoes the original bytes). Only the `\n` line terminator — and a `\r`
+/// that is part of a `\r\n` — is removed; other trailing whitespace is part
+/// of the line. Returns false when a read error interrupted the input
+/// (previously `read_line(...).unwrap_or(0)` silently ended the input there).
+fn read_lines<R: BufRead>(mut reader: R, lines: &mut Vec<Line>) -> bool {
+    loop {
+        let mut raw: Vec<u8> = Vec::new();
+        match reader.read_until(b'\n', &mut raw) {
+            Ok(0) => return true,
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("sort: read error: {}", e);
+                return false;
+            }
+        }
+        if raw.last() == Some(&b'\n') {
+            raw.pop();
+            if raw.last() == Some(&b'\r') {
+                raw.pop();
+            }
+        }
+        lines.push(Line::new(raw));
     }
 }
 
@@ -215,13 +278,13 @@ fn compare_lines(
 }
 
 fn is_sorted(
-    lines: &[String],
+    lines: &[Line],
     key: Option<KeySpec>,
     separator: Option<char>,
     args: &cli::Args,
 ) -> bool {
     lines.windows(2).all(|w| {
-        let cmp = compare_lines(&w[0], &w[1], key, separator, args);
+        let cmp = compare_lines(&w[0].text, &w[1].text, key, separator, args);
         if args.reverse {
             // Reverse-sorted means non-increasing.
             cmp != Ordering::Less
