@@ -37,6 +37,31 @@ pub struct Args {
     #[arg(short = 'h', long = "human-readable", conflicts_with_all = ["bytes", "kilobytes", "megabytes", "gigabytes"])]
     pub human_readable: bool,
 
+    #[arg(
+        short = 't',
+        long = "total",
+        help = "Show a line with Mem + Swap totals"
+    )]
+    pub total: bool,
+
+    #[arg(
+        short = 's',
+        long = "seconds",
+        value_name = "N",
+        help = "Repeat every N seconds (with -c, up to COUNT times)"
+    )]
+    pub seconds: Option<u64>,
+
+    #[arg(short = 'c', long = "count", value_name = "N", requires = "seconds")]
+    pub count: Option<u64>,
+
+    #[arg(
+        short = 'w',
+        long = "wide",
+        help = "Wide output: show the available column instead of shared/buff-cache placeholders"
+    )]
+    pub wide: bool,
+
     #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
     pub version: (),
 }

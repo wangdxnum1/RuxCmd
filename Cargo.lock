@@ -509,6 +509,7 @@ dependencies = [
 name = "df"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
  "windows-sys 0.61.2",
 ]
@@ -743,6 +744,7 @@ dependencies = [
 name = "free"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
 ]
 

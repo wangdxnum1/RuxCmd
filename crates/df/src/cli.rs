@@ -19,6 +19,10 @@ pub struct Args {
     #[arg(short = 'h', long = "human-readable")]
     pub human_readable: bool,
 
+    /// Include the file-system type column
+    #[arg(short = 'T', long = "print-type")]
+    pub print_type: bool,
+
     /// File system paths to report on
     #[arg(value_name = "PATH")]
     pub paths: Vec<PathBuf>,

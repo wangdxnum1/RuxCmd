@@ -22,12 +22,9 @@ struct MEMORYSTATUSEX {
 #[cfg(windows)]
 unsafe extern "system" {
     fn GlobalMemoryStatusEx(lpBuffer: *mut MEMORYSTATUSEX) -> i32;
-    fn GetProcessId(hProcess: *mut std::ffi::c_void) -> u32;
-    fn CreateToolhelp32Snapshot(dwFlags: u32, th32ProcessID: u32) -> *mut std::ffi::c_void;
 }
 
 struct MemoryInfo {
-    total_phys: u64,
     avail_phys: u64,
     total_pagefile: u64,
     avail_pagefile: u64,
@@ -45,7 +42,6 @@ fn get_memory_info() -> Option<MemoryInfo> {
     }
 
     Some(MemoryInfo {
-        total_phys: mem_status.ullTotalPhys,
         avail_phys: mem_status.ullAvailPhys,
         total_pagefile: mem_status.ullTotalPageFile,
         avail_pagefile: mem_status.ullAvailPageFile,
@@ -56,42 +52,6 @@ fn get_memory_info() -> Option<MemoryInfo> {
 /// Take one memory snapshot, aborting when the OS refuses to provide one.
 fn sample_memory() -> MemoryInfo {
     get_memory_info().expect("vmstat: cannot access memory information")
-}
-
-fn get_process_count() -> u64 {
-    use windows_sys::Win32::Foundation::CloseHandle;
-    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
-        CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW,
-        TH32CS_SNAPPROCESS,
-    };
-
-    let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
-    if snapshot == windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE {
-        return 0;
-    }
-
-    let mut count = 0u64;
-
-    let mut pe: PROCESSENTRY32W = unsafe { std::mem::zeroed() };
-    pe.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
-
-    unsafe {
-        let first = Process32FirstW(snapshot, &mut pe);
-        if first != 0 {
-            count += 1;
-            loop {
-                pe.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
-                let next = Process32NextW(snapshot, &mut pe);
-                if next == 0 {
-                    break;
-                }
-                count += 1;
-            }
-        }
-        CloseHandle(snapshot);
-    }
-
-    count
 }
 
 fn print_header() {
@@ -117,30 +77,57 @@ fn print_header() {
     );
 }
 
-fn print_stats(mem_info: &MemoryInfo) {
-    let r = get_process_count() as i64;
+/// System CPU counters in 100 ns units (kernel includes idle).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CpuTimes {
+    idle: u64,
+    kernel: u64,
+    user: u64,
+}
+
+fn sample_cpu_times() -> Option<CpuTimes> {
+    use windows_sys::Win32::Foundation::FILETIME;
+    use windows_sys::Win32::System::Threading::GetSystemTimes;
+
+    let mut idle = FILETIME::default();
+    let mut kernel = FILETIME::default();
+    let mut user = FILETIME::default();
+    // SAFETY: all out-parameters point to valid FILETIME storage.
+    let ok = unsafe { GetSystemTimes(&mut idle, &mut kernel, &mut user) };
+    if ok == 0 {
+        return None;
+    }
+    let u64ft = |ft: &FILETIME| (ft.dwHighDateTime as u64) << 32 | ft.dwLowDateTime as u64;
+    Some(CpuTimes {
+        idle: u64ft(&idle),
+        kernel: u64ft(&kernel),
+        user: u64ft(&user),
+    })
+}
+
+/// us/sy/id percentages between two samples (idle over kernel+user total).
+fn cpu_percentages(prev: &CpuTimes, cur: &CpuTimes) -> Option<(u64, u64, u64)> {
+    let d_user = cur.user.checked_sub(prev.user)?;
+    let d_kernel = cur.kernel.checked_sub(prev.kernel)?;
+    let d_idle = cur.idle.checked_sub(prev.idle)?;
+    let d_sys = d_kernel.checked_sub(d_idle)?;
+    let total = d_kernel.checked_add(d_user)?;
+    if total == 0 {
+        return None;
+    }
+    let pct = |v: u64| v * 100 / total;
+    Some((pct(d_user), pct(d_sys), pct(d_idle)))
+}
+
+fn print_stats(mem_info: &MemoryInfo, cpu: Option<(u64, u64, u64)>) {
     let swpd = (mem_info.total_pagefile - mem_info.avail_pagefile) / 1024;
     let free = mem_info.avail_phys / 1024;
+    let (us, sy, id) = cpu.unwrap_or((0, 0, 0));
 
+    // r has no Windows counterpart (runnable-task count) and prints 0.
     println!(
         "{:>4} {:>4} {:>8} {:>8} {:>8} {:>8} {:>6} {:>6} {:>8} {:>8} {:>6} {:>6} {:>4} {:>4} {:>4} {:>4} {:>4}",
-        r,
-        0,
-        swpd,
-        free,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        100 - mem_info.memory_load,
-        0,
-        0
+        0, 0, swpd, free, 0, 0, 0, 0, 0, 0, 0, 0, us, sy, id, 0, 0
     );
 }
 
@@ -153,6 +140,7 @@ fn main() {
     }
 
     let mut mem_info = sample_memory();
+    let mut prev_cpu = sample_cpu_times();
 
     if !args.header_once || args.count == 1 {
         print_header();
@@ -163,7 +151,15 @@ fn main() {
         } else if i > 0 {
             print_header();
         }
-        print_stats(&mem_info);
+        // CPU percentages cover the interval since the previous frame; the
+        // first frame has no baseline yet and reports zeros.
+        let cpu = prev_cpu
+            .zip(sample_cpu_times())
+            .and_then(|(p, c)| cpu_percentages(&p, &c));
+        if let Some(cur) = sample_cpu_times() {
+            prev_cpu = Some(cur);
+        }
+        print_stats(&mem_info, cpu);
 
         if i < args.count - 1 {
             if args.delay > 0 {
@@ -189,11 +185,7 @@ mod tests {
         let second = get_memory_info().expect("memory information available");
 
         for (label, info) in [("first", &first), ("second", &second)] {
-            assert!(info.total_phys > 0, "{label}: total_phys must be positive");
-            assert!(
-                info.avail_phys <= info.total_phys,
-                "{label}: avail_phys exceeds total_phys"
-            );
+            assert!(info.avail_phys > 0, "{label}: avail_phys must be positive");
             assert!(
                 info.avail_pagefile <= info.total_pagefile,
                 "{label}: avail_pagefile exceeds total_pagefile"
