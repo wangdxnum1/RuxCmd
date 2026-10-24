@@ -42,8 +42,16 @@ fn malformed_glob_does_not_panic() {
 
 #[test]
 fn gnu_single_dash_long_options_work() {
+    // -maxdepth 0 prints only the start point; -name filters it out.
     let out = cargo_bin_cmd!("find")
         .args(["-maxdepth", "0", "-name", "Cargo.toml", "."])
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&out.get_output().stdout);
+    assert!(stdout.trim().is_empty(), "stdout: {:?}", stdout);
+
+    let out = cargo_bin_cmd!("find")
+        .args(["-maxdepth", "0", "src"])
         .assert()
         .success();
     let stdout = String::from_utf8_lossy(&out.get_output().stdout);
