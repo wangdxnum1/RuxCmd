@@ -461,7 +461,10 @@ dependencies = [
 name = "csplit"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
+ "tempfile",
 ]
 
 [[package]]
@@ -2310,7 +2313,10 @@ dependencies = [
 name = "split"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
+ "tempfile",
 ]
 
 [[package]]
