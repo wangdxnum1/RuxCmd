@@ -667,7 +667,9 @@ dependencies = [
 name = "find"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "regex",
 ]
 
@@ -1472,6 +1474,7 @@ dependencies = [
 name = "netstat"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
  "windows-sys 0.61.2",
 ]
@@ -3435,7 +3438,9 @@ checksum = "1e9df38ee2d2c3c5948ea468a8406ff0db0b29ae1ffde1bcf20ef305bcc95c51"
 name = "xargs"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

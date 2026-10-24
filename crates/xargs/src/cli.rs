@@ -2,6 +2,7 @@ use clap::{Arg, Command};
 
 #[derive(Debug, Clone)]
 pub struct Args {
+    pub null_delimited: bool,
     pub max_args: usize,
     pub interactive: bool,
     pub verbose: bool,
@@ -36,6 +37,13 @@ impl Args {
                     .short('p')
                     .long("interactive")
                     .help("Prompt before running each command")
+                    .action(clap::ArgAction::SetTrue),
+            )
+            .arg(
+                Arg::new("null")
+                    .short('0')
+                    .long("null")
+                    .help("Input items are terminated by NUL instead of whitespace")
                     .action(clap::ArgAction::SetTrue),
             )
             .arg(
@@ -75,6 +83,7 @@ impl Args {
         };
 
         Args {
+            null_delimited: matches.get_flag("null"),
             max_args: matches.get_one::<usize>("max-args").copied().unwrap_or(0),
             interactive: matches.get_flag("interactive"),
             verbose: matches.get_flag("verbose"),
