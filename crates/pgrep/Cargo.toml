@@ -7,3 +7,8 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+ps-sys = { path = "../ps-sys" }
+
+[dev-dependencies]
+assert_cmd.workspace = true
+predicates.workspace = true

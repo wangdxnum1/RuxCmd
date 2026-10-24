@@ -9,9 +9,15 @@ pub struct Args {
     #[arg(
         short = 's',
         long = "signal",
-        help = "Signal to send (ignored on Windows)"
+        help = "Signal to send (mapped to TerminateProcess on Windows)"
     )]
     pub signal: Option<String>,
+
+    #[arg(short = 'i', long = "ignore-case", help = "Case-insensitive match")]
+    pub ignore_case: bool,
+
+    #[arg(short = 'x', long = "exact", help = "Match name exactly")]
+    pub exact: bool,
 
     #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
     pub version: (),

@@ -2,65 +2,76 @@ mod cli;
 
 use clap::Parser;
 use cli::Args;
-use std::process::Command;
+use ps_sys::{collect_with, CollectOptions};
 
 fn main() {
     let args = Args::parse();
+    let self_pid = std::process::id();
 
-    let output = Command::new("tasklist")
-        .args(["/FO", "CSV", "/NH"])
-        .output()
-        .expect("Failed to run tasklist");
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    for line in stdout.lines() {
-        let parts: Vec<&str> = line.split(',').collect();
-        if parts.len() >= 2 {
-            let name = parts[0].trim_matches('"');
-            let pid = parts[1].trim_matches('"');
-
-            let mut matched = false;
-            if args.full {
-                let cmdline = get_cmdline(pid.parse().unwrap_or(0));
-                if cmdline.contains(&args.pattern) {
-                    matched = true;
-                }
-            } else {
-                if name.to_lowercase().contains(&args.pattern.to_lowercase()) {
-                    matched = true;
-                }
-            }
-
-            if matched {
-                if args.list_name {
-                    println!("{} {}", pid, name);
-                } else {
-                    println!("{}", pid);
-                }
-            }
+    let opts = if args.full {
+        CollectOptions::FULL
+    } else {
+        CollectOptions::FAST
+    };
+    let procs = match collect_with(opts) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("pgrep: cannot enumerate processes: {}", e);
+            std::process::exit(1);
         }
+    };
+
+    let mut matched = 0usize;
+    for p in &procs {
+        if p.pid == self_pid {
+            continue;
+        }
+        if !matches(&args, p) {
+            continue;
+        }
+        matched += 1;
+        if args.list_name {
+            println!("{} {}", p.pid, p.name);
+        } else {
+            println!("{}", p.pid);
+        }
+    }
+
+    if matched == 0 {
+        std::process::exit(1);
     }
 }
 
-fn get_cmdline(pid: u32) -> String {
-    let output = Command::new("wmic")
-        .args([
-            "process",
-            "where",
-            &format!("processid={}", pid),
-            "get",
-            "commandline",
-            "/value",
-        ])
-        .output();
-    if let Ok(output) = output {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        for line in stdout.lines() {
-            if line.starts_with("CommandLine=") {
-                return line["CommandLine=".len()..].to_string();
-            }
+/// Match against the image name and (optionally) the full command line.
+/// Image-name comparison is ASCII case-insensitive: Toolhelp32 reports its
+/// own casing, which need not match the on-disk spelling. -f cmdline matching
+/// stays case-sensitive unless -i.
+fn matches(args: &Args, p: &ps_sys::ProcessRaw) -> bool {
+    let pat = args.pattern.to_lowercase();
+    let hay_name = p.name.to_lowercase();
+    // Windows image names carry ".exe"; accept matches against both forms.
+    let hay_stem = hay_name
+        .strip_suffix(".exe")
+        .unwrap_or(&hay_name)
+        .to_string();
+
+    let name_hit = if args.exact {
+        pat == hay_name || pat == hay_stem
+    } else {
+        hay_name.contains(&pat) || hay_stem.contains(&pat)
+    };
+    if name_hit {
+        return true;
+    }
+    if args.full {
+        if let Some(cmd) = &p.cmdline {
+            let hay_cmd = if args.ignore_case {
+                cmd.to_lowercase()
+            } else {
+                cmd.clone()
+            };
+            return hay_cmd.contains(&args.pattern);
         }
     }
-    String::new()
+    false
 }

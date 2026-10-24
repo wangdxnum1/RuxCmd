@@ -5,8 +5,7 @@ use windows::Win32::Foundation::CloseHandle;
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
 };
-use windows::Win32::System::ProcessStatus::{EnumProcesses, K32GetModuleBaseNameW};
-use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
+use windows::Win32::System::ProcessStatus::EnumProcesses;
 
 use crate::error::{Error, Result};
 use crate::util::wstr_to_string;
@@ -22,8 +21,11 @@ pub struct Snapshot {
 
 pub fn snapshot() -> Result<Snapshot> {
     let pids = enum_processes()?;
-    let ppid_map = toolhelp32_ppids(&pids)?;
-    let names = module_names(&pids)?;
+    // One Toolhelp32 walk supplies ppid and image name for every process;
+    // the PSAPI GetModuleBaseNameW path needs one OpenProcess per process
+    // and has been observed failing machine-wide (empty names) while the
+    // snapshot walk kept working.
+    let (ppid_map, names) = toolhelp32_walk(&pids)?;
     Ok(Snapshot {
         pids,
         ppid_map,
@@ -53,20 +55,27 @@ fn enum_processes() -> Result<Vec<u32>> {
     }
 }
 
-fn toolhelp32_ppids(pids: &[u32]) -> Result<HashMap<u32, u32>> {
+fn toolhelp32_walk(pids: &[u32]) -> Result<(HashMap<u32, u32>, HashMap<u32, String>)> {
     unsafe {
         let snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0).map_err(Error::from)?;
         if snap.is_invalid() {
             return Err(Error::Internal("CreateToolhelp32Snapshot failed".into()));
         }
-        let mut map = HashMap::new();
+        let mut ppid_map = HashMap::new();
+        let mut names = HashMap::new();
         let mut entry = PROCESSENTRY32W {
             dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
             ..Default::default()
         };
         if Process32FirstW(snap, &mut entry).is_ok() {
             loop {
-                map.insert(entry.th32ProcessID, entry.th32ParentProcessID);
+                let name = wstr_to_string(&entry.szExeFile);
+                // The first module name wins; drop the trailing NUL padding.
+                let name = name.trim_end_matches('\0').to_string();
+                if !name.is_empty() {
+                    names.insert(entry.th32ProcessID, name);
+                }
+                ppid_map.insert(entry.th32ProcessID, entry.th32ParentProcessID);
                 if Process32NextW(snap, &mut entry).is_err() {
                     break;
                 }
@@ -74,34 +83,10 @@ fn toolhelp32_ppids(pids: &[u32]) -> Result<HashMap<u32, u32>> {
         }
         let _ = CloseHandle(snap);
         for &p in pids {
-            map.entry(p).or_insert(0);
+            ppid_map.entry(p).or_insert(0);
+            names.entry(p).or_default();
         }
-        Ok(map)
-    }
-}
-
-fn module_names(pids: &[u32]) -> Result<HashMap<u32, String>> {
-    let mut map = HashMap::new();
-    for &pid in pids {
-        let name = module_name(pid).unwrap_or_default();
-        map.insert(pid, name);
-    }
-    Ok(map)
-}
-
-fn module_name(pid: u32) -> Result<String> {
-    unsafe {
-        let h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).map_err(Error::from)?;
-        if h.is_invalid() {
-            return Err(Error::PermissionDenied(pid));
-        }
-        let mut buf = [0u16; 1024];
-        let n = K32GetModuleBaseNameW(h, None, &mut buf);
-        let _ = CloseHandle(h);
-        if n == 0 {
-            return Err(Error::PermissionDenied(pid));
-        }
-        Ok(wstr_to_string(&buf[..n as usize]))
+        Ok((ppid_map, names))
     }
 }
 

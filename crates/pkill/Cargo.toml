@@ -7,3 +7,9 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+ps-sys = { path = "../ps-sys" }
+windows-sys = { version = "0.61", features = ["Win32_System_Threading", "Win32_Foundation", "Win32_Security"] }
+
+[dev-dependencies]
+assert_cmd.workspace = true
+predicates.workspace = true
