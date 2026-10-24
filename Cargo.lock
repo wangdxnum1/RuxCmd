@@ -1079,8 +1079,11 @@ dependencies = [
 name = "iconv"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
  "encoding_rs",
+ "predicates",
+ "tempfile",
 ]
 
 [[package]]
@@ -1383,8 +1386,11 @@ checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
 name = "md5sum"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
  "md5",
+ "predicates",
+ "tempfile",
 ]
 
 [[package]]
@@ -1542,14 +1548,20 @@ dependencies = [
 name = "numfmt"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
+ "tempfile",
 ]
 
 [[package]]
 name = "od"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
+ "tempfile",
 ]
 
 [[package]]
@@ -2251,9 +2263,12 @@ dependencies = [
 name = "sha256sum"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
  "hex",
+ "predicates",
  "sha2",
+ "tempfile",
 ]
 
 [[package]]

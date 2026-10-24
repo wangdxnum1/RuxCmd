@@ -1,7 +1,7 @@
 mod cli;
 
 use clap::Parser;
-use encoding_rs::Encoding;
+use encoding_rs::{CoderResult, Encoding};
 use std::fs;
 use std::io::{Read, Write};
 
@@ -71,8 +71,11 @@ fn main() {
         }
     }
 
-    let (result, _, _) = from_encoding.decode(&all_input);
-    let (output_bytes, _, _) = to_encoding.encode(&result);
+    // Decode strictly according to -f: no BOM sniffing and no BOM removal.
+    // A UTF-8 BOM on the input of `iconv -f gbk` must be decoded as GBK
+    // bytes, exactly like GNU iconv does.
+    let decoded = decode_strict(from_encoding, &all_input);
+    let (output_bytes, _, _) = to_encoding.encode(&decoded);
 
     if let Some(out_path) = &args.output {
         if let Err(e) = fs::write(out_path, &output_bytes) {
@@ -89,39 +92,73 @@ fn main() {
     std::process::exit(exit_code);
 }
 
+/// Decode the whole input with the given encoding, without BOM sniffing.
+/// Malformed sequences are replaced with U+FFFD (same as the previous
+/// `Encoding::decode` path, minus the heuristic).
+fn decode_strict(encoding: &'static Encoding, input: &[u8]) -> String {
+    let mut decoder = encoding.new_decoder_without_bom_handling();
+    // Worst-case UTF-8 growth is 3 bytes per input byte.
+    let mut decoded = String::with_capacity(input.len() * 3 + 4);
+    let mut src = input;
+    loop {
+        let (result, read, _) = decoder.decode_to_string(src, &mut decoded, true);
+        src = &src[read..];
+        match result {
+            CoderResult::InputEmpty => break,
+            CoderResult::OutputFull => {
+                decoded.reserve(src.len() * 3 + 4);
+            }
+        }
+    }
+    decoded
+}
+
 fn list_encodings() {
-    let encodings = [
-        ("UTF-8", "Unicode (UTF-8)"),
-        ("UTF-16", "Unicode (UTF-16 with BOM)"),
-        ("UTF-16BE", "Unicode (UTF-16 big-endian)"),
-        ("UTF-16LE", "Unicode (UTF-16 little-endian)"),
-        ("GBK", "GBK (Chinese)"),
-        ("GB2312", "GB2312 (Chinese simplified)"),
-        ("GB18030", "GB18030 (Chinese)"),
-        ("ISO-8859-1", "ISO-8859-1 (Latin-1)"),
-        ("US-ASCII", "US-ASCII"),
-        ("windows-1252", "Windows-1252"),
-        ("Shift_JIS", "Shift_JIS (Japanese)"),
-        ("EUC-JP", "EUC-JP (Japanese)"),
-        ("ISO-2022-JP", "ISO-2022-JP (Japanese)"),
-        ("Big5", "Big5 (Traditional Chinese)"),
-        ("EUC-KR", "EUC-KR (Korean)"),
-        ("ISO-8859-2", "ISO-8859-2 (Latin-2)"),
-        ("ISO-8859-3", "ISO-8859-3 (Latin-3)"),
-        ("ISO-8859-4", "ISO-8859-4 (Latin-4)"),
-        ("ISO-8859-5", "ISO-8859-5 (Cyrillic)"),
-        ("ISO-8859-6", "ISO-8859-6 (Arabic)"),
-        ("ISO-8859-7", "ISO-8859-7 (Greek)"),
-        ("ISO-8859-8", "ISO-8859-8 (Hebrew)"),
-        ("ISO-8859-9", "ISO-8859-9 (Latin-5)"),
-        ("ISO-8859-10", "ISO-8859-10 (Latin-6)"),
-        ("ISO-8859-13", "ISO-8859-13 (Latin-7)"),
-        ("ISO-8859-14", "ISO-8859-14 (Latin-8)"),
-        ("ISO-8859-15", "ISO-8859-15 (Latin-9)"),
-        ("ISO-8859-16", "ISO-8859-16 (Latin-10)"),
+    let encodings: [(&Encoding, &str); 39] = [
+        (encoding_rs::UTF_8, "Unicode (UTF-8)"),
+        (encoding_rs::UTF_16LE, "Unicode (UTF-16 little-endian)"),
+        (encoding_rs::UTF_16BE, "Unicode (UTF-16 big-endian)"),
+        (encoding_rs::GBK, "GBK (Chinese)"),
+        (encoding_rs::GB18030, "GB18030 (Chinese)"),
+        (encoding_rs::BIG5, "Big5 (Traditional Chinese)"),
+        (encoding_rs::EUC_JP, "EUC-JP (Japanese)"),
+        (encoding_rs::SHIFT_JIS, "Shift_JIS (Japanese)"),
+        (encoding_rs::ISO_2022_JP, "ISO-2022-JP (Japanese)"),
+        (encoding_rs::EUC_KR, "EUC-KR (Korean)"),
+        (encoding_rs::WINDOWS_874, "Windows-874 (Thai)"),
+        (encoding_rs::WINDOWS_1250, "Windows-1250 (Central European)"),
+        (encoding_rs::WINDOWS_1251, "Windows-1251 (Cyrillic)"),
+        (encoding_rs::WINDOWS_1252, "Windows-1252 (Western European)"),
+        (encoding_rs::WINDOWS_1253, "Windows-1253 (Greek)"),
+        (encoding_rs::WINDOWS_1254, "Windows-1254 (Turkish)"),
+        (encoding_rs::WINDOWS_1255, "Windows-1255 (Hebrew)"),
+        (encoding_rs::WINDOWS_1256, "Windows-1256 (Arabic)"),
+        (encoding_rs::WINDOWS_1257, "Windows-1257 (Baltic)"),
+        (encoding_rs::WINDOWS_1258, "Windows-1258 (Vietnamese)"),
+        (encoding_rs::IBM866, "IBM866 (Cyrillic)"),
+        (encoding_rs::ISO_8859_2, "ISO-8859-2 (Latin-2)"),
+        (encoding_rs::ISO_8859_3, "ISO-8859-3 (Latin-3)"),
+        (encoding_rs::ISO_8859_4, "ISO-8859-4 (Latin-4)"),
+        (encoding_rs::ISO_8859_5, "ISO-8859-5 (Cyrillic)"),
+        (encoding_rs::ISO_8859_6, "ISO-8859-6 (Arabic)"),
+        (encoding_rs::ISO_8859_7, "ISO-8859-7 (Greek)"),
+        (encoding_rs::ISO_8859_8, "ISO-8859-8 (Hebrew)"),
+        (encoding_rs::ISO_8859_8_I, "ISO-8859-8-I (Hebrew logical)"),
+        (encoding_rs::ISO_8859_10, "ISO-8859-10 (Latin-6)"),
+        (encoding_rs::ISO_8859_13, "ISO-8859-13 (Latin-7)"),
+        (encoding_rs::ISO_8859_14, "ISO-8859-14 (Latin-8)"),
+        (encoding_rs::ISO_8859_15, "ISO-8859-15 (Latin-9)"),
+        (encoding_rs::ISO_8859_16, "ISO-8859-16 (Latin-10)"),
+        (encoding_rs::KOI8_R, "KOI8-R (Cyrillic)"),
+        (encoding_rs::KOI8_U, "KOI8-U (Cyrillic Ukrainian)"),
+        (encoding_rs::MACINTOSH, "Macintosh (Roman)"),
+        (encoding_rs::X_MAC_CYRILLIC, "Mac-Cyrillic"),
+        (encoding_rs::X_USER_DEFINED, "X-User-Defined"),
     ];
 
-    for (name, desc) in encodings {
-        println!("{} - {}", name, desc);
+    for (encoding, desc) in encodings {
+        println!("{} - {}", encoding.name(), desc);
     }
+    // The bare "UTF-16" label sniffs the byte order from a BOM.
+    println!("UTF-16 - Unicode (UTF-16 with BOM)");
 }

@@ -5,6 +5,8 @@ use std::path::PathBuf;
 pub struct Args {
     pub check: bool,
     pub quiet: bool,
+    pub status: bool,
+    pub tag: bool,
     pub files: Vec<PathBuf>,
 }
 
@@ -35,6 +37,18 @@ pub fn parse_args() -> Args {
                 .help("Suppress all normal output"),
         )
         .arg(
+            Arg::new("status")
+                .long("status")
+                .action(ArgAction::SetTrue)
+                .help("Don't output anything; the exit status indicates success or failure"),
+        )
+        .arg(
+            Arg::new("tag")
+                .long("tag")
+                .action(ArgAction::SetTrue)
+                .help("Create a BSD-style checksum (\"SHA256 (file) = hash\")"),
+        )
+        .arg(
             Arg::new("files")
                 .value_name("FILE")
                 .help("The file(s) to process")
@@ -45,9 +59,11 @@ pub fn parse_args() -> Args {
     Args {
         check: matches.get_flag("check"),
         quiet: matches.get_flag("quiet"),
+        status: matches.get_flag("status"),
+        tag: matches.get_flag("tag"),
         files: matches
             .get_many::<String>("files")
-            .map(|v| v.map(|s| PathBuf::from(s)).collect())
+            .map(|v| v.map(PathBuf::from).collect())
             .unwrap_or_default(),
     }
 }

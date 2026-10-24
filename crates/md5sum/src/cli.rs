@@ -17,6 +17,14 @@ pub struct Args {
     #[arg(short = 'q', long = "quiet")]
     pub quiet: bool,
 
+    /// Don't output anything; the exit status indicates success or failure
+    #[arg(long = "status")]
+    pub status: bool,
+
+    /// Create a BSD-style checksum ("MD5 (file) = hash")
+    #[arg(long = "tag")]
+    pub tag: bool,
+
     /// The file(s) to compute MD5 hash for
     #[arg(value_name = "FILE")]
     pub files: Vec<PathBuf>,

@@ -23,8 +23,8 @@ pub struct Args {
     #[arg(long = "from-unit", default_value_t = 1f64)]
     pub from_unit: f64,
 
-    #[arg(short = 'd', long = "delimiter", default_value = " \t")]
-    pub delimiter: String,
+    #[arg(short = 'd', long = "delimiter")]
+    pub delimiter: Option<String>,
 
     #[arg(long = "field", value_name = "N", default_value_t = 1usize)]
     pub field: usize,

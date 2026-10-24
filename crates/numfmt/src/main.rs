@@ -20,18 +20,19 @@ fn main() {
 
     let suffix = args.suffix_opt.clone().unwrap_or_default();
     let is_file = !args.rest.is_empty() && std::path::Path::new(&args.rest[0]).exists();
+    let delimiter = args.delimiter.clone();
     let exit_code = Cell::new(0i32);
 
-    let mut process = |line: &str, is_header: bool| {
+    let process = |line: &str, is_header: bool| {
         if is_header {
             let stdout = std::io::stdout();
             let mut out = stdout.lock();
             let _ = writeln!(out, "{}", line);
             return;
         }
-        let pieces: Vec<&str> = split_fields(line, &args.delimiter);
-        let fidx = args.field.checked_sub(1).unwrap_or(0);
-        if fidx >= pieces.len() {
+        let (pieces, separators) = split_fields(line, delimiter.as_deref());
+        let fidx = args.field.saturating_sub(1);
+        if pieces.is_empty() || fidx >= pieces.len() {
             let stdout = std::io::stdout();
             let mut out = stdout.lock();
             let _ = writeln!(out, "{}", line);
@@ -57,10 +58,13 @@ fn main() {
             &suffix,
             args.grouping,
         );
+        // Rebuild the line with the original separators: whitespace mode
+        // folds runs into a single space (like GNU numfmt), while an
+        // explicit -d keeps the delimiter characters verbatim.
         let mut joined = String::new();
         for (i, piece) in pieces.iter().enumerate() {
             if i > 0 {
-                joined.push(' ');
+                joined.push_str(separators[i - 1]);
             }
             if i == fidx {
                 joined.push_str(&formatted);
@@ -116,29 +120,59 @@ fn main() {
     std::process::exit(exit_code.get());
 }
 
-fn split_fields<'a>(line: &'a str, delim: &str) -> Vec<&'a str> {
-    let ds: Vec<char> = delim.chars().collect();
-    let mut out = Vec::new();
+/// Split a line into fields plus the separator text between them.
+///
+/// Without an explicit delimiter (GNU default) fields are whitespace runs
+/// and consecutive separators fold into a single space on output. With an
+/// explicit `-d` the delimiter is literal: empty fields are kept and the
+/// original separator characters are preserved.
+fn split_fields<'a>(line: &'a str, delim: Option<&str>) -> (Vec<&'a str>, Vec<&'a str>) {
     let chars: Vec<char> = line.chars().collect();
-    let mut start = 0;
-    let mut in_sep = true;
-    for (i, c) in chars.iter().enumerate() {
-        if ds.contains(c) {
-            if !in_sep {
-                out.push(slice_from_chars(line, &chars, start, i));
+    match delim {
+        None => {
+            let ws: Vec<char> = vec![' ', '\t'];
+            let mut fields = Vec::new();
+            let mut start: Option<usize> = None;
+            for (i, c) in chars.iter().enumerate() {
+                if ws.contains(c) {
+                    if let Some(s) = start.take() {
+                        fields.push(slice_from_chars(line, &chars, s, i));
+                    }
+                } else if start.is_none() {
+                    start = Some(i);
+                }
             }
-            in_sep = true;
-        } else {
-            if in_sep {
-                start = i;
-                in_sep = false;
+            if let Some(s) = start {
+                fields.push(slice_from_chars(line, &chars, s, chars.len()));
             }
+            let separators = vec![" "; fields.len().saturating_sub(1)];
+            (fields, separators)
+        }
+        Some(_) => {
+            let ds: Vec<char> = delim.unwrap_or(" \t").chars().collect();
+            if chars.is_empty() {
+                return (Vec::new(), Vec::new());
+            }
+            let mut fields = Vec::new();
+            let mut separators = Vec::new();
+            let mut field_start = 0usize;
+            let mut i = 0usize;
+            while i < chars.len() {
+                if ds.contains(&chars[i]) {
+                    // Literal delimiter: no folding — each separator
+                    // character delimits an (possibly empty) field.
+                    fields.push(slice_from_chars(line, &chars, field_start, i));
+                    separators.push(slice_from_chars(line, &chars, i, i + 1));
+                    i += 1;
+                    field_start = i;
+                } else {
+                    i += 1;
+                }
+            }
+            fields.push(slice_from_chars(line, &chars, field_start, chars.len()));
+            (fields, separators)
         }
     }
-    if !in_sep {
-        out.push(slice_from_chars(line, &chars, start, chars.len()));
-    }
-    out
 }
 
 fn slice_from_chars<'a>(src: &'a str, chars: &[char], s: usize, e: usize) -> &'a str {
@@ -153,13 +187,17 @@ fn slice_from_chars<'a>(src: &'a str, chars: &[char], s: usize, e: usize) -> &'a
 
 fn parse_numeric(s: &str, from: From, from_unit: f64, suffix: &str) -> Option<f64> {
     let s = s.strip_suffix(suffix).unwrap_or(s);
-    let last = s.chars().last()?;
     let (mult, rest) = match from {
         From::None => match s.parse::<f64>() {
             Ok(v) => return Some(v * from_unit),
             Err(_) => return None,
         },
-        From::Auto => parse_suffix(s, true),
+        // GNU auto semantics: "1K" = 1000 but "1Ki" = 1024 — only a trailing
+        // 'i' selects the binary base.
+        From::Auto => {
+            let binary = s.ends_with('i') || s.ends_with('I');
+            parse_suffix(s, binary)
+        }
         From::Si => parse_suffix(s, false),
         From::Iec => parse_suffix(s, true),
         From::IecI => parse_suffix(s, true),

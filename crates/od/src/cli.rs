@@ -13,18 +13,21 @@ pub enum AddressBase {
 pub enum DisplayType {
     Octal,
     Hexadecimal,
-    Decimal,
+    SignedDecimal,
+    UnsignedDecimal,
     Char,
-    String,
+    Named,
     Float,
+    String,
 }
 
+/// A parsed `-t` type specification (or the equivalent short-flag form).
 #[derive(Debug, Clone, PartialEq)]
-pub enum WordSize {
-    Byte,
-    TwoBytes,
-    FourBytes,
-    EightBytes,
+pub struct FormatSpec {
+    pub display: DisplayType,
+    pub size: usize,
+    /// `z` suffix: append a `>ascii<` trailer column after each line.
+    pub z: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -74,70 +77,46 @@ impl Args {
         }
     }
 
-    pub fn get_display_type(&self) -> DisplayType {
+    /// Resolve the display specification from the short flags or `-t`.
+    pub fn get_format_spec(&self) -> Result<FormatSpec, String> {
         if self.ascii {
-            return DisplayType::Char;
+            return Ok(FormatSpec { display: DisplayType::Char, size: 1, z: false });
         }
         if self.decimal {
-            return DisplayType::Decimal;
+            return Ok(FormatSpec {
+                display: DisplayType::SignedDecimal,
+                size: 2,
+                z: false,
+            });
         }
         if self.octal {
-            return DisplayType::Octal;
+            return Ok(FormatSpec { display: DisplayType::Octal, size: 2, z: false });
         }
         if self.hexadecimal {
-            return DisplayType::Hexadecimal;
+            return Ok(FormatSpec {
+                display: DisplayType::Hexadecimal,
+                size: 2,
+                z: false,
+            });
         }
-        if let Some(f) = &self.format {
-            match f.chars().next().unwrap() {
-                'o' => DisplayType::Octal,
-                'x' => DisplayType::Hexadecimal,
-                'd' => DisplayType::Decimal,
-                'c' => DisplayType::Char,
-                's' => DisplayType::String,
-                'f' => DisplayType::Float,
-                _ => DisplayType::Octal,
-            }
-        } else {
-            DisplayType::Octal
+        match &self.format {
+            Some(f) => parse_format(f),
+            // GNU default: "oS" — octal shorts, no ASCII column.
+            None => Ok(FormatSpec { display: DisplayType::Octal, size: 2, z: false }),
         }
     }
 
-    pub fn get_word_size(&self) -> WordSize {
-        if self.ascii || (self.format.as_deref() == Some("c")) {
-            return WordSize::Byte;
-        }
-        if let Some(f) = &self.format {
-            let len = f.len();
-            if len > 1 {
-                match &f[1..] {
-                    "2" => WordSize::TwoBytes,
-                    "4" => WordSize::FourBytes,
-                    "8" => WordSize::EightBytes,
-                    _ => WordSize::TwoBytes,
-                }
-            } else {
-                WordSize::TwoBytes
-            }
-        } else {
-            WordSize::TwoBytes
-        }
-    }
-
-    pub fn get_words_per_line(&self) -> usize {
+    pub fn get_words_per_line(&self, size: usize) -> usize {
         if let Some(w) = self.width {
-            let size = match self.get_word_size() {
-                WordSize::Byte => 1,
-                WordSize::TwoBytes => 2,
-                WordSize::FourBytes => 4,
-                WordSize::EightBytes => 8,
-            };
-            return w / size;
+            let per_line = w / size.max(1);
+            return per_line.max(1);
         }
-        match self.get_word_size() {
-            WordSize::Byte => 16,
-            WordSize::TwoBytes => 8,
-            WordSize::FourBytes => 4,
-            WordSize::EightBytes => 2,
+        match size {
+            1 => 16,
+            2 => 8,
+            4 => 4,
+            8 => 2,
+            _ => 8,
         }
     }
 
@@ -148,4 +127,82 @@ impl Args {
     pub fn get_read_bytes(&self) -> Option<usize> {
         self.read_bytes
     }
+}
+
+fn invalid_char(c: char, spec: &str) -> String {
+    format!("od: invalid character '{c}' in type string '{spec}'")
+}
+
+/// Parse a GNU od type string such as `x1`, `d2`, `o4`, `u1`, `a`, `c`,
+/// `f4`, `f8`, `x1z`.
+pub fn parse_format(s: &str) -> Result<FormatSpec, String> {
+    let mut chars = s.chars();
+    let type_char = chars
+        .next()
+        .ok_or_else(|| format!("od: invalid type string '{s}'"))?;
+
+    let mut size_digits = String::new();
+    let mut z = false;
+    for c in chars {
+        match c {
+            '0'..='9' => {
+                if z {
+                    return Err(invalid_char(c, s));
+                }
+                size_digits.push(c);
+            }
+            'z' => {
+                if z {
+                    return Err(invalid_char(c, s));
+                }
+                z = true;
+            }
+            _ => return Err(invalid_char(c, s)),
+        }
+    }
+
+    let (display, default_size, allowed): (DisplayType, usize, &[usize]) = match type_char {
+        // Bare `o`/`x`/`d`/`u` mean sizeof(int) words in GNU od (4 bytes);
+        // only the plain default format is "short" (2 bytes).
+        'o' => (DisplayType::Octal, 4, &[1, 2, 4, 8]),
+        'x' => (DisplayType::Hexadecimal, 4, &[1, 2, 4, 8]),
+        'd' => (DisplayType::SignedDecimal, 4, &[1, 2, 4, 8]),
+        'u' => (DisplayType::UnsignedDecimal, 4, &[1, 2, 4, 8]),
+        'c' => (DisplayType::Char, 1, &[]),
+        'a' => (DisplayType::Named, 1, &[]),
+        'f' => (DisplayType::Float, 8, &[4, 8]),
+        's' => (DisplayType::String, 2, &[1, 2, 4, 8]),
+        _ => return Err(invalid_char(type_char, s)),
+    };
+
+    let size = if allowed.is_empty() {
+        if !size_digits.is_empty() {
+            // `c` and `a` take no size at all: GNU rejects "-t c1".
+            let c = size_digits.chars().next().unwrap_or(type_char);
+            return Err(invalid_char(c, s));
+        }
+        default_size
+    } else if size_digits.is_empty() {
+        default_size
+    } else {
+        match size_digits.parse::<usize>() {
+            Ok(n) if allowed.contains(&n) => n,
+            Ok(n) => {
+                let kind = if matches!(display, DisplayType::Float) {
+                    "floating point"
+                } else {
+                    "integral"
+                };
+                return Err(format!(
+                    "od: invalid type string '{s}';\nthis system doesn't provide a {n}-byte {kind} type"
+                ));
+            }
+            Err(_) => {
+                let c = size_digits.chars().next().unwrap_or(type_char);
+                return Err(invalid_char(c, s));
+            }
+        }
+    };
+
+    Ok(FormatSpec { display, size, z })
 }
