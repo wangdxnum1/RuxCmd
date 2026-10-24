@@ -16,7 +16,8 @@ fn main() {
     if cli.pretty {
         println!("{}", format_pretty(uptime));
     } else {
-        println!("{}", uptime);
+        let now = chrono::Local::now().format("%H:%M:%S").to_string();
+        println!("{}", format_default(uptime, &now));
     }
 }
 
@@ -49,6 +50,19 @@ fn get_uptime() -> u64 {
     let parts: Vec<&str> = stdout.split_whitespace().collect();
     let time_str = parts[1].trim_end_matches(',');
     time_str.parse::<f64>().unwrap() as u64
+}
+
+/// procps-style default line: ` HH:MM:SS up N days, H:MM, 0 users`.
+/// The user count has no lightweight Windows API and stays 0 (declared).
+fn format_default(seconds: u64, now_hms: &str) -> String {
+    let days = seconds / 86400;
+    let hm = format!("{}:{:02}", (seconds % 86400) / 3600, (seconds % 3600) / 60);
+    let days_part = if days > 0 {
+        format!("{} day{}, ", days, if days == 1 { "" } else { "s" })
+    } else {
+        String::new()
+    };
+    format!("{} up {}{}, 0 users", now_hms, days_part, hm)
 }
 
 fn format_pretty(seconds: u64) -> String {

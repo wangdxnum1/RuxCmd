@@ -2556,7 +2556,9 @@ dependencies = [
 name = "time"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2669,6 +2671,7 @@ dependencies = [
 name = "top"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "chrono",
  "clap",
  "windows-sys 0.61.2",
@@ -2840,6 +2843,7 @@ name = "uptime"
 version = "0.1.0"
 dependencies = [
  "assert_cmd",
+ "chrono",
  "clap",
  "windows",
 ]

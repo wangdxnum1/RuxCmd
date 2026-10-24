@@ -7,3 +7,7 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+windows-sys = { version = "0.61", features = ["Win32_System_Threading", "Win32_Foundation"] }
+
+[dev-dependencies]
+assert_cmd.workspace = true

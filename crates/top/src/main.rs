@@ -26,6 +26,64 @@ fn get_memory_info() -> (u64, u64, u64, u64) {
     )
 }
 
+/// System CPU counters in 100 ns units (kernel includes idle).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CpuTimes {
+    idle: u64,
+    kernel: u64,
+    user: u64,
+}
+
+impl CpuTimes {
+    const ZERO: CpuTimes = CpuTimes {
+        idle: 0,
+        kernel: 0,
+        user: 0,
+    };
+}
+
+fn sample_cpu_times() -> Option<CpuTimes> {
+    use windows_sys::Win32::Foundation::FILETIME;
+    use windows_sys::Win32::System::Threading::GetSystemTimes;
+
+    let mut idle = FILETIME::default();
+    let mut kernel = FILETIME::default();
+    let mut user = FILETIME::default();
+    // SAFETY: all out-parameters point to valid FILETIME storage.
+    let ok = unsafe { GetSystemTimes(&mut idle, &mut kernel, &mut user) };
+    if ok == 0 {
+        None
+    } else {
+        let u64ft = |ft: &FILETIME| (ft.dwHighDateTime as u64) << 32 | ft.dwLowDateTime as u64;
+        Some(CpuTimes {
+            idle: u64ft(&idle),
+            kernel: u64ft(&kernel),
+            user: u64ft(&user),
+        })
+    }
+}
+
+/// usr/sys/idle percentages between two samples; None on a zero interval.
+fn cpu_percentages(prev: &CpuTimes, cur: &CpuTimes) -> Option<(f64, f64, f64)> {
+    let d_user = cur.user.checked_sub(prev.user)?;
+    let d_kernel = cur.kernel.checked_sub(prev.kernel)?;
+    let d_idle = cur.idle.checked_sub(prev.idle)?;
+    let d_sys = d_kernel.checked_sub(d_idle)?;
+    let total = d_kernel.checked_add(d_user)?;
+    if total == 0 {
+        return None;
+    }
+    let pct = |v: u64| v as f64 * 100.0 / total as f64;
+    Some((pct(d_user), pct(d_sys), pct(d_idle)))
+}
+
+/// Boot duration in seconds via GetTickCount64.
+fn uptime_secs() -> u64 {
+    use windows_sys::Win32::System::SystemInformation::GetTickCount64;
+    // SAFETY: GetTickCount64 takes no parameters and cannot fail.
+    (unsafe { GetTickCount64() }) / 1000
+}
+
 fn warn_snapshot_failed_once() {
     use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -76,22 +134,37 @@ fn header_process_count(processes: u64) -> u64 {
     processes.saturating_sub(1)
 }
 
-fn print_header() {
+fn print_header(prev: &CpuTimes) {
     let now = Local::now();
     let (used, free, total, percent) = get_memory_info();
     let processes = get_process_count();
+    let up = uptime_secs();
+    let up_days = up / 86400;
+    let up_hm = format!("{}:{:02}", (up % 86400) / 3600, (up % 3600) / 60);
+
+    // CPU percentages cover the interval since the previous frame; the first
+    // frame falls back to the since-boot average of a single sample.
+    let (us, sy, id) = sample_cpu_times()
+        .and_then(|cur| cpu_percentages(prev, &cur))
+        .or_else(|| sample_cpu_times().and_then(|cur| cpu_percentages(&CpuTimes::ZERO, &cur)))
+        .unwrap_or((0.0, 0.0, 0.0));
 
     println!("{}", "=".repeat(80));
     println!(
-        "top - {} up 0 days, 0:00, 0 users,  load average: 0.00, 0.00, 0.00",
-        now.format("%H:%M:%S")
+        "top - {} up {} days, {}, 0 users",
+        now.format("%H:%M:%S"),
+        up_days,
+        up_hm
     );
     println!(
         "Tasks: {} total, 0 running, {} sleeping, 0 stopped, 0 zombie",
         processes,
         header_process_count(processes)
     );
-    println!("%Cpu(s): 0.0 us, 0.0 sy, 0.0 ni, 0.0 id, 0.0 wa, 0.0 hi, 0.0 si, 0.0 st");
+    println!(
+        "%Cpu(s): {:.1} us, {:.1} sy, 0.0 ni, {:.1} id, 0.0 wa, 0.0 hi, 0.0 si, 0.0 st",
+        us, sy, id
+    );
     println!(
         "KiB Mem : {:>10} total, {:>10} free, {:>10} used, {:>10} buff/cache",
         total * 1024,
@@ -168,8 +241,12 @@ fn main() {
         return;
     }
 
+    let mut prev_cpu = sample_cpu_times().unwrap_or(CpuTimes::ZERO);
     for i in 0..args.iterations {
-        print_header();
+        print_header(&prev_cpu);
+        if let Some(cur) = sample_cpu_times() {
+            prev_cpu = cur;
+        }
         print_process_header();
         print_processes();
         println!("{}", "=".repeat(80));
