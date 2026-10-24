@@ -100,3 +100,66 @@
 计划:docs/superpowers/plans/2026-10-07-p0-remediation.md(48 任务,Phase A-F)。
 
 - Task 0: complete (spec + plan 编写,2026-10-07;审查报告、spec、plan 三份文档就绪,修复未开始)
+- Task 1: complete (fix(tar) 915b04e — 解包拒绝绝对路径/盘符/../.. 组件条目,恶意条目 stderr 报错跳过、退出码 2;回归测试 2 个含恶意归档 fixture)
+- Task 2: complete (fix(unzip) 361cb6b — enclosed_name 防 zip slip,不安全条目警告跳过、退出码 2)
+- Task 3: complete (fix(zip) 608b005 — PowerShell 单引号转义防注入,含空格/引号文件名可归档)
+- Task 4: complete (fix(sync) 4fa3cc1 — PATH 解析跳过自身防自递归,传播外部退出码,rundll32 回退)
+- Task 5: complete (fix(cat) fdaef0e — 字节管道重写:流式 8KB、\r 保留、Latin-1 重编码移除;-E 末行不补 $;18 个字节级测试)
+- Task 6: complete (fix(base64) ea32c8f — 解码 accumulator 重写,填充/余量正确,往返验证)
+- Task 7: complete (fix(touch) 4488b8d — SetFileTime 真实更新 atime/mtime,-a/-m 新增,目录/只读文件可更新)
+- Task 8: complete (fix(echo) bcbe9df — 默认不解释转义(GNU -E 默认),-e/-E 语义正确)
+- Task 9: complete (fix(printf) 830de12 — 格式串转义、缺参空串/0、非法数字退出 1)
+- Task 10: complete (fix(bc) 06b5b9b — 递归下降求值器重写,i128 整数、^ 右结合、quit/-l 处理;21 个测试)
+- Task 11: complete (fix(seq,cal) 3a93900+155cea7 — 参数校验替代 panic;cal 单参 ≥100 按年份、1-12 按月份)
+- Task 12: complete (fix(cp) f133616 — ./.. 源内容并入 dest;多源目标必须为已存在目录)
+- Task 13: complete (fix(tr) 15f98a7 — 缺 SET1/空 SET2 报错退出 1)
+- Task 14: complete (fix(join) 3d8c99e — 字段号 0 报错退出 1)
+- Task 15: complete (fix(nice) df21b9f — 去除 wmic,SetPriorityClass 五档映射,退出码透传)
+- Task 16: complete (fix(timeout) b6329c0 — try_wait 轮询,超时 124,-k 实现,小数时长,不再依赖 taskkill)
+- Task 17: complete (fix(top) fbed9b2 — saturating_sub 下溢,快照失败一次性警告)
+- Task 18: complete (fix(uptime,w) 2dc5230 — GetTickCount64;w 三处 expect 改降级 unavailable)
+- Task 19: complete (fix(date) 6718bb7 — -s 冲突解除;-d/-s 最小格式集(@epoch/ISO),SetLocalTime)
+- Task 20: complete (fix(patch) 8d2651a — --strip 实现GNU 语义;-0,0 新建补丁下溢修复)
+- Task 21: complete (fix(ps) 06f5573 — %MEM 分母 GlobalMemoryStatusEx;-F/-l 未注册列清理,README 同步)
+- Task 22: complete (fix(id,groups) 4afb65d — Token API 真实令牌组/RID;groups 其他用户报错退出 1)
+- Task 23: complete (fix(chown) a0d18fb — SetNamedSecurityInfoW,--group 正确设组,失败退出 1)
+- Task 24: complete (fix(tty) 4614430 — IsTerminal,CONIN$ 占位)
+- Task 25: complete (fix(vmstat) be9168f — 内存逐帧采样;-h 让位 help)
+- Task 26: complete (fix(nslookup) f15fd8b — DnsQuery_W 真实 MX/TXT/CNAME;SERVER 参数移除;类型大小写不敏感)
+- Task 27: complete (fix(paths) d3c2b03 — which/readlink 剥 verbatim;realpath strip 偏移;dirname / 输出 /;basename 尾组件语义)
+- Task 28: complete (fix(ls) c24536f — 长格式按索引引用条目,着色下列不丢失)
+- Task 29: complete (fix(stat) 95a9c92 — -c 指令 GNU 语义映射,本地时区,-f 真实块/空间行,未知指令退出 1)
+- Task 30: complete (fix(file) 6d4e79b — -b 生效;zlib/gzip 区分;遇错继续处理;ASCII/UTF-8 文本检测)
+- Task 31: complete (fix(grep) 1ecd6fa — 单文件 -c 输出计数)
+- Task 32: complete (fix(diff) 3b7e55d — 退出码 0/1/2;普通格式行号 GNU 锚点(命令不合并为 c 为声明差异))
+- Task 33: complete (fix(sort) ee358dd — -k/-t 实现;-u 排序后去重;-c -r 逆序检查;-h 1024 进制;附带修复 -h/help 冲突)
+- Task 34: complete (fix(uniq) f73c4be — 输出原始行,比较键与输出分离)
+- Task 35: complete (fix(nl) b12143a — UTF-8 行读取;-b t/n/a 语义,默认 t)
+- Task 36: complete (fix(tac) 1f22604 — 分隔符随记录,尾分隔符无空段,无尾换行正确)
+- Task 37: complete (fix(wc) cb26880 — -m 字符计数;-L 不含换行;文件失败退出 1)
+- Task 38: complete (fix(tail) f3c983b — stdin/`-` 支持;-n N -f 从 EOF follow;多文件 -f 轮询+GNU 头)
+- Task 39: complete (fix(tee) 1ac56f6 — 8KB 字节泵透明透传,移除 cfg(unix) libc 块)
+- Task 40: complete (fix(split) cfbb183 — GNU 后缀顺序 aa..az;耗尽报错;字节级行切分;-l 0 拒绝)
+- Task 41: complete (fix(csplit) d66158d — 匹配行保留;自造重复语法移除;/re/+N 报错;无匹配退出 1;--suffix-format 移除)
+- Task 42: complete (fix(column) b7d494e — 默认分隔符连续空白折叠)
+- Task 43: complete (fix(pr) 4958614 — chrono 本地日期页眉;-n[SEP][DIGITS] 语法;死循环删除;主控收尾编译)
+- Task 44: complete (fix(shuf) fab2fe8 — random-source 按文件内容播种,可复现)
+- Task 45: complete (fix(du) fe9c929 — -s 递归合计;失败退出 1)
+- Task 46: complete (chore 1ed15e7+后续 — 29 个 crate 根杂物删除,.codegraph 入 .gitignore)
+- Task 47: complete (docs b435acd — compatibility 双语 8 处长选项漏列补齐,CHANGELOG 完整记录)
+- Task 48: complete (build.ps1 -Task Verify 全量通过:fmt/check/clippy/测试/release 编译/冒烟/行为/脚本测试;release.ps1 本地打包冒烟;一次 fmt 回归修复后重跑通过)
+
+## Round 11 总结
+
+- 48/48 任务完成;50 项 P0 全部处置(修复+回归测试为主;个别假声明选项移除并同步文档)。
+- 提交结构:4 个基线 docs/build 提交 + 46 个修复提交(fix(chore/docs/style 分类)+ 1 个横切 cli 修复(df/du/free/pr/whoami/test 的 debug 构建 panic)。
+- 行为测试覆盖:本轮新增约 30 个 crate 的 tests/ 目录,行为验证状态从 10 个命令扩展到 40+。
+- 遗留 P1 清单见上方"附加发现与遗留"。
+
+## 附加发现与遗留(非本轮范围)
+
+- 横切修复 fb2c3e1:df/du/free/pr/whoami 的 -h 与 clap 自动 help 短名冲突(debug 构建启动即 panic)、test 的参数名冲突——超出原 50 项清单的同类缺陷,一并修复。
+- csplit 降序行号(如 `csplit f -- 3 2`)写盘 panic——P1 遗留,待后续轮。
+- iostat/mpstat/sar 的全零假数据列、time 的 user/sys=0、ps 的 pcpu/stat 假值、w/who 的 systeminfo/OEM 解析——P1"真实数据源"轮。
+- pkill/pgrep 依赖 tasklist/wmic(taskkill 假成功、wmic 已移除)——P1,建议复用 ps-sys。
+- 非 UTF-8 静默截断(grep/cut/sort)、trim_end 剥行尾空白——P1"字节安全行读取层"。
