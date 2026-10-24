@@ -176,3 +176,4 @@
 - B1: complete (fix 431e9ad — time 经 GetProcessTimes 输出真实 user/sys(GNU 0m0.003s 格式,not-found 退出 127);top 头部真实 CPU% 与 up 时长、删 load average 假行;uptime 默认输出 procps 格式)
 - B2: complete (fix e434e6c — vmstat r 列归 0 声明差异、id 用 GetSystemTimes 真实 idle、死 extern 删除;free 补 -t/-s/-c/-w 与 available 列、-h Gi 后缀;df GetVolumeInformationW 真实类型 + -T、失败退出 1、Use% 向上取整、盘符根规范化)
 - C1: complete (fix 5ab7de5 — w/who 用 WTSEnumerateSessionsW/WTSQuerySessionInformationW 枚举真实会话;-b/启动时间经 GetTickCount64 换算本地时间;systeminfo/query 外壳删除,降级路径保留)
+- C2: complete (fix 76cf802 — %CPU 改存活期均值(procps 语义,start+GetProcessTimes);stat 真实化(Sleeping,声明差异);-C 精确匹配(.exe/大小写无关);token.rs 两处句柄泄漏修复;--headers-repeat 死选项移除;stime/排序键 P2 留待)
