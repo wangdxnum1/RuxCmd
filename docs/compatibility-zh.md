@@ -28,7 +28,7 @@
 | df | --human-readable, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | diff | --unified, --ignore-case, --ignore-whitespace, --ignore-blank-lines, --version | 冒烟 + 行为测试 | 退出码遵循 GNU（0/1/2）。普通格式输出未合并的 d/a 命令，行号锚点与 GNU 一致；c 合并与区间折叠未实现。 |
 | dirname | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| du | --human-readable, --summarize, --total, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| du | --human-readable, --summarize, --total, --version | 冒烟 + 行为测试 | -s 与默认模式都递归求 apparent-size 合计、每个参数输出一行（逐子目录列出仍未实现）；不可读路径报错并退出 1。 |
 | echo | --version | 冒烟 + 行为测试 | 默认不解释转义（GNU 默认 -E）；-e 开启，-E 强制关闭；两者同给时 -E 生效。 |
 | env | --ignore-environment, --unset, --verbose, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | expand | --initial, --tabs, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
@@ -83,7 +83,7 @@
 | seq | --equal-width, --format, --separator, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | sha256sum | --check, --quiet, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | shred | --force, --iterations, --remove, --verbose, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| shuf | --head-count, --input-range, --output, --random-source, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| shuf | --head-count, --input-range, --output, --random-source, --version | 冒烟 + 行为测试 | --random-source 以文件前 64 KiB 内容（FNV）播种：相同内容复现相同洗牌；源文件不可读时报错退出 1。 |
 | sleep | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | sort | --check, --field-separator, --human-numeric-sort, --ignore-case, --key, --numeric-sort, --reverse, --unique | 冒烟 + 行为测试 | 已实现 -k F1[,F2] 与 -t SEP（单字符）；无 -t 时前导空白归入后一字段；-u 排序后按键去重；-c -r 检查逆序；-n 取前导数字（无则为 0）；-h 为 1024 进制全后缀。不支持字符偏移与按键修饰符（-k2.3/-k2n）。help 仅 --help。 |
 | split | --bytes, --lines, --number, --numeric-suffixes, --output, --suffix-length | 冒烟 + 行为测试 | 字母后缀遵循 GNU 顺序（aa..az、ba..）；后缀耗尽报错退出 1；-l 0 被拒绝；行模式字节透明。 |

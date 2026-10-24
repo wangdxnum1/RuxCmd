@@ -29,7 +29,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | df | --human-readable, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | diff | --unified, --ignore-case, --ignore-whitespace, --ignore-blank-lines, --version | Smoke + behavior tests | Exit codes follow GNU (0/1/2). Normal format emits unmerged d/a commands with GNU-correct line anchors; c-merging and range folding are not implemented. |
 | dirname | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| du | --human-readable, --summarize, --total, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| du | --human-readable, --summarize, --total, --version | Smoke + behavior tests | Both -s and the default mode recurse and print one apparent-size total per argument (per-subdirectory listing is unimplemented); unreadable paths report errors and exit 1. |
 | echo | --version | Smoke + behavior tests | Escapes are off by default (GNU -E default); -e enables them, -E forces off. When both are given, -E wins. |
 | env | --ignore-environment, --unset, --verbose, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | expand | --initial, --tabs, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
@@ -84,7 +84,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | seq | --equal-width, --format, --separator, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | sha256sum | --check, --quiet, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | shred | --force, --iterations, --remove, --verbose, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| shuf | --head-count, --input-range, --output, --random-source, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| shuf | --head-count, --input-range, --output, --random-source, --version | Smoke + behavior tests | --random-source seeds from the file's first 64 KiB (FNV): same content reproduces the same shuffle; an unreadable source errors with exit 1. |
 | sleep | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | sort | --check, --field-separator, --human-numeric-sort, --ignore-case, --key, --numeric-sort, --reverse, --unique | Smoke + behavior tests | -k F1[,F2] and -t SEP (single char) are implemented; without -t leading whitespace joins the following field; -u dedupes after sorting by key; -c -r checks reverse order; -n takes a leading number (0 if none); -h is 1024-based with all suffixes. Character offsets and per-key modifiers (-k2.3/-k2n) are unsupported. Help is --help only. |
 | split | --bytes, --lines, --number, --numeric-suffixes, --output, --suffix-length | Smoke + behavior tests | Letter suffixes follow GNU order (aa..az, ba..); exhausted suffixes error with exit 1; -l 0 is rejected; line mode is byte-transparent. |
