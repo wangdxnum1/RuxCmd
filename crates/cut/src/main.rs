@@ -1,6 +1,7 @@
 mod cli;
 
 use clap::Parser;
+use ruxcmd_core::lines::ByteLines;
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
 
@@ -50,32 +51,21 @@ fn main() {
 /// `-b` and the no-selection passthrough echo the original bytes. A read error
 /// is reported on stderr instead of silently truncating the rest of the input.
 fn process_lines<R: BufRead>(
-    mut reader: R,
+    reader: R,
     name: &str,
     args: &cli::Args,
     delimiter: char,
     output_delimiter: &str,
     out: &mut dyn Write,
 ) {
-    let mut raw: Vec<u8> = Vec::new();
-    loop {
-        raw.clear();
-        match reader.read_until(b'\n', &mut raw) {
-            Ok(0) => break,
-            Ok(_) => {}
+    for entry in ByteLines::new(reader) {
+        let raw = match entry {
+            Ok(raw) => raw,
             Err(e) => {
                 eprintln!("cut: {}: read error: {}", name, e);
                 break;
             }
-        }
-
-        let ends_with_newline = raw.last() == Some(&b'\n');
-        if ends_with_newline {
-            raw.pop();
-            if raw.last() == Some(&b'\r') {
-                raw.pop();
-            }
-        }
+        };
 
         let line = String::from_utf8_lossy(&raw);
 

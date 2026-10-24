@@ -9,3 +9,4 @@ authors = ["Tim"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+ruxcmd-core = { path = "../ruxcmd-core" }

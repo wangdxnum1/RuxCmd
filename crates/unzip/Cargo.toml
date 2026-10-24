@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+ruxcmd-core = { path = "../ruxcmd-core" }
 zip = "0.6"
 
 [dev-dependencies]

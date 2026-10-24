@@ -1,6 +1,7 @@
 mod cli;
 
 use clap::Parser;
+use ruxcmd_core::lines::ByteLines;
 use std::cmp::Ordering;
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
@@ -102,25 +103,17 @@ impl Line {
 /// that is part of a `\r\n` — is removed; other trailing whitespace is part
 /// of the line. Returns false when a read error interrupted the input
 /// (previously `read_line(...).unwrap_or(0)` silently ended the input there).
-fn read_lines<R: BufRead>(mut reader: R, lines: &mut Vec<Line>) -> bool {
-    loop {
-        let mut raw: Vec<u8> = Vec::new();
-        match reader.read_until(b'\n', &mut raw) {
-            Ok(0) => return true,
-            Ok(_) => {}
+fn read_lines<R: BufRead>(reader: R, lines: &mut Vec<Line>) -> bool {
+    for line in ByteLines::new(reader) {
+        match line {
+            Ok(raw) => lines.push(Line::new(raw)),
             Err(e) => {
                 eprintln!("sort: read error: {}", e);
                 return false;
             }
         }
-        if raw.last() == Some(&b'\n') {
-            raw.pop();
-            if raw.last() == Some(&b'\r') {
-                raw.pop();
-            }
-        }
-        lines.push(Line::new(raw));
     }
+    true
 }
 
 /// `-t` accepts exactly one character; anything else is a usage error (exit 1).

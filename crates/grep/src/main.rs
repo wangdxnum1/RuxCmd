@@ -2,6 +2,7 @@ mod cli;
 
 use clap::Parser;
 use regex::Regex;
+use ruxcmd_core::lines::ByteLines;
 use std::collections::VecDeque;
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
@@ -223,7 +224,7 @@ fn grep_file(
 /// original bytes. A read error is reported on stderr instead of silently
 /// truncating the rest of the input.
 fn grep_reader<R: BufRead>(
-    mut reader: R,
+    reader: R,
     name: &str,
     matcher: &Matcher,
     args: &cli::Args,
@@ -240,29 +241,19 @@ fn grep_reader<R: BufRead>(
 
     let mut count = 0u64;
     let mut line_num = 0u64;
-    let mut raw: Vec<u8> = Vec::new();
     let mut pending: VecDeque<(u64, Vec<u8>)> = VecDeque::new();
     let mut after_remaining = 0usize;
     let mut last_printed: Option<u64> = None;
 
-    loop {
-        raw.clear();
-        match reader.read_until(b'\n', &mut raw) {
-            Ok(0) => break,
-            Ok(_) => {}
+    for line in ByteLines::new(reader) {
+        let raw = match line {
+            Ok(raw) => raw,
             Err(e) => {
                 eprintln!("grep: {}: read error: {}", name, e);
                 break;
             }
-        }
+        };
         line_num += 1;
-        let ends_with_newline = raw.last() == Some(&b'\n');
-        if ends_with_newline {
-            raw.pop();
-            if raw.last() == Some(&b'\r') {
-                raw.pop();
-            }
-        }
 
         let hay = String::from_utf8_lossy(&raw);
         let selected = matcher.is_match(&hay) != args.invert_match;
@@ -336,7 +327,7 @@ fn grep_reader<R: BufRead>(
                 last_printed = Some(line_num);
             }
         } else if before > 0 {
-            pending.push_back((line_num, raw.clone()));
+            pending.push_back((line_num, raw));
             if pending.len() > before {
                 pending.pop_front();
             }
@@ -348,30 +339,20 @@ fn grep_reader<R: BufRead>(
 
 /// -l: report the file name at the first match and stop reading.
 fn grep_files_with_matches<R: BufRead>(
-    mut reader: R,
+    reader: R,
     name: &str,
     matcher: &Matcher,
     args: &cli::Args,
     out: &mut dyn Write,
 ) -> u64 {
-    let mut raw: Vec<u8> = Vec::new();
-    loop {
-        raw.clear();
-        match reader.read_until(b'\n', &mut raw) {
-            Ok(0) => break,
-            Ok(_) => {}
+    for line in ByteLines::new(reader) {
+        let raw = match line {
+            Ok(raw) => raw,
             Err(e) => {
                 eprintln!("grep: {}: read error: {}", name, e);
                 break;
             }
-        }
-        let ends_with_newline = raw.last() == Some(&b'\n');
-        if ends_with_newline {
-            raw.pop();
-            if raw.last() == Some(&b'\r') {
-                raw.pop();
-            }
-        }
+        };
         let hay = String::from_utf8_lossy(&raw);
         if matcher.is_match(&hay) {
             if !args.quiet {

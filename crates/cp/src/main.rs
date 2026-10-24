@@ -84,7 +84,7 @@ fn copy_file(source: &Path, dest: &Path, args: &cli::Args) -> Result<(), String>
         if dest_path.exists() {
             // -f must be able to overwrite a Windows read-only destination
             // (fs::copy would fail with "Access is denied").
-            clear_readonly_attribute(&dest_path);
+            let _ = ruxcmd_core::fsutil::clear_readonly(&dest_path);
         }
 
         if args.symbolic_link {
@@ -183,7 +183,7 @@ fn copy_directory(source: &Path, dest: &Path, args: &cli::Args) -> Result<(), St
             if dest_entry_path.exists() {
                 // Overwrite may proceed (-f or interactive yes): clear the
                 // read-only bit first so fs::copy can replace the file.
-                clear_readonly_attribute(&dest_entry_path);
+                let _ = ruxcmd_core::fsutil::clear_readonly(&dest_entry_path);
             }
 
             fs::copy(&entry_path, &dest_entry_path).map_err(|e| {
@@ -235,31 +235,6 @@ fn prompt_yes_no(prompt: &str) -> bool {
     let input = input.trim().to_lowercase();
     input == "y" || input == "yes"
 }
-
-/// Clear FILE_ATTRIBUTE_READONLY on `path` so an overwrite can replace it.
-/// Attributes other than the read-only bit are preserved.
-#[cfg(windows)]
-fn clear_readonly_attribute(path: &Path) {
-    use std::os::windows::ffi::OsStrExt;
-    use windows_sys::Win32::Storage::FileSystem::{
-        FILE_ATTRIBUTE_READONLY, GetFileAttributesW, INVALID_FILE_ATTRIBUTES, SetFileAttributesW,
-    };
-
-    let wide: Vec<u16> = path
-        .as_os_str()
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect();
-    unsafe {
-        let attrs = GetFileAttributesW(wide.as_ptr());
-        if attrs != INVALID_FILE_ATTRIBUTES && attrs & FILE_ATTRIBUTE_READONLY != 0 {
-            SetFileAttributesW(wide.as_ptr(), attrs & !FILE_ATTRIBUTE_READONLY);
-        }
-    }
-}
-
-#[cfg(not(windows))]
-fn clear_readonly_attribute(_path: &Path) {}
 
 #[cfg(test)]
 mod tests {

@@ -88,3 +88,22 @@ fn force_does_not_suppress_preserve_root_refusal() {
         .code(1)
         .stderr(predicates::str::contains("refusing to remove"));
 }
+
+#[test]
+fn removes_readonly_file() {
+    // GNU rm deletes read-only files; on Windows the delete must not
+    // fail with EPERM just because FILE_ATTRIBUTE_READONLY is set.
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("readonly.txt");
+    fs::write(&target, "data").unwrap();
+    let mut perms = fs::metadata(&target).unwrap().permissions();
+    perms.set_readonly(true);
+    fs::set_permissions(&target, perms).unwrap();
+    assert!(
+        fs::metadata(&target).unwrap().permissions().readonly(),
+        "precondition: the file must actually be read-only"
+    );
+
+    cargo_bin_cmd!("rm").arg(&target).assert().success();
+    assert!(!target.exists());
+}

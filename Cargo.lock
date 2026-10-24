@@ -423,8 +423,8 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-core",
  "tempfile",
- "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -484,6 +484,7 @@ name = "cut"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-core",
 ]
 
 [[package]]
@@ -846,6 +847,7 @@ dependencies = [
  "clap",
  "predicates",
  "regex",
+ "ruxcmd-core",
  "tempfile",
 ]
 
@@ -2347,6 +2349,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-core",
  "tempfile",
 ]
 
@@ -2873,6 +2876,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-core",
  "tempfile",
  "zip 0.6.6",
 ]

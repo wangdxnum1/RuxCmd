@@ -4,7 +4,7 @@ use clap::Parser;
 use cli::Cli;
 use std::fs::{self, File};
 use std::io::{self, Write};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use zip::result::ZipError;
 use zip::ZipArchive;
 
@@ -96,7 +96,7 @@ fn extract_archive(cli: &Cli) -> Result<bool, ZipError> {
                 // An overwrite must not fail on the Windows read-only
                 // attribute; clear it first (cp-style) so File::create
                 // can replace the content.
-                clear_readonly_attribute(&file_path);
+                let _ = ruxcmd_core::fsutil::clear_readonly(&file_path);
             }
 
             // Stream the entry to disk instead of buffering the whole
@@ -110,23 +110,6 @@ fn extract_archive(cli: &Cli) -> Result<bool, ZipError> {
 
     Ok(skipped_unsafe)
 }
-
-/// Clear FILE_ATTRIBUTE_READONLY on `path` so an overwrite can replace it.
-/// Uses the std permissions API, so no extra Windows dependency is needed.
-#[cfg(windows)]
-#[allow(clippy::permissions_set_readonly_false)] // the intended action here
-fn clear_readonly_attribute(path: &Path) {
-    if let Ok(metadata) = fs::metadata(path) {
-        let mut permissions = metadata.permissions();
-        if permissions.readonly() {
-            permissions.set_readonly(false);
-            let _ = fs::set_permissions(path, permissions);
-        }
-    }
-}
-
-#[cfg(not(windows))]
-fn clear_readonly_attribute(_path: &Path) {}
 
 fn main() {
     let cli = Cli::parse();
