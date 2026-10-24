@@ -19,7 +19,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | chown | --user, --group, --recursive, --verbose, --version | Smoke + behavior tests | --user sets the owner and --group the group (GROUP_SECURITY_INFORMATION), both may be given; any file failure exits 1. Changing the owner to another account usually requires privileges. Unix UID/GID semantics are not equivalent. |
 | clear | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | cmp | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| column | --output-separator, --separator, --table, --table-header-repeat, --table-right, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| column | --output-separator, --separator, --table, --table-header-repeat, --table-right, --version | Smoke + behavior tests | In -t mode without -s, runs of whitespace collapse into a single separator; an explicit -s splits per character without collapsing. The default fill mode is unimplemented. |
 | comm | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | cp | --force, --interactive, --preserve, --recursive, --symbolic-link, --verbose | Smoke + behavior tests | Sources ending in `.`/`..` merge their contents into an existing destination directory (error if it does not exist); with multiple sources the destination must be an existing directory. Full GNU behavior unverified. |
 | csplit | --digits, --elide-empty-files, --keep-files, --prefix, --quiet | Smoke + behavior tests | Patterns are substrings or line numbers only; /re/+N, {N}, and other GNU syntax error with exit 1; a non-matching pattern exits 1 (files removed without -k). --suffix-format was removed. |
@@ -70,7 +70,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | pgrep | --full, --list-name, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | ping | --count, --size, --timeout, --version | Smoke only; behavior unverified | Network behavior and permission requirements are unverified. |
 | pkill | --full, --signal, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
-| pr | --double-space, --form-feed, --header, --indent, --length, --number-lines | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| pr | --double-space, --form-feed, --header, --indent, --length, --number-lines | Smoke + behavior tests | Page headers show the real local date/time; -n follows GNU -n[SEP][DIGITS] (bare -n = TAB + width 5, invalid specs exit 1); help is --help only (-h is the header). |
 | printf | --version | Smoke + behavior tests | Implements format-string backslash escapes (\n \r \t \ \" \0NNN \xHH), empty string/0 for missing arguments, and exit code 1 for invalid numeric arguments. Width/precision/flags and format reuse are not implemented. |
 | ps | --ascii, --comm, --everyone, --extra-full, --forest, --format | Smoke + behavior tests | Native Windows process information; unreadable fields may show ?. %MEM uses the real total physical memory (GlobalMemoryStatusEx); requesting an unregistered column warns on stderr and skips it. |
 | pwd | --logical, --physical, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |

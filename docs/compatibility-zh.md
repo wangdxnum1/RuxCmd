@@ -18,7 +18,7 @@
 | chown | --user, --group, --recursive, --verbose, --version | 冒烟 + 行为测试 | --user 设 owner、--group 设组（GROUP_SECURITY_INFORMATION），可同时给；任一文件失败退出 1。改 owner 为他人通常需要特权。Unix UID/GID 语义不等价。 |
 | clear | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | cmp | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| column | --output-separator, --separator, --table, --table-header-repeat, --table-right, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| column | --output-separator, --separator, --table, --table-header-repeat, --table-right, --version | 冒烟 + 行为测试 | -t 模式未给 -s 时连续空白折叠为单一分隔符；显式 -s 按字符切分不折叠。默认 fill 模式未实现。 |
 | comm | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | cp | --force, --interactive, --preserve, --recursive, --symbolic-link, --verbose | 冒烟 + 行为测试 | 以 `.`/`..` 结尾的源将内容并入已存在的目标目录（目标不存在时报错）；多源时目标必须是已存在目录。完整 GNU 行为未验证。 |
 | csplit | --digits, --elide-empty-files, --keep-files, --prefix, --quiet | 冒烟 + 行为测试 | 模式仅支持子串与行号；/re/+N、{N} 等 GNU 语法报错退出 1；模式不匹配退出 1（无 -k 时删除输出文件）。--suffix-format 已移除。 |
@@ -69,7 +69,7 @@
 | pgrep | --full, --list-name, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | ping | --count, --size, --timeout, --version | 仅冒烟；业务待验证 | 网络行为及权限要求尚未验证。 |
 | pkill | --full, --signal, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| pr | --double-space, --form-feed, --header, --indent, --length, --number-lines | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| pr | --double-space, --form-feed, --header, --indent, --length, --number-lines | 冒烟 + 行为测试 | 页眉显示真实本地日期时间；-n 遵循 GNU -n[SEP][DIGITS]（裸 -n 为 TAB + 宽 5，非法规格退出 1）；help 仅 --help（-h 是页眉）。 |
 | printf | --version | 冒烟 + 行为测试 | 实现格式串反斜杠转义（\n \r \t \ \" \0NNN \xHH）、缺参输出空串/0、非法数字参数退出 1。宽度/精度/标志与格式复用未实现。 |
 | ps | --ascii, --comm, --everyone, --extra-full, --forest, --format | 冒烟 + 行为测试 | 原生 Windows 进程信息；不可读取字段可能显示 ?。%MEM 使用真实总物理内存（GlobalMemoryStatusEx）；请求未注册列时 stderr 警告并跳过该列。 |
 | pwd | --logical, --physical, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
