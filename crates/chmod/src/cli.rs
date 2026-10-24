@@ -13,8 +13,9 @@ pub struct Args {
     #[arg(short = 'v', long = "verbose")]
     pub verbose: bool,
 
-    /// The permission mode (e.g., 755, 644)
-    #[arg(value_name = "MODE")]
+    /// The permission mode: octal (e.g., 755, 644) or symbolic clauses like
+    /// u+x, go-w, a=r, +x (comma-separated)
+    #[arg(value_name = "MODE", allow_hyphen_values = true)]
     pub mode: String,
 
     /// The file(s) to change permissions for

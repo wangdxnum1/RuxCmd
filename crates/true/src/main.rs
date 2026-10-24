@@ -12,5 +12,8 @@ fn main() {
         return;
     }
 
+    // POSIX: true ignores all operands and unknown options.
+    let _ = cli.ignored;
+
     process::exit(0);
 }

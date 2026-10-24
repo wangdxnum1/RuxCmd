@@ -18,9 +18,3 @@ pub struct Cli {
     #[arg(short = 'v', long = "version", help = "Print version information", action = clap::ArgAction::Version)]
     pub version: (),
 }
-
-impl Cli {
-    pub fn has_no_flags(&self) -> bool {
-        !self.ip_address && !self.fqdn
-    }
-}

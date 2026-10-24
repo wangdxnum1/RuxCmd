@@ -4,9 +4,9 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(name = "yes", version, about, disable_version_flag = true)]
 pub struct Args {
-    /// The string to repeat (default: "y")
+    /// The strings to repeat, joined by spaces (default: "y")
     #[arg(value_name = "STRING")]
-    pub string: Option<String>,
+    pub strings: Vec<String>,
 
     /// Show version information
     #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]

@@ -47,9 +47,42 @@ fn logical_path() -> Result<PathBuf, std::io::Error> {
     Ok(cwd)
 }
 
-/// Format a path for display: normalize separators and strip Windows extended prefix.
+/// Format a path for display: normalize separators and strip Windows extended
+/// prefixes, including the verbatim UNC form (`\\?\UNC\server\share` prints
+/// as `//server/share`).
 fn format_path(path: &Path) -> String {
     let s = path.to_string_lossy();
-    let s = s.strip_prefix(r"\\?\").unwrap_or(&s);
+    let s = if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+        format!("//{}", rest)
+    } else {
+        s.strip_prefix(r"\\?\").unwrap_or(&s).to_string()
+    };
     s.replace('\\', "/")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn strips_unc_verbatim_prefix() {
+        assert_eq!(
+            format_path(Path::new(r"\\?\UNC\server\share\dir")),
+            "//server/share/dir"
+        );
+        assert_eq!(
+            format_path(Path::new(r"\\?\UNC\server\share")),
+            "//server/share"
+        );
+    }
+
+    #[test]
+    fn strips_drive_verbatim_prefix() {
+        assert_eq!(format_path(Path::new(r"\\?\C:\Users\tim")), "C:/Users/tim");
+    }
+
+    #[test]
+    fn leaves_plain_paths_intact() {
+        assert_eq!(format_path(Path::new(r"C:\Users\tim")), "C:/Users/tim");
+    }
 }

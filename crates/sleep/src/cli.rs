@@ -11,15 +11,23 @@ fn parse_duration(input: &str) -> Result<std::time::Duration, String> {
         .map(|idx| input.split_at(idx))
         .unwrap_or((&input, "s"));
 
-    let num: u64 = num_str.parse().map_err(|_| "Invalid number")?;
-    let unit_seconds = match unit_str {
-        "s" => 1,
-        "m" => 60,
-        "h" => 3600,
+    let num: f64 = num_str.parse().map_err(|_| "Invalid number".to_string())?;
+    let unit_ms = match unit_str {
+        "s" => 1_000.0,
+        "m" => 60_000.0,
+        "h" => 3_600_000.0,
         _ => return Err("Invalid time unit".to_string()),
     };
 
-    Ok(std::time::Duration::from_secs(num * unit_seconds))
+    let ms = num * unit_ms;
+    if !ms.is_finite() || ms < 0.0 {
+        return Err("Invalid time interval".to_string());
+    }
+    if ms >= u64::MAX as f64 {
+        return Err("Time interval overflow".to_string());
+    }
+
+    Ok(std::time::Duration::from_millis(ms as u64))
 }
 
 impl Cli {
@@ -32,7 +40,9 @@ impl Cli {
             .arg(
                 Arg::new("duration")
                     .required(true)
-                    .help("Time to sleep (supports s/m/h suffix, e.g., 5s, 1m, 2h)")
+                    .help(
+                        "Time to sleep (supports fractional s/m/h suffix, e.g., 0.5s, 5s, 1m, 2h)",
+                    )
                     .value_parser(parse_duration),
             )
             .arg(
