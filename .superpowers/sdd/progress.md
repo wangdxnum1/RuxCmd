@@ -197,3 +197,12 @@
 - 途中修复的验证问题:rustfmt 回归(2 次)、ps-bin/df 测试 API 与 crate 惯例不一致、timeout 测试踩 PATH 前置陷阱(系统 ping 被我们的 ping.exe 遮蔽)、uptime 旧测试断言已被 B1 输出格式取代、pkill 测试与 pgrep 的大小写语义声明对齐、xargs 空输入"运行一次"补实现。
 - 决策记录:xargs -p 从 CONIN$ 读确认;numfmt 按代理核实的 GNU 语义修正测试预期(1K=1000/1Ki=1024,-d 保留分隔符);ping -t 改 Windows 持续语义;od 无 ASCII 列对齐 GNU 实测。
 - 遗留 P2(见审查报告):GNU 细分退出码(125/126/127 分类)、sed 完整正则、awk 数组/内建函数、per-key 排序修饰符、hostname 原生 API 等。
+
+---
+
+# Round 13 Progress Ledger(发布 + 基础设施 + 流式化)
+
+依据:2026-10-25 迭代方向决策(v0.2.0 发布 → 基础设施收敛 → 性能流式化)。
+
+- 阶段1: v0.2.0 版本提交(f71e9b8,CHANGELOG 版本节 + README Release 入口);首次 -Publish 因与 ruxcmd-core 创建并发导致 Tests 混合状态失败,干净树重跑
+- 阶段2: ruxcmd-core 共享 crate 建立(a650730,lines/paths/cpu/fsutil 四模块 13 单测);paths 迁移(which/readlink/realpath 替换;dirname 保留本地实现——缺 UNC 映射语义差异已记录;basename 无对应函数);cpu 迁移(iostat/mpstat/sar/top/vmstat 五 crate 净删 412 行,统一由 core 覆盖采样测试)
