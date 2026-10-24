@@ -2,27 +2,13 @@ mod cli;
 
 use clap::Parser;
 use std::fs::OpenOptions;
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{self, Read, Write};
 
 fn main() {
     let args = cli::Args::parse();
 
-    let append = args.append;
-    let ignore_interrupts = args.ignore_interrupts;
-
-    if ignore_interrupts {
-        #[cfg(unix)]
-        {
-            use std::os::unix::process::Signal;
-            use std::process;
-            unsafe {
-                libc::signal(libc::SIGINT, libc::SIG_IGN);
-            }
-        }
-    }
-
-    let stdin = io::stdin();
-    let reader = BufReader::new(stdin);
+    // `-i` is accepted for script compatibility; there is no signal-ignore
+    // mechanic wired up on Windows, so it is a documented no-op (see help).
 
     let mut files: Vec<std::fs::File> = Vec::new();
 
@@ -30,8 +16,8 @@ fn main() {
         match OpenOptions::new()
             .write(true)
             .create(true)
-            .append(append)
-            .truncate(!append)
+            .append(args.append)
+            .truncate(!args.append)
             .open(path)
         {
             Ok(file) => files.push(file),
@@ -42,19 +28,24 @@ fn main() {
         }
     }
 
+    // Byte-transparent pump (P0 #24): GNU tee never decodes or splits
+    // lines, so CRLF, NUL bytes, invalid UTF-8, and a missing final
+    // newline all pass through unchanged.
+    let mut stdin = io::stdin().lock();
     let mut stdout = io::stdout();
+    let mut buf = [0u8; 8192];
     let mut exit_code = 0;
 
-    for line in reader.lines() {
-        match line {
-            Ok(l) => {
-                writeln!(stdout, "{}", l).unwrap_or_else(|e| {
+    loop {
+        match stdin.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => {
+                if let Err(e) = stdout.write_all(&buf[..n]) {
                     eprintln!("tee: error writing to stdout: {}", e);
                     exit_code = 1;
-                });
-
+                }
                 for file in &mut files {
-                    if let Err(e) = writeln!(file, "{}", l) {
+                    if let Err(e) = file.write_all(&buf[..n]) {
                         eprintln!("tee: error writing to file: {}", e);
                         exit_code = 1;
                     }
@@ -68,6 +59,10 @@ fn main() {
         }
     }
 
+    if let Err(e) = stdout.flush() {
+        eprintln!("tee: error flushing stdout: {}", e);
+        exit_code = 1;
+    }
     for file in &mut files {
         if let Err(e) = file.flush() {
             eprintln!("tee: error flushing file: {}", e);

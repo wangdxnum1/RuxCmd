@@ -9,7 +9,7 @@ pub struct Args {
     #[arg(short = 'a', long = "append")]
     pub append: bool,
 
-    /// Ignore interrupt signals
+    /// Ignore interrupt signals (no effect on Windows)
     #[arg(short = 'i', long = "ignore-interrupts")]
     pub ignore_interrupts: bool,
 
