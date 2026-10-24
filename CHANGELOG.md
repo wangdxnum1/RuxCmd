@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- 新增 ruxcmd-core 共享 crate(字节安全读行/路径净化/CPU 采样/只读清除),which/readlink/realpath、iostat/mpstat/sar/top/vmstat、grep/cut/sort、cp/unzip 的重复实现收敛(净删约 500 行);dirname/basename/head/tail/sed/fold 因语义差异保留本地实现(已记录)。
+- 流式化:curl/wget 下载与 base64 编解码改为流式(300MB 下载内存峰值 342MB→11.5MB);nl/od/hexdump/strings/iconv 逐行/分块处理(1550 次随机差分验证与旧实现输出一致)。
+
 ## 0.2.0 — 缺陷修复与行为验证轮（2026-10-25）
 
 - 完成第 12 轮 P1 缺陷修复(批次 A1-I1,约 45 个命令):进程工具原生化(pkill/pgrep/kill 弃用 tasklist/wmic/taskkill,复用 ps-sys;w/who 改 WTSEnumerateSessions);真实数据源(iostat/mpstat/sar/time/top/vmstat 的 GetSystemTimes、ps 的存活期 %CPU);文本工具字节安全化(grep/cut/sort/head/tail/sed/fold 的非 UTF-8 透传);sed 地址与 p/d/q 命令;awk 条件求值重写;网络工具语义修正(curl body-only/-d POST/-L/-f、wget 退出码 8、ping -t 持续语义);netstat -o PID、xargs -0 与分批、find GNU maxdepth 与单横线选项;chmod 符号模式、test POSIX 子集、env 命令执行;md5sum/sha256sum --tag/--status、od 全规格、iconv 严格 -f、numfmt 分隔符;tar -C/-O/--exclude、patch 多文件按计数解析等。

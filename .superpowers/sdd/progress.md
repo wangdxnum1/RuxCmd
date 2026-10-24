@@ -206,3 +206,7 @@
 
 - 阶段1: v0.2.0 版本提交(f71e9b8,CHANGELOG 版本节 + README Release 入口);首次 -Publish 因与 ruxcmd-core 创建并发导致 Tests 混合状态失败,干净树重跑
 - 阶段2: ruxcmd-core 共享 crate 建立(a650730,lines/paths/cpu/fsutil 四模块 13 单测);paths 迁移(which/readlink/realpath 替换;dirname 保留本地实现——缺 UNC 映射语义差异已记录;basename 无对应函数);cpu 迁移(iostat/mpstat/sar/top/vmstat 五 crate 净删 412 行,统一由 core 覆盖采样测试)
+- 阶段2续: lines 迁移(grep/cut/sort 替换;head/tail/sed/fold 语义不等价保留——head 需终止符原样回写、tail 字节偏移、sed/fold 只剥 
+ 保 );fsutil 迁移(cp/unzip 替换;rm 经查证 std 1.99 remove_file 已带 POSIX 删除语义无需接入,新增只读删除回归测试)
+- 阶段3: 流式化完成(curl/wget 300MB 下载峰值 342→11.5MB;base64 304→4.6MB,发现并修复跨块 carry bug;nl/od/hexdump/strings(含 UTF-16/32 全编码)/iconv 流式,随机差分 1550 次新旧一致;nl 非 UTF-8 从报错改 lossy 透传为唯一行为变化)
+- 发布事故记录: 第一次 -Publish 因与 ruxcmd-core 开发并发致 Tests 混合状态失败;第二次在 dirty 树上跑到打包被拒但已推送 tag v0.2.0(指向 4b995a7,该提交含 core 迁移,Verify 全绿,作为 0.2.0 锚点成立);第三次对齐 HEAD==tag 后发布成功。教训:发布运行期间禁止改动工作区。
