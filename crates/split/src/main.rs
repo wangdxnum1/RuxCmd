@@ -5,6 +5,8 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 
+const SUFFIXES_EXHAUSTED: &str = "output file suffixes exhausted";
+
 fn main() {
     let args = cli::Args::parse();
 
@@ -27,6 +29,11 @@ fn main() {
 
     if args.lines.is_some() && args.number.is_some() {
         eprintln!("split: cannot specify both -l and -n");
+        std::process::exit(1);
+    }
+
+    if args.lines == Some(0) {
+        eprintln!("split: invalid number of lines: '0'");
         std::process::exit(1);
     }
 
@@ -89,25 +96,33 @@ fn parse_size(s: &str) -> Result<u64, String> {
         .map_err(|e| format!("invalid size: {}", e))
 }
 
-fn generate_suffix(index: usize, numeric: bool, length: usize) -> String {
-    if numeric {
-        format!("{:0width$}", index, width = length)
-    } else {
-        let mut suffix = String::new();
-        let mut n = index;
-        let base = 26;
+/// Generate the `index`-th suffix of the given width, GNU style.
+///
+/// Alphabetic suffixes count in base 26 (`aa`, `ab`, ..., `az`, `ba`, ...)
+/// left-padded with `a`; numeric suffixes are zero-padded decimal. Returns
+/// `None` once the index no longer fits the width (suffixes exhausted).
+fn generate_suffix(index: usize, numeric: bool, length: usize) -> Option<String> {
+    let (radix, pad) = if numeric { (10u64, b'0') } else { (26u64, b'a') };
 
-        loop {
-            suffix.push((b'a' + (n % base) as u8) as char);
-            n /= base;
-            if n == 0 {
-                break;
-            }
+    let mut digits: Vec<u8> = Vec::new();
+    let mut n = index as u64;
+    loop {
+        digits.push(pad + (n % radix) as u8);
+        n /= radix;
+        if n == 0 {
+            break;
         }
-
-        let reversed: String = suffix.chars().rev().collect();
-        format!("{:0>width$}", reversed, width = length)
     }
+
+    if digits.len() > length {
+        return None; // would need a wider suffix: exhausted
+    }
+    while digits.len() < length {
+        digits.push(pad);
+    }
+    digits.reverse();
+
+    Some(digits.iter().map(|&b| b as char).collect())
 }
 
 fn split_by_bytes(
@@ -130,7 +145,8 @@ fn split_by_bytes(
             break;
         }
 
-        let suffix = generate_suffix(index, numeric, suffix_len);
+        let suffix =
+            generate_suffix(index, numeric, suffix_len).ok_or_else(|| SUFFIXES_EXHAUSTED.to_string())?;
         let output_name = format!("{}{}", prefix, suffix);
 
         let mut output_file = File::create(&output_name)
@@ -157,17 +173,25 @@ fn split_by_lines(
     suffix_len: usize,
 ) -> Result<(), String> {
     let file = File::open(path).map_err(|e| format!("cannot open file: {}", e))?;
-    let reader = BufReader::new(file);
+    let mut reader = BufReader::new(file);
 
     let mut index = 0;
     let mut line_count = 0;
     let mut current_file: Option<File> = None;
+    let mut buf: Vec<u8> = Vec::new();
 
-    for line in reader.lines() {
-        let line = line.map_err(|e| format!("cannot read line: {}", e))?;
+    loop {
+        buf.clear();
+        let n = reader
+            .read_until(b'\n', &mut buf)
+            .map_err(|e| format!("cannot read line: {}", e))?;
+        if n == 0 {
+            break;
+        }
 
         if line_count == 0 {
-            let suffix = generate_suffix(index, numeric, suffix_len);
+            let suffix = generate_suffix(index, numeric, suffix_len)
+                .ok_or_else(|| SUFFIXES_EXHAUSTED.to_string())?;
             let output_name = format!("{}{}", prefix, suffix);
             current_file = Some(
                 File::create(&output_name)
@@ -176,8 +200,13 @@ fn split_by_lines(
             index += 1;
         }
 
-        let output = current_file.as_mut().unwrap();
-        writeln!(output, "{}", line).map_err(|e| format!("cannot write to file: {}", e))?;
+        // Raw bytes: `\r` inside the line and a missing final `\n` are
+        // preserved verbatim (byte transparency).
+        if let Some(output) = current_file.as_mut() {
+            output
+                .write_all(&buf)
+                .map_err(|e| format!("cannot write to output file: {}", e))?;
+        }
 
         line_count += 1;
         if line_count >= lines_per_file {
