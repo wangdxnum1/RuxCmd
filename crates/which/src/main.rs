@@ -44,7 +44,7 @@ fn find_command(cmd: &str, path_dirs: &[&str], all: bool) -> bool {
             if full_path.is_file()
                 && let Ok(path) = full_path.canonicalize()
             {
-                println!("{}", strip_verbatim(&path));
+                println!("{}", ruxcmd_core::paths::display(&path));
                 found = true;
                 if !all {
                     return true;
@@ -54,15 +54,4 @@ fn find_command(cmd: &str, path_dirs: &[&str], all: bool) -> bool {
     }
 
     found
-}
-
-/// Strip the `\\?\` verbatim prefix (mapping `\\?\UNC\` to `//`) and normalize
-/// backslashes to forward slashes so the output is directly reusable.
-fn strip_verbatim(path: &Path) -> String {
-    let s = path.to_string_lossy();
-    if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
-        return format!("//{}", rest.replace('\\', "/"));
-    }
-    let s = s.strip_prefix(r"\\?\").unwrap_or(&s);
-    s.replace('\\', "/")
 }

@@ -14,7 +14,7 @@ fn main() {
 
     match result {
         Ok(p) => {
-            println!("{}", strip_verbatim(&p));
+            println!("{}", ruxcmd_core::paths::display(&p));
         }
         Err(e) => {
             eprintln!("realpath: {}: {}", path.display(), e);
@@ -53,15 +53,4 @@ fn strip_components(path: PathBuf, count: usize) -> Result<PathBuf, std::io::Err
     }
 
     Ok(result)
-}
-
-/// Strip the `\\?\` verbatim prefix (mapping `\\?\UNC\` to `//`) and normalize
-/// backslashes to forward slashes so the output is directly reusable.
-fn strip_verbatim(path: &Path) -> String {
-    let s = path.to_string_lossy();
-    if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
-        return format!("//{}", rest.replace('\\', "/"));
-    }
-    let s = s.strip_prefix(r"\\?\").unwrap_or(&s);
-    s.replace('\\', "/")
 }

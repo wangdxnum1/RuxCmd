@@ -1260,7 +1260,7 @@ name = "iostat"
 version = "0.1.0"
 dependencies = [
  "clap",
- "windows-sys 0.61.2",
+ "ruxcmd-core",
 ]
 
 [[package]]
@@ -1447,7 +1447,7 @@ name = "mpstat"
 version = "0.1.0"
 dependencies = [
  "clap",
- "windows-sys 0.61.2",
+ "ruxcmd-core",
 ]
 
 [[package]]
@@ -1936,6 +1936,7 @@ version = "1.0.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-core",
  "tempfile",
 ]
 
@@ -1945,6 +1946,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-core",
  "tempfile",
 ]
 
@@ -2140,6 +2142,7 @@ name = "sar"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-core",
  "windows-sys 0.61.2",
 ]
 
@@ -2709,6 +2712,7 @@ dependencies = [
  "assert_cmd",
  "chrono",
  "clap",
+ "ruxcmd-core",
  "windows-sys 0.61.2",
 ]
 
@@ -2931,7 +2935,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
- "windows-sys 0.61.2",
+ "ruxcmd-core",
 ]
 
 [[package]]
@@ -3093,6 +3097,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-core",
  "tempfile",
 ]
 

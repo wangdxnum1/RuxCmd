@@ -9,4 +9,5 @@ authors = ["Tim"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-windows-sys = { version = "0.61", features = ["Win32_System_Threading", "Win32_System_SystemInformation"] }
+ruxcmd-core = { path = "../ruxcmd-core" }
+windows-sys = { version = "0.61", features = ["Win32_System_SystemInformation"] }

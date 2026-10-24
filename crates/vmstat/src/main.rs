@@ -2,6 +2,7 @@ mod cli;
 
 use clap::Parser;
 use cli::Args;
+use ruxcmd_core::cpu;
 
 const VERSION: &str = "vmstat 0.1.0";
 
@@ -77,46 +78,11 @@ fn print_header() {
     );
 }
 
-/// System CPU counters in 100 ns units (kernel includes idle).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct CpuTimes {
-    idle: u64,
-    kernel: u64,
-    user: u64,
-}
-
-fn sample_cpu_times() -> Option<CpuTimes> {
-    use windows_sys::Win32::Foundation::FILETIME;
-    use windows_sys::Win32::System::Threading::GetSystemTimes;
-
-    let mut idle = FILETIME::default();
-    let mut kernel = FILETIME::default();
-    let mut user = FILETIME::default();
-    // SAFETY: all out-parameters point to valid FILETIME storage.
-    let ok = unsafe { GetSystemTimes(&mut idle, &mut kernel, &mut user) };
-    if ok == 0 {
-        return None;
-    }
-    let u64ft = |ft: &FILETIME| (ft.dwHighDateTime as u64) << 32 | ft.dwLowDateTime as u64;
-    Some(CpuTimes {
-        idle: u64ft(&idle),
-        kernel: u64ft(&kernel),
-        user: u64ft(&user),
-    })
-}
-
-/// us/sy/id percentages between two samples (idle over kernel+user total).
-fn cpu_percentages(prev: &CpuTimes, cur: &CpuTimes) -> Option<(u64, u64, u64)> {
-    let d_user = cur.user.checked_sub(prev.user)?;
-    let d_kernel = cur.kernel.checked_sub(prev.kernel)?;
-    let d_idle = cur.idle.checked_sub(prev.idle)?;
-    let d_sys = d_kernel.checked_sub(d_idle)?;
-    let total = d_kernel.checked_add(d_user)?;
-    if total == 0 {
-        return None;
-    }
-    let pct = |v: u64| v * 100 / total;
-    Some((pct(d_user), pct(d_sys), pct(d_idle)))
+/// us/sy/id percentages between two samples, truncated to integers from the
+/// shared sampler's f64 result (vmstat prints whole percent columns).
+fn cpu_percentages(prev: &cpu::CpuTimes, cur: &cpu::CpuTimes) -> Option<(u64, u64, u64)> {
+    let (us, sy, id) = cpu::usage_between(prev, cur)?;
+    Some((us as u64, sy as u64, id as u64))
 }
 
 fn print_stats(mem_info: &MemoryInfo, cpu: Option<(u64, u64, u64)>) {
@@ -140,7 +106,7 @@ fn main() {
     }
 
     let mut mem_info = sample_memory();
-    let mut prev_cpu = sample_cpu_times();
+    let mut prev_cpu = cpu::sample();
 
     if !args.header_once || args.count == 1 {
         print_header();
@@ -154,9 +120,9 @@ fn main() {
         // CPU percentages cover the interval since the previous frame; the
         // first frame has no baseline yet and reports zeros.
         let cpu = prev_cpu
-            .zip(sample_cpu_times())
+            .zip(cpu::sample())
             .and_then(|(p, c)| cpu_percentages(&p, &c));
-        if let Some(cur) = sample_cpu_times() {
+        if let Some(cur) = cpu::sample() {
             prev_cpu = Some(cur);
         }
         print_stats(&mem_info, cpu);

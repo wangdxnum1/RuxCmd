@@ -3,6 +3,7 @@ mod cli;
 use chrono::Local;
 use clap::Parser;
 use cli::Args;
+use ruxcmd_core::cpu::{self, CpuTimes};
 
 const VERSION: &str = "top 0.1.0";
 
@@ -24,57 +25,6 @@ fn get_memory_info() -> (u64, u64, u64, u64) {
         total / 1024 / 1024,
         mem_status.dwMemoryLoad as u64,
     )
-}
-
-/// System CPU counters in 100 ns units (kernel includes idle).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct CpuTimes {
-    idle: u64,
-    kernel: u64,
-    user: u64,
-}
-
-impl CpuTimes {
-    const ZERO: CpuTimes = CpuTimes {
-        idle: 0,
-        kernel: 0,
-        user: 0,
-    };
-}
-
-fn sample_cpu_times() -> Option<CpuTimes> {
-    use windows_sys::Win32::Foundation::FILETIME;
-    use windows_sys::Win32::System::Threading::GetSystemTimes;
-
-    let mut idle = FILETIME::default();
-    let mut kernel = FILETIME::default();
-    let mut user = FILETIME::default();
-    // SAFETY: all out-parameters point to valid FILETIME storage.
-    let ok = unsafe { GetSystemTimes(&mut idle, &mut kernel, &mut user) };
-    if ok == 0 {
-        None
-    } else {
-        let u64ft = |ft: &FILETIME| (ft.dwHighDateTime as u64) << 32 | ft.dwLowDateTime as u64;
-        Some(CpuTimes {
-            idle: u64ft(&idle),
-            kernel: u64ft(&kernel),
-            user: u64ft(&user),
-        })
-    }
-}
-
-/// usr/sys/idle percentages between two samples; None on a zero interval.
-fn cpu_percentages(prev: &CpuTimes, cur: &CpuTimes) -> Option<(f64, f64, f64)> {
-    let d_user = cur.user.checked_sub(prev.user)?;
-    let d_kernel = cur.kernel.checked_sub(prev.kernel)?;
-    let d_idle = cur.idle.checked_sub(prev.idle)?;
-    let d_sys = d_kernel.checked_sub(d_idle)?;
-    let total = d_kernel.checked_add(d_user)?;
-    if total == 0 {
-        return None;
-    }
-    let pct = |v: u64| v as f64 * 100.0 / total as f64;
-    Some((pct(d_user), pct(d_sys), pct(d_idle)))
 }
 
 /// Boot duration in seconds via GetTickCount64.
@@ -144,9 +94,9 @@ fn print_header(prev: &CpuTimes) {
 
     // CPU percentages cover the interval since the previous frame; the first
     // frame falls back to the since-boot average of a single sample.
-    let (us, sy, id) = sample_cpu_times()
-        .and_then(|cur| cpu_percentages(prev, &cur))
-        .or_else(|| sample_cpu_times().and_then(|cur| cpu_percentages(&CpuTimes::ZERO, &cur)))
+    let (us, sy, id) = cpu::sample()
+        .and_then(|cur| cpu::usage_between(prev, &cur))
+        .or_else(|| cpu::sample().and_then(|cur| cpu::usage_between(&CpuTimes::ZERO, &cur)))
         .unwrap_or((0.0, 0.0, 0.0));
 
     println!("{}", "=".repeat(80));
@@ -241,10 +191,10 @@ fn main() {
         return;
     }
 
-    let mut prev_cpu = sample_cpu_times().unwrap_or(CpuTimes::ZERO);
+    let mut prev_cpu = cpu::sample().unwrap_or(CpuTimes::ZERO);
     for i in 0..args.iterations {
         print_header(&prev_cpu);
-        if let Some(cur) = sample_cpu_times() {
+        if let Some(cur) = cpu::sample() {
             prev_cpu = cur;
         }
         print_process_header();

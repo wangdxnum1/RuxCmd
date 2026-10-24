@@ -18,7 +18,7 @@ fn main() {
     match result {
         Ok(target) => {
             let target_str = if cli.canonicalize {
-                strip_verbatim(&target)
+                ruxcmd_core::paths::display(&target)
             } else {
                 match target.to_str() {
                     Some(s) => s.to_string(),
@@ -39,15 +39,4 @@ fn main() {
             std::process::exit(1);
         }
     }
-}
-
-/// Strip the `\\?\` verbatim prefix (mapping `\\?\UNC\` to `//`) and normalize
-/// backslashes to forward slashes so the output is directly reusable.
-fn strip_verbatim(path: &Path) -> String {
-    let s = path.to_string_lossy();
-    if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
-        return format!("//{}", rest.replace('\\', "/"));
-    }
-    let s = s.strip_prefix(r"\\?\").unwrap_or(&s);
-    s.replace('\\', "/")
 }
