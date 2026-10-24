@@ -170,3 +170,5 @@
 计划:docs/superpowers/plans/2026-10-24-p1-remediation.md(批次 A1-I1 + 收尾 F)。
 
 - Task 0: complete (plan 编写,2026-10-24)
+- A1: complete (fix 914d55e — pkill/pgrep 去 tasklist/wmic/taskkill,复用 ps-sys 快照 + OpenProcess/TerminateProcess,校验终止结果、排除自身、pgrep 无匹配 exit 1、补 -i/-x;kill 信号校验+`kill -9/-SIGNAME PID` 连写+-l 全表+信号 0 探测+失败退出 1;ps-sys snapshot 名称源从 PSAPI GetModuleBaseNameW(机器级故障面)改为 Toolhelp32 szExeFile 单次遍历)
+  * 关键发现:cargo test 会把 target/debug 前置到 PATH,测试里 spawn 裸名命令(如 cmd /c ping)会解析到我们自己的 exe(我们的 ping 不支持 -n 而立即报错退出)——测试必须用绝对路径 spawn;已写入本 ledger,新测试注意。
