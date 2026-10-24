@@ -56,7 +56,7 @@ fn main() {
             }
         }
 
-        if args.count && !args.quiet && multiple_files {
+        if args.count && !args.quiet {
             println!("{}", total_count);
         }
     }
