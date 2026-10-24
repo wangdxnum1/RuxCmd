@@ -163,3 +163,10 @@
 - iostat/mpstat/sar 的全零假数据列、time 的 user/sys=0、ps 的 pcpu/stat 假值、w/who 的 systeminfo/OEM 解析——P1"真实数据源"轮。
 - pkill/pgrep 依赖 tasklist/wmic(taskkill 假成功、wmic 已移除)——P1,建议复用 ps-sys。
 - 非 UTF-8 静默截断(grep/cut/sort)、trim_end 剥行尾空白——P1"字节安全行读取层"。
+---
+
+# Round 12 Progress Ledger(P1 缺陷修复)
+
+计划:docs/superpowers/plans/2026-10-24-p1-remediation.md(批次 A1-I1 + 收尾 F)。
+
+- Task 0: complete (plan 编写,2026-10-24)
