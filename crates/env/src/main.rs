@@ -33,8 +33,14 @@ fn main() {
     if args.ignore_environment {
         cmd.env_clear();
     }
+    // Windows variable names are case-insensitive, and Command::env_remove
+    // matches exactly, so enumerate and remove every casing variant.
     for name in &args.unset {
-        cmd.env_remove(name);
+        for (k, _) in env::vars() {
+            if k.eq_ignore_ascii_case(name) {
+                cmd.env_remove(&k);
+            }
+        }
     }
     for (name, value) in &assignments {
         cmd.env(name, value);
@@ -74,11 +80,11 @@ fn print_environment(args: &cli::Cli, assignments: &[(String, String)]) {
         if args.verbose {
             eprintln!("env: removing variable: {}", name);
         }
-        pairs.retain(|(k, _)| k != name);
+        pairs.retain(|(k, _)| !k.eq_ignore_ascii_case(name));
     }
 
     for (name, value) in assignments {
-        if let Some(pair) = pairs.iter_mut().find(|(k, _)| k == name) {
+        if let Some(pair) = pairs.iter_mut().find(|(k, _)| k.eq_ignore_ascii_case(name)) {
             pair.1 = value.clone();
         } else {
             pairs.push((name.clone(), value.clone()));
