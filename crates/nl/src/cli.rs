@@ -11,8 +11,12 @@ pub struct Args {
 
 #[derive(Debug, Clone, Copy)]
 pub enum BodyNumbering {
+    /// `a`: number all lines.
     All,
-    NonBlank,
+    /// `t`: number non-empty lines (GNU/POSIX default).
+    NonEmpty,
+    /// `n`: number no lines.
+    None,
 }
 
 impl std::str::FromStr for BodyNumbering {
@@ -20,9 +24,14 @@ impl std::str::FromStr for BodyNumbering {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "all" | "a" => Ok(BodyNumbering::All),
-            "nonblank" | "n" => Ok(BodyNumbering::NonBlank),
-            _ => Err(format!("Invalid body numbering: {}", s)),
+            "a" | "all" => Ok(BodyNumbering::All),
+            "t" | "nonempty" | "non-empty" | "nonblank" => Ok(BodyNumbering::NonEmpty),
+            "n" | "none" => Ok(BodyNumbering::None),
+            _ if s.starts_with('p') => Err(format!(
+                "regex body numbering styles are not supported: '{}'",
+                s
+            )),
+            _ => Err(format!("invalid body numbering style: '{}'", s)),
         }
     }
 }
@@ -36,8 +45,8 @@ pub fn parse_args() -> Args {
             Arg::new("body-numbering")
                 .short('b')
                 .long("body-numbering")
-                .default_value("all")
-                .help("Number all lines (body numbering)"),
+                .default_value("t")
+                .help("STYLE: 'a' number all lines, 't' number non-empty lines (default), 'n' number none"),
         )
         .arg(
             Arg::new("separator")
