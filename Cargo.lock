@@ -381,7 +381,10 @@ dependencies = [
 name = "column"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
+ "tempfile",
 ]
 
 [[package]]
@@ -560,7 +563,10 @@ dependencies = [
 name = "du"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
+ "tempfile",
 ]
 
 [[package]]
@@ -1715,7 +1721,11 @@ dependencies = [
 name = "pr"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
+ "chrono",
  "clap",
+ "predicates",
+ "tempfile",
 ]
 
 [[package]]
@@ -2261,7 +2271,10 @@ dependencies = [
 name = "shuf"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
+ "tempfile",
 ]
 
 [[package]]
