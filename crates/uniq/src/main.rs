@@ -29,11 +29,11 @@ fn main() {
 }
 
 fn process_lines(reader: Box<dyn BufRead>, cli: &Cli) {
-    let mut lines = reader.lines();
     let mut prev_line: Option<String> = None;
+    let mut prev_key: Option<String> = None;
     let mut count: usize = 0;
 
-    while let Some(line_result) = lines.next() {
+    for line_result in reader.lines() {
         let line = line_result.unwrap_or_else(|e| {
             eprintln!("Error reading line: {}", e);
             process::exit(1);
@@ -41,19 +41,25 @@ fn process_lines(reader: Box<dyn BufRead>, cli: &Cli) {
 
         let key = make_key(&line, cli);
 
-        if prev_line.is_none() {
-            prev_line = Some(key);
+        if prev_key.is_none() {
+            prev_line = Some(line);
+            prev_key = Some(key);
             count = 1;
             continue;
         }
 
-        let prev_key = prev_line.as_ref().unwrap();
+        let same_group = match prev_key {
+            Some(ref pk) => *pk == key,
+            None => false,
+        };
 
-        if key == *prev_key {
+        if same_group {
             count += 1;
-        } else {
-            print_line(&prev_line.unwrap(), count, cli);
-            prev_line = Some(key);
+        } else if let Some(prev) = prev_line.take() {
+            // Print the original line; the key is only ever used for comparing.
+            print_line(&prev, count, cli);
+            prev_line = Some(line);
+            prev_key = Some(key);
             count = 1;
         }
     }
