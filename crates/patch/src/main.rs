@@ -32,9 +32,16 @@ fn main() {
         }
     };
 
-    let hunks = parse_patch(&patch_content);
+    let sections = match parse_patch(&patch_content) {
+        Ok(sections) => sections,
+        Err(line_no) => {
+            eprintln!("patch: **** malformed patch at line {}", line_no);
+            process::exit(1);
+        }
+    };
 
-    if hunks.is_empty() {
+    let hunks_total: usize = sections.iter().map(|s| s.hunks.len()).sum();
+    if hunks_total == 0 {
         eprintln!("Error: No valid hunks found in patch file");
         process::exit(1);
     }
@@ -43,75 +50,109 @@ fn main() {
     // is omitted.
     let strip = cli.strip.unwrap_or(0);
 
-    let target_file = match &cli.target_file {
-        Some(f) => f.clone(),
-        None => extract_target_file(&patch_content, strip),
-    };
+    let mut any_rejects = false;
 
-    if target_file.is_empty() {
-        eprintln!("error: no target file specified and cannot extract from patch");
-        eprintln!("");
-        eprintln!("Usage: patch [OPTIONS] <PATCH_FILE> [TARGET_FILE]");
-        process::exit(1);
-    }
-
-    // A creation patch (`--- /dev/null`, or hunks whose old range is
-    // `@@ -0,0`) applies to a file that does not exist yet; treat its old
-    // content as empty so the file is created when the result is written.
-    let is_creation = is_new_file_patch(&patch_content)
-        || hunks.iter().all(|h| h.old_start == 0 && h.old_count == 0);
-
-    let mut target_content = match read_to_string(&target_file) {
-        Ok(content) => content,
-        Err(e) => {
-            if is_creation {
-                String::new()
-            } else {
-                eprintln!("Error reading target file {}: {}", target_file, e);
-                process::exit(1);
+    for section in &sections {
+        // Each `---`/`+++` section targets its own file; an explicit
+        // TARGET_FILE operand overrides the names for every section.
+        let target_file = match &cli.target_file {
+            Some(f) => f.clone(),
+            None => {
+                // A deletion section (`+++ /dev/null`) patches the file
+                // named on the `---` line.
+                let raw_name = if section.new_name == "/dev/null"
+                    && section.old_name != "/dev/null"
+                {
+                    &section.old_name
+                } else {
+                    &section.new_name
+                };
+                strip_path_components(raw_name, strip)
             }
-        }
-    };
-
-    let mut rejects: Vec<String> = Vec::new();
-
-    for hunk in hunks {
-        let result = if cli.reverse {
-            apply_reverse_hunk(&target_content, &hunk)
-        } else {
-            apply_hunk(&target_content, &hunk)
         };
 
-        match result {
-            Ok(new_content) => {
-                target_content = new_content;
+        if target_file.is_empty() {
+            eprintln!("error: no target file specified and cannot extract from patch");
+            eprintln!("");
+            eprintln!("Usage: patch [OPTIONS] <PATCH_FILE> [TARGET_FILE]");
+            process::exit(1);
+        }
+
+        // A creation section (`--- /dev/null`, or hunks whose old range is
+        // `@@ -0,0`) applies to a file that does not exist yet; treat its
+        // old content as empty so the file is created when written.
+        let is_creation = section.old_name == "/dev/null"
+            || section
+                .hunks
+                .iter()
+                .all(|h| h.old_start == 0 && h.old_count == 0);
+
+        let mut target_content = match read_to_string(&target_file) {
+            Ok(content) => content,
+            Err(e) => {
+                if is_creation {
+                    String::new()
+                } else {
+                    eprintln!("Error reading target file {}: {}", target_file, e);
+                    process::exit(1);
+                }
             }
-            Err(reject) => {
-                rejects.push(reject);
-                if !cli.force {
-                    break;
+        };
+
+        let mut rejects: Vec<String> = Vec::new();
+        let mut applied = 0usize;
+
+        for hunk in &section.hunks {
+            let result = if cli.reverse {
+                apply_reverse_hunk(&target_content, hunk)
+            } else {
+                apply_hunk(&target_content, hunk)
+            };
+
+            match result {
+                Ok(new_content) => {
+                    target_content = new_content;
+                    applied += 1;
+                }
+                Err(_reject_reason) => {
+                    // .rej carries the hunk's original lines, not a message.
+                    rejects.push(hunk.raw.join("\n"));
                 }
             }
         }
-    }
 
-    if !rejects.is_empty() && !cli.force {
-        let reject_file = format!("{}.rej", target_file);
-        if let Err(e) = write(&reject_file, rejects.join("\n\n")) {
-            eprintln!("Error writing reject file {}: {}", reject_file, e);
-        } else {
-            eprintln!("Rejects written to {}", reject_file);
+        // GNU semantics: hunks that applied are written back even when
+        // others were rejected.
+        if applied > 0 {
+            if let Err(e) = write(&target_file, target_content) {
+                eprintln!("Error writing to target file {}: {}", target_file, e);
+                process::exit(1);
+            }
         }
-        process::exit(1);
+
+        if !rejects.is_empty() {
+            let reject_file = format!("{}.rej", target_file);
+            if let Err(e) = write(&reject_file, rejects.join("\n\n")) {
+                eprintln!("Error writing reject file {}: {}", reject_file, e);
+            } else {
+                eprintln!(
+                    "{} out of {} hunks FAILED for {} -- saving rejects to file {}",
+                    rejects.len(),
+                    section.hunks.len(),
+                    target_file,
+                    reject_file
+                );
+            }
+            any_rejects = true;
+        }
     }
 
-    if let Err(e) = write(&target_file, target_content) {
-        eprintln!("Error writing to target file {}: {}", target_file, e);
-        process::exit(1);
-    }
-
-    if !rejects.is_empty() {
-        eprintln!("Applied patch with rejects (force mode)");
+    if any_rejects {
+        if cli.force {
+            println!("Applied patch with rejects (force mode)");
+        } else {
+            process::exit(1);
+        }
     } else {
         println!("Applied patch successfully");
     }
@@ -124,33 +165,89 @@ struct Hunk {
     new_start: usize,
     new_count: usize,
     lines: Vec<(char, String)>,
+    /// The hunk's original patch lines (header and body, including
+    /// `\ No newline` markers), used verbatim for .rej files.
+    raw: Vec<String>,
 }
 
-fn parse_patch(content: &str) -> Vec<Hunk> {
-    let mut hunks = Vec::new();
+/// One file's section of a (possibly multi-file) patch: the `---`/`+++`
+/// header pair plus every hunk that follows until the next `---` header.
+#[derive(Debug)]
+struct FileSection {
+    old_name: String,
+    new_name: String,
+    hunks: Vec<Hunk>,
+}
+
+/// Parses the patch into per-file sections. Hunks are consumed strictly by
+/// the line counts declared in their `@@` header, so empty body lines and
+/// lines starting with `---` (deletions of `--...` content) never truncate
+/// a hunk. Returns Err(line number) for a malformed patch.
+fn parse_patch(content: &str) -> Result<Vec<FileSection>, usize> {
     let lines: Vec<&str> = content.lines().collect();
+    let mut sections: Vec<FileSection> = Vec::new();
+    let mut current: Option<FileSection> = None;
     let mut i = 0;
 
     while i < lines.len() {
-        if lines[i].starts_with("@@") {
-            if let Some(hunk) = parse_hunk(&lines, &mut i) {
-                hunks.push(hunk);
+        let line = lines[i];
+        if line.starts_with("--- ") {
+            if i + 1 >= lines.len() || !lines[i + 1].starts_with("+++ ") {
+                return Err(i + 1);
             }
+            if let Some(prev) = current.take() {
+                sections.push(prev);
+            }
+            current = Some(FileSection {
+                old_name: header_path(line),
+                new_name: header_path(lines[i + 1]),
+                hunks: Vec::new(),
+            });
+            i += 2;
+        } else if line.starts_with("@@") {
+            if current.is_none() {
+                // Hunks before any ---/+++ header: an implicit section
+                // whose target must come from the TARGET_FILE operand.
+                current = Some(FileSection {
+                    old_name: String::new(),
+                    new_name: String::new(),
+                    hunks: Vec::new(),
+                });
+            }
+            let hunk = parse_hunk(&lines, &mut i)?;
+            current.as_mut().unwrap().hunks.push(hunk);
         } else {
             i += 1;
         }
     }
 
-    hunks
+    if let Some(last) = current {
+        sections.push(last);
+    }
+
+    Ok(sections)
 }
 
-fn parse_hunk(lines: &[&str], i: &mut usize) -> Option<Hunk> {
+fn header_path(line: &str) -> String {
+    let parts: Vec<&str> = line.split_whitespace().collect();
+    if parts.len() >= 2 {
+        parts[1].to_string()
+    } else {
+        String::new()
+    }
+}
+
+/// Consumes exactly the number of body lines declared by the hunk header:
+/// context lines count for both sides, `-` lines for old, `+` lines for
+/// new; `\ No newline...` markers are carried into `raw` but not counted.
+fn parse_hunk(lines: &[&str], i: &mut usize) -> Result<Hunk, usize> {
     let header = lines[*i];
+    let header_line_no = *i + 1;
     *i += 1;
 
     let parts: Vec<&str> = header.split_whitespace().collect();
     if parts.len() < 3 {
-        return None;
+        return Err(header_line_no);
     }
 
     let old_part = parts[1];
@@ -161,13 +258,13 @@ fn parse_hunk(lines: &[&str], i: &mut usize) -> Option<Hunk> {
 
     let old_start: usize = match old_info[0].parse() {
         Ok(n) => n,
-        Err(_) => return None,
+        Err(_) => return Err(header_line_no),
     };
 
     let old_count: usize = if old_info.len() > 1 {
         match old_info[1].parse() {
             Ok(n) => n,
-            Err(_) => 1,
+            Err(_) => return Err(header_line_no),
         }
     } else {
         1
@@ -175,74 +272,70 @@ fn parse_hunk(lines: &[&str], i: &mut usize) -> Option<Hunk> {
 
     let new_start: usize = match new_info[0].parse() {
         Ok(n) => n,
-        Err(_) => return None,
+        Err(_) => return Err(header_line_no),
     };
 
     let new_count: usize = if new_info.len() > 1 {
         match new_info[1].parse() {
             Ok(n) => n,
-            Err(_) => 1,
+            Err(_) => return Err(header_line_no),
         }
     } else {
         1
     };
 
     let mut hunk_lines = Vec::new();
+    let mut raw = vec![header.to_string()];
+    let mut old_seen = 0usize;
+    let mut new_seen = 0usize;
 
-    while *i < lines.len() {
+    while old_seen < old_count || new_seen < new_count {
+        if *i >= lines.len() {
+            return Err(header_line_no);
+        }
         let line = lines[*i];
-        if line.is_empty()
-            || line.starts_with("@@")
-            || line.starts_with("---")
-            || line.starts_with("+++")
-        {
-            break;
+
+        // "\ No newline at end of file" annotates the previous line and is
+        // never counted as hunk content.
+        if line.starts_with('\\') {
+            raw.push(line.to_string());
+            *i += 1;
+            continue;
         }
 
-        if line.is_empty() {
-            hunk_lines.push((' ', String::new()));
+        // A bare empty line stands for an empty context line (its leading
+        // space is commonly stripped by editors/mail).
+        let (prefix, body) = if line.is_empty() {
+            (' ', "")
         } else {
-            let prefix = line.chars().next().unwrap_or(' ');
-            let content = if line.len() > 1 { &line[1..] } else { "" };
-            hunk_lines.push((prefix, content.to_string()));
+            match line.as_bytes()[0] {
+                b' ' | b'+' | b'-' => (line.as_bytes()[0] as char, &line[1..]),
+                _ => return Err(header_line_no),
+            }
+        };
+
+        match prefix {
+            ' ' => {
+                old_seen += 1;
+                new_seen += 1;
+            }
+            '-' => old_seen += 1,
+            _ => new_seen += 1,
         }
 
+        hunk_lines.push((prefix, body.to_string()));
+        raw.push(line.to_string());
         *i += 1;
     }
 
-    Some(Hunk {
+    Ok(Hunk {
         old_start,
         old_count,
         new_start,
         new_count,
         lines: hunk_lines,
+        raw,
     })
-}
-
-fn extract_target_file(content: &str, strip: usize) -> String {
-    for line in content.lines() {
-        if line.starts_with("+++ ") {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() >= 2 {
-                return strip_path_components(parts[1], strip);
-            }
-        }
-    }
-    String::new()
-}
-
-/// True when the patch's `---` header names `/dev/null` (git-style file
-/// creation).
-fn is_new_file_patch(content: &str) -> bool {
-    for line in content.lines() {
-        if line.starts_with("--- ") {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() >= 2 {
-                return parts[1] == "/dev/null";
-            }
-        }
-    }
-    false
 }
 
 /// Strips `strip` leading components from a `---`/`+++` header path, GNU
@@ -360,6 +453,7 @@ fn apply_reverse_hunk(content: &str, hunk: &Hunk) -> Result<String, String> {
                 _ => (' ', content.clone()),
             })
             .collect(),
+        raw: hunk.raw.clone(),
     };
 
     apply_hunk(content, &reversed_hunk)

@@ -182,3 +182,60 @@ fn unmatched_pattern_keeps_files_with_k() {
         "remaining input must be flushed with -k"
     );
 }
+
+/// Round 12 I1: descending line numbers (`3 2`) must fail with exit 1
+/// instead of panicking on an inverted `lines[s..e]` slice at write time.
+#[test]
+fn descending_line_numbers_fail_without_panic() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("in.txt"), b"l1\nl2\nl3\nl4\n").unwrap();
+
+    csplit_cmd()
+        .args(["-s", "-f", "out.", "in.txt", "--", "3", "2"])
+        .current_dir(dir.path())
+        .assert()
+        .failure()
+        .code(1)
+        .stderr(contains("line number"));
+
+    assert!(
+        !dir.path().join("out.00").exists(),
+        "output files must be removed on error without -k"
+    );
+}
+
+/// A zero line number is invalid and must fail with exit 1.
+#[test]
+fn zero_line_number_fails() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("in.txt"), b"l1\nl2\n").unwrap();
+
+    csplit_cmd()
+        .args(["-s", "-f", "out.", "in.txt", "--", "0"])
+        .current_dir(dir.path())
+        .assert()
+        .failure()
+        .code(1)
+        .stderr(contains("greater than zero"));
+}
+
+/// A line number beyond EOF must fail with exit 1 instead of silently
+/// flushing the remainder.
+#[test]
+fn out_of_range_line_number_fails() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("in.txt"), b"l1\nl2\n").unwrap();
+
+    csplit_cmd()
+        .args(["-s", "-f", "out.", "in.txt", "--", "99"])
+        .current_dir(dir.path())
+        .assert()
+        .failure()
+        .code(1)
+        .stderr(contains("out of range"));
+
+    assert!(
+        !dir.path().join("out.00").exists(),
+        "output files must be removed on error without -k"
+    );
+}

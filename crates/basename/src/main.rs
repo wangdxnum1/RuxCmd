@@ -12,9 +12,24 @@ fn main() {
         return;
     }
 
-    for name in &cli.names {
+    // POSIX two-operand form: `basename NAME SUFFIX` removes SUFFIX from
+    // NAME. With -a every operand is a name instead.
+    let (names, suffix) = if cli.multiple {
+        (cli.names.clone(), cli.suffix.clone())
+    } else {
+        match cli.names.len() {
+            0 | 1 => (cli.names.clone(), cli.suffix.clone()),
+            2 => (vec![cli.names[0].clone()], Some(cli.names[1].clone())),
+            _ => {
+                eprintln!("basename: extra operand '{}'", cli.names[2]);
+                std::process::exit(1);
+            }
+        }
+    };
+
+    for name in &names {
         let basename = get_basename(name);
-        let result = if let Some(suffix) = &cli.suffix {
+        let result = if let Some(suffix) = &suffix {
             remove_suffix(&basename, suffix)
         } else {
             basename

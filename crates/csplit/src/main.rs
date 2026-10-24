@@ -55,13 +55,27 @@ fn main() {
             }
             pat_idx += 1;
         } else if let Ok(n) = p.parse::<usize>() {
-            if n == 0 || n > lines.len() {
-                splits.push((cur, lines.len()));
-                cur = lines.len();
-            } else {
-                splits.push((cur, n - 1));
-                cur = n - 1;
+            // Line numbers are absolute and must stay ascending; a
+            // descending, zero, or beyond-EOF number would otherwise
+            // produce an inverted range and panic at write time.
+            if n == 0 {
+                eprintln!("csplit: {}: line number must be greater than zero", p);
+                exit_code = 1;
+                break;
             }
+            if n > lines.len() {
+                eprintln!("csplit: {}: line number out of range", p);
+                exit_code = 1;
+                break;
+            }
+            let split_at = n - 1;
+            if split_at < cur {
+                eprintln!("csplit: {}: line number out of order", p);
+                exit_code = 1;
+                break;
+            }
+            splits.push((cur, split_at));
+            cur = split_at;
             pat_idx += 1;
         } else {
             // Only `/substring/` and line numbers are supported. In
