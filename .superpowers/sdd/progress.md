@@ -189,3 +189,11 @@
 - H1: complete — chmod 符号模式+递归防环;test POSIX 子集(数值/-z/-n/!/-r/-w/-x);env NAME=VAL+-i+-u+命令执行;yes 多操作数+BrokenPipe;true/false 忽略参数;sleep 小数;pwd UNC;hostname 失败报错
 - H2: complete — md5sum/sha256sum * 标记/BOM/--status/--tag/聚合退出码/- stdin;od -t 全规格(x1/d1/o1/u1/a/c/f4/f8/z)、小端、无 ASCII 列(对齐 GNU 实测);iconv -f 严格无 BOM 嗅探、--list 40 项;numfmt -d 保留分隔符不折叠、from=auto 1K=1000/1Ki=1024(代理按 GNU 语义裁决,测试同步修正)
 - I1: complete — tar -C/-O/--exclude/成员名选择;unzip 流式+只读覆盖;gunzip -c/-l/多成员;csplit 降序行号报错;patch 按计数解析/多文件分段/.rej 原始 hunk/部分写回;basename 双操作数 NAME SUFFIX
+
+## Round 12 总结
+
+- 17 个批次(A1-I1)全部完成,覆盖审查报告全部 P1 项(约 45 个命令)+ Round 11 台账遗留清单。
+- 验证:build.ps1 -Task Verify 全绿(Formatting/Check/Clippy/Tests/Build/Smoke/Behavior/脚本测试);release.ps1 本地打包冒烟通过(dist/p1-verify-2)。
+- 途中修复的验证问题:rustfmt 回归(2 次)、ps-bin/df 测试 API 与 crate 惯例不一致、timeout 测试踩 PATH 前置陷阱(系统 ping 被我们的 ping.exe 遮蔽)、uptime 旧测试断言已被 B1 输出格式取代、pkill 测试与 pgrep 的大小写语义声明对齐、xargs 空输入"运行一次"补实现。
+- 决策记录:xargs -p 从 CONIN$ 读确认;numfmt 按代理核实的 GNU 语义修正测试预期(1K=1000/1Ki=1024,-d 保留分隔符);ping -t 改 Windows 持续语义;od 无 ASCII 列对齐 GNU 实测。
+- 遗留 P2(见审查报告):GNU 细分退出码(125/126/127 分类)、sed 完整正则、awk 数组/内建函数、per-key 排序修饰符、hostname 原生 API 等。
