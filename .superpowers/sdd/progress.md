@@ -174,3 +174,5 @@
   * 关键发现:cargo test 会把 target/debug 前置到 PATH,测试里 spawn 裸名命令(如 cmd /c ping)会解析到我们自己的 exe(我们的 ping 不支持 -n 而立即报错退出)——测试必须用绝对路径 spawn;已写入本 ledger,新测试注意。
 - A2: complete (fix c06cebb — iostat/mpstat/sar CPU 列接 GetSystemTimes 真实差值;假设备行/-d/-x/-P n 声明移除;-u 短参、HH:MM:SS 时间戳、Average 行;间隔采样 bug 修复:sleep 移到两次采样之间)
 - B1: complete (fix 431e9ad — time 经 GetProcessTimes 输出真实 user/sys(GNU 0m0.003s 格式,not-found 退出 127);top 头部真实 CPU% 与 up 时长、删 load average 假行;uptime 默认输出 procps 格式)
+- B2: complete (fix e434e6c — vmstat r 列归 0 声明差异、id 用 GetSystemTimes 真实 idle、死 extern 删除;free 补 -t/-s/-c/-w 与 available 列、-h Gi 后缀;df GetVolumeInformationW 真实类型 + -T、失败退出 1、Use% 向上取整、盘符根规范化)
+- C1: complete (fix 5ab7de5 — w/who 用 WTSEnumerateSessionsW/WTSQuerySessionInformationW 枚举真实会话;-b/启动时间经 GetTickCount64 换算本地时间;systeminfo/query 外壳删除,降级路径保留)
