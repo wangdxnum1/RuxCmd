@@ -186,3 +186,6 @@
 - G1: complete — curl 默认仅 body、-d 隐含 POST、重定向可关(-L 手动 10 跳)、-f/-I/-s 真语义;wget 文件名解析(尾/、?截断、%XX)、超时、退出码 8、-O -;ping 丢包退出码、状态消息区分、-s 上限 65500、-t 改持续 ping(Windows 语义)
 - G2: complete — netstat -o 真实 PID(GetExtendedTcp/UdpTable)、-a 控制 LISTENING/未绑定条目、错误 exit 1、-n 声明;xargs -0 NUL 分隔、8000 字符命令行分批不丢参、空输入运行一次(GNU)、-p 经 CONIN$ 读确认(修 stdin 已耗尽 bug);find maxdepth 对齐 GNU(0=仅起点/1 含子项)、-type 未知值报错、glob 非法不 panic、遍历错误 exit 1、GNU 单横线长选项(-name/-type/-maxdepth...)支持、regex 无效报错
   * 关键发现:cargo test 工作目录为 crate 目录,相对路径测试用 "." 并断言已知子目录
+- H1: complete — chmod 符号模式+递归防环;test POSIX 子集(数值/-z/-n/!/-r/-w/-x);env NAME=VAL+-i+-u+命令执行;yes 多操作数+BrokenPipe;true/false 忽略参数;sleep 小数;pwd UNC;hostname 失败报错
+- H2: complete — md5sum/sha256sum * 标记/BOM/--status/--tag/聚合退出码/- stdin;od -t 全规格(x1/d1/o1/u1/a/c/f4/f8/z)、小端、无 ASCII 列(对齐 GNU 实测);iconv -f 严格无 BOM 嗅探、--list 40 项;numfmt -d 保留分隔符不折叠、from=auto 1K=1000/1Ki=1024(代理按 GNU 语义裁决,测试同步修正)
+- I1: complete — tar -C/-O/--exclude/成员名选择;unzip 流式+只读覆盖;gunzip -c/-l/多成员;csplit 降序行号报错;patch 按计数解析/多文件分段/.rej 原始 hunk/部分写回;basename 双操作数 NAME SUFFIX
