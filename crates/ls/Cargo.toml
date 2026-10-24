@@ -11,3 +11,7 @@ authors = ["Tim"]
 clap = { version = "4", features = ["derive"] }
 chrono = "0.4"
 colored = "2"
+
+[dev-dependencies]
+assert_cmd.workspace = true
+tempfile.workspace = true

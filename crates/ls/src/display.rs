@@ -315,32 +315,23 @@ fn print_long(entries: &[&FileEntry], args: &Args) {
     let max_group = fields.iter().map(|f| f.group.len()).max().unwrap_or(0);
     let max_size = fields.iter().map(|f| f.size.len()).max().unwrap_or(1);
 
-    for f in &fields {
+    // Fields are pre-computed 1:1 from `entries` (same order), so pair each
+    // rendered field set with its entry by index. Color codes, quotes and -F
+    // indicators are render-only and must never influence entry lookup.
+    for (entry, f) in entries.iter().zip(fields.iter()) {
         let mut line = String::new();
 
         // Inode (-i)
         if args.inode {
-            if let Some(idx) = entries
-                .iter()
-                .position(|e| e.name == extract_name_from_longfield(&f.name))
-            {
-                if let Some(ino) = entries[idx].file_index() {
-                    line.push_str(&format!("{} ", ino));
-                } else {
-                    line.push_str("? ");
-                }
+            match entry.file_index() {
+                Some(ino) => line.push_str(&format!("{} ", ino)),
+                None => line.push_str("? "),
             }
         }
 
         // Block count (-s)
         if args.size {
-            if let Some(idx) = entries
-                .iter()
-                .position(|e| e.name == extract_name_from_longfield(&f.name))
-            {
-                let blocks = entries[idx].block_count();
-                line.push_str(&format!("{} ", blocks));
-            }
+            line.push_str(&format!("{} ", entry.block_count()));
         }
 
         line.push_str(&f.permissions);
@@ -364,24 +355,13 @@ fn print_long(entries: &[&FileEntry], args: &Args) {
         line.push_str(&f.name);
 
         // Add symlink target if applicable
-        let name_plain = extract_name_from_longfield(&f.name);
-        if let Some(entry) = entries.iter().find(|e| e.name == name_plain) {
-            if let Some(ref target) = entry.symlink_target {
-                line.push_str(" -> ");
-                line.push_str(target);
-            }
+        if let Some(ref target) = entry.symlink_target {
+            line.push_str(" -> ");
+            line.push_str(target);
         }
 
         println!("{}", line);
     }
-}
-
-fn extract_name_from_longfield(name: &str) -> &str {
-    // Strip ANSI color codes by finding the plain text portion
-    // For simplicity, we just use the name as-is since colored text
-    // might include escape sequences. We match by entry name directly.
-    // This function is kept for clarity.
-    name
 }
 
 /// Format the entry name with optional color, classify indicator, and quoting.
