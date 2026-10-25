@@ -80,7 +80,7 @@ fn supports_dash_stdin() {
         .write_stdin("hello")
         .assert()
         .success()
-        .stdout(format!("{SHA_HELLO} -\n"));
+        .stdout(format!("{SHA_HELLO}  -\n"));
 }
 
 #[test]
