@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use windows_sys::Win32::Foundation::{DUPLICATE_SAME_ACCESS, DuplicateHandle};
 use windows_sys::Win32::System::Threading::{
-    CREATE_BREAKAWAY_FROM_JOB, CREATE_NEW_PROCESS_GROUP, GetCurrentProcess,
+    CREATE_BREAKAWAY_FROM_JOB, DETACHED_PROCESS, GetCurrentProcess,
 };
 
 fn main() {
@@ -23,8 +23,12 @@ fn main() {
     let mut command = Command::new(&args.command[0]);
     command.args(&args.command[1..]);
 
-    // stdin is left connected. stdout is redirected only when it would be
-    // lost with the terminal; stderr always follows stdout.
+    command.stdin(if io::stdin().is_terminal() {
+        Stdio::null()
+    } else {
+        Stdio::inherit()
+    });
+    // Preserve redirected streams; terminal output needs a durable file.
     let mut output_file = None;
     if io::stdout().is_terminal() {
         match open_output_file() {
@@ -37,6 +41,7 @@ fn main() {
             }
             Err(e) => {
                 eprintln!("nohup: cannot open nohup.out: {}", e);
+                std::process::exit(1);
             }
         }
     }
@@ -50,49 +55,66 @@ fn main() {
                     std::process::exit(1);
                 }
             };
-            let stderr = match file.try_clone() {
-                Ok(f) => f,
-                Err(e) => {
-                    eprintln!("nohup: cannot share nohup.out: {}", e);
-                    std::process::exit(1);
-                }
-            };
             command.stdout(Stdio::from(stdout));
-            command.stderr(Stdio::from(stderr));
+            if io::stderr().is_terminal() {
+                match file.try_clone() {
+                    Ok(stderr) => {
+                        command.stderr(Stdio::from(stderr));
+                    }
+                    Err(error) => {
+                        eprintln!("nohup: cannot share nohup.out: {error}");
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                command.stderr(Stdio::inherit());
+            }
         }
         None => {
             command.stdout(Stdio::inherit());
-            // Point the child's stderr at the very same stream as its stdout,
-            // even when stdout is a pipe rather than a console.
-            if let Some(stderr) = duplicate_stdout_handle() {
-                command.stderr(stderr);
+            if io::stderr().is_terminal() {
+                match duplicate_stdout_handle() {
+                    Some(stderr) => {
+                        command.stderr(stderr);
+                    }
+                    None => {
+                        eprintln!("nohup: cannot share standard output");
+                        std::process::exit(1);
+                    }
+                }
             } else {
                 command.stderr(Stdio::inherit());
             }
         }
     }
 
-    // Windows has no SIGHUP; the closest match is to let the child break away
-    // from the current job and start its own process group, so closing this
-    // terminal does not take it down. Jobs that forbid breakaway fail the
-    // spawn, in which case retry with just the new process group.
-    command.creation_flags(CREATE_BREAKAWAY_FROM_JOB | CREATE_NEW_PROCESS_GROUP);
+    // Detach from console and try to leave the enclosing job. Restricted
+    // jobs may deny breakaway; report that reduced lifetime guarantee.
+    command.creation_flags(CREATE_BREAKAWAY_FROM_JOB | DETACHED_PROCESS);
     let mut child = match command.spawn() {
         Ok(child) => child,
-        Err(_) => {
-            command.creation_flags(CREATE_NEW_PROCESS_GROUP);
+        Err(error) if error.raw_os_error() == Some(5) => {
+            command.creation_flags(DETACHED_PROCESS);
             match command.spawn() {
-                Ok(child) => child,
-                Err(e) => {
-                    eprintln!("nohup: {}: {}", args.command[0], e);
-                    let code = if e.kind() == io::ErrorKind::NotFound {
-                        127
-                    } else {
-                        1
-                    };
-                    std::process::exit(code);
+                Ok(child) => {
+                    eprintln!(
+                        "nohup: warning: job prevents breakaway; child remains subject to job lifetime"
+                    );
+                    child
+                }
+                Err(error) => {
+                    eprintln!("nohup: {}: {error}", args.command[0]);
+                    std::process::exit(1);
                 }
             }
+        }
+        Err(e) => {
+            eprintln!("nohup: {}: {}", args.command[0], e);
+            std::process::exit(if e.kind() == io::ErrorKind::NotFound {
+                127
+            } else {
+                1
+            });
         }
     };
 

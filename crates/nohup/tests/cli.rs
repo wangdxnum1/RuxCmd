@@ -49,16 +49,31 @@ fn passes_stdout_through_when_not_a_terminal() {
 }
 
 #[test]
-fn redirects_child_stderr_to_stdout() {
-    // stderr is always pointed at stdout, even when stdout itself was not
-    // redirected: both echoes must land on nohup's single stdout stream.
+fn preserves_separately_redirected_stderr() {
+    // Explicitly redirected streams remain separate like GNU nohup.
     // (`&` and `>&2` are written without a leading space because cmd's echo
     // would otherwise include that space in the text it prints.)
     cargo_bin_cmd!("nohup")
         .args([cmd_exe().as_str(), "/c", "echo out& echo err>&2"])
         .assert()
         .success()
-        .stdout("out\r\nerr\r\n");
+        .stdout("out\r\n")
+        .stderr(predicates::str::ends_with("err\r\n"));
+}
+
+#[test]
+fn preserves_redirected_stdin() {
+    cargo_bin_cmd!("nohup")
+        .args([
+            cmd_exe().as_str(),
+            "/v:on",
+            "/c",
+            "set /p value=& echo !value!",
+        ])
+        .write_stdin("input value\r\n")
+        .assert()
+        .success()
+        .stdout("input value\r\n");
 }
 
 #[test]
