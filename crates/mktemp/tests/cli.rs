@@ -8,6 +8,51 @@ fn stdout_of(assert: &assert_cmd::assert::Assert) -> String {
 }
 
 #[test]
+fn windows_root_and_prefix_templates_cannot_override_tmpdir() {
+    let dir = tempfile::tempdir().unwrap();
+    for template in [r"C:name.XXXXXX", r"\no-such-mktemp-parent\name.XXXXXX"] {
+        cargo_bin_cmd!("mktemp")
+            .current_dir(dir.path())
+            .arg("-p")
+            .arg(dir.path())
+            .arg(template)
+            .assert()
+            .failure()
+            .stderr(predicates::str::contains("invalid template"));
+    }
+}
+
+#[test]
+fn backslash_suffixes_are_rejected_before_creation() {
+    let dir = tempfile::tempdir().unwrap();
+    for args in [
+        vec![r"--suffix=\suffix", "tmp.XXXXXX"],
+        vec![r"tmp.XXXXXX\suffix"],
+    ] {
+        cargo_bin_cmd!("mktemp")
+            .current_dir(dir.path())
+            .args(args)
+            .assert()
+            .failure()
+            .stderr(predicates::str::contains("invalid suffix"));
+    }
+}
+
+#[test]
+fn t_option_uses_the_windows_temp_directory() {
+    let dir = tempfile::tempdir().unwrap();
+    let result = cargo_bin_cmd!("mktemp")
+        .env("TEMP", dir.path())
+        .env("TMP", dir.path())
+        .args(["-t", "sample.XXXXXX"])
+        .assert()
+        .success();
+    let created = PathBuf::from(stdout_of(&result));
+    assert!(created.is_file());
+    assert_eq!(created.parent().unwrap(), dir.path());
+}
+
+#[test]
 fn creates_file_and_prints_its_path() {
     let dir = tempfile::tempdir().unwrap();
     let assert = cargo_bin_cmd!("mktemp")

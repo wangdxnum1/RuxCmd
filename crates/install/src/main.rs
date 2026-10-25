@@ -25,10 +25,15 @@ fn main() {
         std::process::exit(1);
     }
 
+    if !args.directory && args.operands.len() < 2 {
+        eprintln!("install: missing destination file operand");
+        std::process::exit(1);
+    }
+
     let ok = if args.directory {
         create_directories(&args.operands, mode, args.verbose)
     } else {
-        copy_sources(&args.operands, mode, args.verbose)
+        copy_sources(&args.operands, mode, args.verbose, args.create_parents)
     };
 
     if !ok {
@@ -64,7 +69,10 @@ fn create_directories(operands: &[PathBuf], mode: u32, verbose: bool) -> bool {
             ok = false;
             continue;
         }
-        apply_mode(dir, mode);
+        if let Err(e) = apply_mode(dir, mode) {
+            eprintln!("install: {}", e);
+            ok = false;
+        }
         if verbose && !existed {
             println!("install -> '{}'", dir.display());
         }
@@ -75,7 +83,7 @@ fn create_directories(operands: &[PathBuf], mode: u32, verbose: bool) -> bool {
 
 /// Copy mode: one source to DEST (or DEST/ if it is an existing directory),
 /// or several sources into a directory.
-fn copy_sources(operands: &[PathBuf], mode: u32, verbose: bool) -> bool {
+fn copy_sources(operands: &[PathBuf], mode: u32, verbose: bool, create_parents: bool) -> bool {
     let (sources, dest) = operands.split_at(operands.len() - 1);
     let dest = &dest[0];
 
@@ -89,7 +97,7 @@ fn copy_sources(operands: &[PathBuf], mode: u32, verbose: bool) -> bool {
     let mut ok = true;
 
     for source in sources {
-        if let Err(e) = install_file(source, dest, mode, verbose) {
+        if let Err(e) = install_file(source, dest, mode, verbose, create_parents) {
             eprintln!("install: {}", e);
             ok = false;
         }
@@ -99,7 +107,13 @@ fn copy_sources(operands: &[PathBuf], mode: u32, verbose: bool) -> bool {
 }
 
 /// Resolve the destination path for one source and copy, then apply the mode.
-fn install_file(source: &Path, dest: &Path, mode: u32, verbose: bool) -> Result<(), String> {
+fn install_file(
+    source: &Path,
+    dest: &Path,
+    mode: u32,
+    verbose: bool,
+    create_parents: bool,
+) -> Result<(), String> {
     if !source.is_file() {
         return Err(format!(
             "cannot stat '{}': No such file or directory",
@@ -121,10 +135,21 @@ fn install_file(source: &Path, dest: &Path, mode: u32, verbose: bool) -> Result<
         dest.to_path_buf()
     };
 
-    // CopyFileEx refuses to overwrite a read-only destination; install (like
-    // GNU) overwrites silently, so clear the bit first.
-    if dest_path.exists() {
-        let _ = ruxcmd_core::fsutil::clear_readonly(&dest_path);
+    if create_parents {
+        if let Some(parent) = dest_path.parent().filter(|p| !p.as_os_str().is_empty()) {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("cannot create directory '{}': {}", parent.display(), e))?;
+        }
+    }
+
+    // Replace the directory entry rather than modifying an aliased file.
+    // Check identity first so a source hardlink cannot be removed or changed.
+    if fs::symlink_metadata(&dest_path).is_ok() {
+        if same_file(source, &dest_path).map_err(|e| e.to_string())? {
+            return Err("source and destination are the same file".to_string());
+        }
+        fs::remove_file(&dest_path)
+            .map_err(|e| format!("cannot remove '{}': {}", dest_path.display(), e))?;
     }
 
     fs::copy(source, &dest_path).map_err(|e| {
@@ -136,7 +161,7 @@ fn install_file(source: &Path, dest: &Path, mode: u32, verbose: bool) -> Result<
         )
     })?;
 
-    apply_mode(&dest_path, mode);
+    apply_mode(&dest_path, mode)?;
 
     if verbose {
         println!("install -> '{}'", dest_path.display());
@@ -148,15 +173,16 @@ fn install_file(source: &Path, dest: &Path, mode: u32, verbose: bool) -> Result<
 /// Windows keeps one read-only bit where Unix keeps nine mode bits: any write
 /// permission in OCTAL (the 0o222 bits) clears it, no write bit sets it. The
 /// default 755 therefore installs writable files.
-fn apply_mode(path: &Path, mode: u32) {
+fn apply_mode(path: &Path, mode: u32) -> Result<(), String> {
     #[cfg(windows)]
     {
-        if let Ok(meta) = fs::metadata(path) {
+        let meta = fs::metadata(path).map_err(|e| e.to_string())?;
+        {
             let mut perms = meta.permissions();
             let readonly = (mode & 0o222) == 0;
             if perms.readonly() != readonly {
                 perms.set_readonly(readonly);
-                let _ = fs::set_permissions(path, perms);
+                fs::set_permissions(path, perms).map_err(|e| e.to_string())?;
             }
         }
     }
@@ -164,8 +190,34 @@ fn apply_mode(path: &Path, mode: u32) {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let _ = fs::set_permissions(path, fs::Permissions::from_mode(mode));
+        fs::set_permissions(path, fs::Permissions::from_mode(mode)).map_err(|e| e.to_string())?;
     }
+    Ok(())
+}
+
+fn same_file(source: &Path, destination: &Path) -> std::io::Result<bool> {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Storage::FileSystem::{
+        BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
+    };
+    fn identity(file: &fs::File) -> std::io::Result<(u32, u32, u32)> {
+        let mut info = std::mem::MaybeUninit::<BY_HANDLE_FILE_INFORMATION>::uninit();
+        if unsafe { GetFileInformationByHandle(file.as_raw_handle(), info.as_mut_ptr()) } == 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        let info = unsafe { info.assume_init() };
+        Ok((
+            info.dwVolumeSerialNumber,
+            info.nFileIndexHigh,
+            info.nFileIndexLow,
+        ))
+    }
+    let target = match fs::File::open(destination) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    Ok(identity(&fs::File::open(source)?)? == identity(&target)?)
 }
 
 #[cfg(test)]

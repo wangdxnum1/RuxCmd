@@ -17,6 +17,10 @@ pub struct Args {
     #[arg(short = 'p', long = "tmpdir", value_name = "DIR")]
     pub tmpdir: Option<PathBuf>,
 
+    /// Interpret a filename template relative to the Windows temporary directory
+    #[arg(short = 't')]
+    pub use_temp_dir: bool,
+
     /// Append SUFFIX to TEMPLATE; SUFFIX must not contain a slash
     #[arg(long = "suffix", value_name = "SUFFIX")]
     pub suffix: Option<String>,

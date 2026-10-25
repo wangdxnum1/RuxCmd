@@ -1278,6 +1278,7 @@ dependencies = [
  "predicates",
  "ruxcmd-core",
  "tempfile",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1495,6 +1496,7 @@ dependencies = [
  "clap",
  "predicates",
  "tempfile",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

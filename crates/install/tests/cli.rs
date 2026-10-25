@@ -157,3 +157,64 @@ fn missing_operand_errors() {
         .code(1)
         .stderr(predicates::str::contains("missing file operand"));
 }
+
+#[test]
+fn single_operand_is_an_error_and_does_not_modify_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("only.txt");
+    fs::write(&source, b"keep").unwrap();
+    cargo_bin_cmd!("install")
+        .arg(&source)
+        .assert()
+        .failure()
+        .code(1);
+    assert_eq!(fs::read(&source).unwrap(), b"keep");
+}
+
+#[test]
+fn capital_d_creates_destination_parents() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source.txt");
+    let destination = dir.path().join("nested/deep/installed.txt");
+    fs::write(&source, b"installed\0bytes").unwrap();
+    cargo_bin_cmd!("install")
+        .arg("-D")
+        .arg(&source)
+        .arg(&destination)
+        .assert()
+        .success();
+    assert_eq!(fs::read(destination).unwrap(), b"installed\0bytes");
+}
+
+#[test]
+fn replacing_a_hardlink_preserves_the_other_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source");
+    let other = dir.path().join("other");
+    let dest = dir.path().join("dest");
+    fs::write(&source, b"new content").unwrap();
+    fs::write(&other, b"keep other").unwrap();
+    fs::hard_link(&other, &dest).unwrap();
+    cargo_bin_cmd!("install")
+        .arg(&source)
+        .arg(&dest)
+        .assert()
+        .success();
+    assert_eq!(fs::read(&other).unwrap(), b"keep other");
+    assert_eq!(fs::read(&dest).unwrap(), b"new content");
+}
+
+#[test]
+fn refuses_source_and_destination_hardlink_aliases() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("source");
+    let dest = dir.path().join("dest");
+    fs::write(&source, b"keep source").unwrap();
+    fs::hard_link(&source, &dest).unwrap();
+    cargo_bin_cmd!("install")
+        .arg(&source)
+        .arg(&dest)
+        .assert()
+        .failure();
+    assert_eq!(fs::read(&source).unwrap(), b"keep source");
+}

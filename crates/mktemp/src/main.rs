@@ -4,8 +4,9 @@ use clap::Parser;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::SystemTime;
+use windows_sys::Win32::Security::Cryptography::{
+    BCRYPT_USE_SYSTEM_PREFERRED_RNG, BCryptGenRandom,
+};
 
 /// GNU gen_tempname replaces the X's with characters from [a-zA-Z0-9].
 const RANDOM_CHARS: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -13,10 +14,6 @@ const RANDOM_CHARS: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWX
 const MIN_X_COUNT: usize = 3;
 /// Number of distinct random names tried before giving up.
 const MAX_ATTEMPTS: usize = 100;
-
-/// Process-wide counter mixed into the seed so two invocations started
-/// within the same clock tick never produce the same first name.
-static COUNTER: AtomicU64 = AtomicU64::new(0);
 
 fn main() {
     let args = cli::Args::parse();
@@ -33,7 +30,7 @@ fn main() {
     // No template operand (or an explicit --tmpdir): the name is resolved
     // inside a temporary directory. GNU uses $TMPDIR or /tmp; on Windows the
     // equivalent is %TEMP%.
-    let use_dest_dir = args.templates.is_empty() || args.tmpdir.is_some();
+    let use_dest_dir = args.templates.is_empty() || args.tmpdir.is_some() || args.use_temp_dir;
 
     let suffix = match &args.suffix {
         Some(sfx) => {
@@ -41,7 +38,7 @@ fn main() {
                 eprintln!("with --suffix, template '{}' must end in X", template);
                 std::process::exit(1);
             }
-            if sfx.contains('/') {
+            if sfx.contains(['/', '\\']) {
                 eprintln!("invalid suffix '{}', contains directory separator", sfx);
                 std::process::exit(1);
             }
@@ -54,7 +51,7 @@ fn main() {
             match template.rfind('X') {
                 Some(pos) => {
                     let tail = template[pos + 1..].to_string();
-                    if tail.contains('/') {
+                    if tail.contains(['/', '\\']) {
                         eprintln!("invalid suffix '{}', contains directory separator", tail);
                         std::process::exit(1);
                     }
@@ -87,7 +84,13 @@ fn main() {
     }
 
     if use_dest_dir {
-        if Path::new(&template).is_absolute() {
+        if Path::new(&template).components().any(|part| {
+            matches!(
+                part,
+                std::path::Component::Prefix(_) | std::path::Component::RootDir
+            )
+        }) || (args.use_temp_dir && template.contains(['/', '\\']))
+        {
             eprintln!(
                 "mktemp: invalid template, '{}'; with --tmpdir, it may not be absolute",
                 template
@@ -120,14 +123,13 @@ fn create_and_print(
     x_count: usize,
 ) {
     let full_str = full.to_string_lossy().into_owned();
-    let mut rng = Rng::new();
     let mut last_err: Option<std::io::Error> = None;
 
     for _ in 0..MAX_ATTEMPTS {
         let mut name_bytes = full_str.clone().into_bytes();
         let x_start = name_bytes.len() - suffix_len - x_count;
-        for slot in &mut name_bytes[x_start..x_start + x_count] {
-            *slot = RANDOM_CHARS[(rng.next() % RANDOM_CHARS.len() as u64) as usize];
+        if let Err(error) = randomize(&mut name_bytes[x_start..x_start + x_count]) {
+            fail(&full_str, args, error);
         }
         let candidate =
             PathBuf::from(String::from_utf8(name_bytes).expect("template stays valid UTF-8"));
@@ -169,33 +171,34 @@ fn fail(full_str: &str, args: &cli::Args, e: std::io::Error) -> ! {
     std::process::exit(1);
 }
 
-/// Small dependency-free xorshift64* PRNG, seeded from the system clock,
-/// the process id, and a process-wide counter (no rand/tempfile dependency).
-struct Rng(u64);
-
-impl Rng {
-    fn new() -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .map(|d| d.as_nanos() as u64)
-            .unwrap_or(0x9E37_79B9_7F4A_7C15);
-        let pid = std::process::id() as u64;
-        let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let seed = nanos ^ (pid << 32) ^ counter.wrapping_mul(0x9E37_79B9_7F4A_7C15);
-        // xorshift64* must not start from zero.
-        Rng(if seed == 0 {
-            0x9E37_79B9_7F4A_7C15
-        } else {
-            seed
-        })
+/// Draw unpredictable names from the Windows system RNG. Rejection sampling
+/// keeps all 62 template characters equally likely.
+fn randomize(slots: &mut [u8]) -> std::io::Result<()> {
+    let mut filled = 0;
+    while filled < slots.len() {
+        let mut bytes = [0u8; 64];
+        let status = unsafe {
+            BCryptGenRandom(
+                std::ptr::null_mut(),
+                bytes.as_mut_ptr(),
+                bytes.len() as u32,
+                BCRYPT_USE_SYSTEM_PREFERRED_RNG,
+            )
+        };
+        if status < 0 {
+            return Err(std::io::Error::other(format!(
+                "system random generator failed: {status:#x}"
+            )));
+        }
+        for byte in bytes {
+            if byte < 248 {
+                slots[filled] = RANDOM_CHARS[byte as usize % RANDOM_CHARS.len()];
+                filled += 1;
+                if filled == slots.len() {
+                    break;
+                }
+            }
+        }
     }
-
-    fn next(&mut self) -> u64 {
-        let mut x = self.0;
-        x ^= x >> 12;
-        x ^= x << 25;
-        x ^= x >> 27;
-        self.0 = x;
-        x.wrapping_mul(0x2545_F491_4F6C_DD1D)
-    }
+    Ok(())
 }

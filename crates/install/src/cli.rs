@@ -9,6 +9,10 @@ pub struct Args {
     #[arg(short = 'd', long = "directory")]
     pub directory: bool,
 
+    /// Create missing parent directories of the destination
+    #[arg(short = 'D')]
+    pub create_parents: bool,
+
     /// Set file mode (octal, mapped onto the read-only attribute)
     #[arg(short = 'm', long = "mode")]
     pub mode: Option<String>,
