@@ -1,0 +1,12 @@
+[package]
+name = "ruxcmd-build"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+repository.workspace = true
+description = "Build-time Windows version resource support for RuxCmd"
+
+[dependencies]
+embed-resource = "3.0.12"
+semver = "1"
+toml = "1"

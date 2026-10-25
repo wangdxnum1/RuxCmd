@@ -1,4 +1,6 @@
 [package]
+build = "../../build/windows-version.rs"
+description = "Create, list, and extract tar archives"
 license.workspace = true
 repository.workspace = true
 name = "tar"
@@ -14,3 +16,6 @@ flate2 = "1.0"
 assert_cmd.workspace = true
 predicates.workspace = true
 tempfile.workspace = true
+
+[build-dependencies]
+ruxcmd-build.workspace = true

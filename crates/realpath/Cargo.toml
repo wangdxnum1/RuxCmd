@@ -1,4 +1,5 @@
 [package]
+build = "../../build/windows-version.rs"
 license.workspace = true
 repository.workspace = true
 name = "realpath"
@@ -13,3 +14,6 @@ ruxcmd-core = { path = "../ruxcmd-core" }
 [dev-dependencies]
 assert_cmd.workspace = true
 tempfile.workspace = true
+
+[build-dependencies]
+ruxcmd-build.workspace = true

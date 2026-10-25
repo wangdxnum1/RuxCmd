@@ -1,4 +1,5 @@
 [package]
+build = "../../build/windows-version.rs"
 license.workspace = true
 repository.workspace = true
 name = "sar"
@@ -11,3 +12,6 @@ authors = ["Tim"]
 clap = { version = "4", features = ["derive"] }
 ruxcmd-core = { path = "../ruxcmd-core" }
 windows-sys = { version = "0.61", features = ["Win32_System_SystemInformation"] }
+
+[build-dependencies]
+ruxcmd-build.workspace = true

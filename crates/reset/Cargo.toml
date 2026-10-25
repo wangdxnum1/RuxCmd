@@ -1,4 +1,5 @@
 [package]
+build = "../../build/windows-version.rs"
 license.workspace = true
 repository.workspace = true
 name = "reset"
@@ -10,3 +11,6 @@ authors = ["Tim"]
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 winapi = { version = "0.3", features = ["consoleapi", "processenv", "winbase"] }
+
+[build-dependencies]
+ruxcmd-build.workspace = true

@@ -1,4 +1,5 @@
 [package]
+build = "../../build/windows-version.rs"
 license.workspace = true
 repository.workspace = true
 name = "nslookup"
@@ -13,3 +14,6 @@ windows.workspace = true
 
 [dev-dependencies]
 assert_cmd.workspace = true
+
+[build-dependencies]
+ruxcmd-build.workspace = true

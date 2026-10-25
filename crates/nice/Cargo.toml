@@ -1,4 +1,6 @@
 [package]
+build = "../../build/windows-version.rs"
+description = "Run a command with an adjusted process priority"
 license.workspace = true
 repository.workspace = true
 name = "nice"
@@ -11,3 +13,6 @@ windows = { workspace = true }
 [dev-dependencies]
 assert_cmd.workspace = true
 predicates.workspace = true
+
+[build-dependencies]
+ruxcmd-build.workspace = true

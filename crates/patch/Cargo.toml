@@ -1,4 +1,6 @@
 [package]
+build = "../../build/windows-version.rs"
+description = "Apply unified diffs to files"
 license.workspace = true
 repository.workspace = true
 name = "patch"
@@ -12,3 +14,6 @@ clap = { version = "4", features = ["derive"] }
 assert_cmd.workspace = true
 predicates.workspace = true
 tempfile.workspace = true
+
+[build-dependencies]
+ruxcmd-build.workspace = true

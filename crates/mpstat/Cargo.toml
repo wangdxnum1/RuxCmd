@@ -1,4 +1,5 @@
 [package]
+build = "../../build/windows-version.rs"
 license.workspace = true
 repository.workspace = true
 name = "mpstat"
@@ -10,3 +11,6 @@ authors = ["Tim"]
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 ruxcmd-core = { path = "../ruxcmd-core" }
+
+[build-dependencies]
+ruxcmd-build.workspace = true

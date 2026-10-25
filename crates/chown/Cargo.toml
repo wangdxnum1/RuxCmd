@@ -1,4 +1,6 @@
 [package]
+build = "../../build/windows-version.rs"
+description = "Change file ownership on Windows"
 license.workspace = true
 repository.workspace = true
 name = "chown"
@@ -15,3 +17,6 @@ assert_cmd.workspace = true
 predicates.workspace = true
 tempfile.workspace = true
 windows-sys = { version = "0.52", features = ["Win32_Security", "Win32_Foundation"] }
+
+[build-dependencies]
+ruxcmd-build.workspace = true

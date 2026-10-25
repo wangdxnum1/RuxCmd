@@ -1,4 +1,5 @@
 [package]
+build = "../../build/windows-version.rs"
 license.workspace = true
 repository.workspace = true
 name = "sed"
@@ -9,3 +10,6 @@ authors = ["Tim"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+
+[build-dependencies]
+ruxcmd-build.workspace = true

@@ -1,4 +1,6 @@
 [package]
+build = "../../build/windows-version.rs"
+description = "Find processes by name or pattern"
 license.workspace = true
 repository.workspace = true
 name = "pgrep"
@@ -12,3 +14,6 @@ ps-sys = { path = "../ps-sys" }
 [dev-dependencies]
 assert_cmd.workspace = true
 predicates.workspace = true
+
+[build-dependencies]
+ruxcmd-build.workspace = true

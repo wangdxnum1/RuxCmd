@@ -1,4 +1,6 @@
 [package]
+build = "../../build/windows-version.rs"
+description = "Run a command with a time limit"
 license.workspace = true
 repository.workspace = true
 name = "timeout"
@@ -11,3 +13,6 @@ clap = { version = "4", features = ["derive"] }
 [dev-dependencies]
 assert_cmd.workspace = true
 predicates.workspace = true
+
+[build-dependencies]
+ruxcmd-build.workspace = true

@@ -1,4 +1,6 @@
 [package]
+build = "../../build/windows-version.rs"
+description = "Compare sorted files line by line"
 license.workspace = true
 repository.workspace = true
 name = "comm"
@@ -12,3 +14,6 @@ clap = { version = "4", features = ["derive"] }
 [dev-dependencies]
 assert_cmd.workspace = true
 tempfile.workspace = true
+
+[build-dependencies]
+ruxcmd-build.workspace = true

@@ -1,4 +1,6 @@
 [package]
+build = "../../build/windows-version.rs"
+description = "Display system uptime"
 license.workspace = true
 repository.workspace = true
 name = "uptime"
@@ -12,3 +14,6 @@ chrono = "0.4"
 
 [dev-dependencies]
 assert_cmd.workspace = true
+
+[build-dependencies]
+ruxcmd-build.workspace = true

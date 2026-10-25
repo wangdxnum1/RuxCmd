@@ -10,7 +10,13 @@ repository = "https://github.com/wangdxnum1/RuxCmd"
 version = "0.3.1"
 target = "x86_64-pc-windows-msvc"
 
+[workspace.metadata.ruxcmd.windows]
+productName = "RuxCmd"
+companyName = "Tim and RuxCmd contributors"
+copyright = "Copyright (c) 2026 Tim and RuxCmd contributors"
+
 [workspace.dependencies]
+ruxcmd-build = { path = "crates/ruxcmd-build" }
 assert_cmd = "2"
 predicates = "3"
 tempfile = "3"

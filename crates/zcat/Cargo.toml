@@ -1,4 +1,6 @@
 [package]
+build = "../../build/windows-version.rs"
+description = "Decompress gzip data to standard output"
 license.workspace = true
 repository.workspace = true
 name = "zcat"
@@ -8,3 +10,6 @@ edition = "2021"
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 flate2 = "1"
+
+[build-dependencies]
+ruxcmd-build.workspace = true

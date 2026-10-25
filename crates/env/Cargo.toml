@@ -1,4 +1,6 @@
 [package]
+build = "../../build/windows-version.rs"
+description = "Run a command with a modified environment"
 license.workspace = true
 repository.workspace = true
 name = "env"
@@ -7,3 +9,6 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+
+[build-dependencies]
+ruxcmd-build.workspace = true

@@ -1,4 +1,6 @@
 [package]
+build = "../../build/windows-version.rs"
+description = "Signal processes by name or pattern"
 license.workspace = true
 repository.workspace = true
 name = "pkill"
@@ -13,3 +15,6 @@ windows-sys = { version = "0.61", features = ["Win32_System_Threading", "Win32_F
 [dev-dependencies]
 assert_cmd.workspace = true
 predicates.workspace = true
+
+[build-dependencies]
+ruxcmd-build.workspace = true

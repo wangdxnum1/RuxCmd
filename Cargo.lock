@@ -119,6 +119,7 @@ name = "awk"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -126,6 +127,7 @@ name = "base64"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -146,6 +148,7 @@ version = "1.0.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -155,6 +158,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -230,6 +234,7 @@ dependencies = [
  "chrono",
  "clap",
  "predicates",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -239,6 +244,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -271,6 +277,7 @@ name = "chmod"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -280,6 +287,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
  "windows-sys 0.52.0",
 ]
@@ -314,6 +322,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -362,6 +371,7 @@ name = "clear"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -369,6 +379,7 @@ name = "cmp"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -394,6 +405,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -403,6 +415,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-build",
  "ruxcmd-core",
  "tempfile",
 ]
@@ -436,6 +449,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "ruxcmd-core",
  "tempfile",
 ]
@@ -481,6 +495,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -490,6 +505,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "reqwest",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -498,6 +514,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-build",
  "ruxcmd-core",
 ]
 
@@ -509,6 +526,7 @@ dependencies = [
  "chrono",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "windows",
 ]
 
@@ -528,6 +546,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "windows-sys 0.61.2",
 ]
 
@@ -538,6 +557,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -564,6 +584,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -584,6 +605,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -594,7 +616,22 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
+]
+
+[[package]]
+name = "embed-resource"
+version = "3.0.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6168487b5e7eb2673e6efe1200b1848016e436a6ca0b8031bf04bd9d493a249f"
+dependencies = [
+ "cc",
+ "memchr",
+ "rustc_version",
+ "toml",
+ "vswhom",
+ "winreg",
 ]
 
 [[package]]
@@ -611,6 +648,7 @@ name = "env"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -634,6 +672,7 @@ name = "expand"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -641,6 +680,7 @@ name = "factor"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -650,6 +690,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -666,6 +707,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -687,6 +729,7 @@ dependencies = [
  "clap",
  "predicates",
  "regex",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -720,6 +763,7 @@ name = "fmt"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -733,6 +777,7 @@ name = "fold"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -765,6 +810,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -861,6 +907,7 @@ dependencies = [
  "clap",
  "predicates",
  "regex",
+ "ruxcmd-build",
  "ruxcmd-core",
  "tempfile",
 ]
@@ -872,6 +919,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "windows",
 ]
 
@@ -881,6 +929,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "flate2",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -904,15 +953,16 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.16.1"
+version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
+checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 
 [[package]]
 name = "head"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -933,6 +983,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -950,6 +1001,7 @@ name = "hostname"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -1102,6 +1154,7 @@ dependencies = [
  "clap",
  "encoding_rs",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -1230,6 +1283,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "windows",
 ]
 
@@ -1256,9 +1310,9 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "2.11.4"
+version = "2.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b0f83760fb341a774ed326568e19f5a863af4a952def8c39f9ab92fd95b88e5"
+checksum = "cc4e190f5d26ca7051642629da2c52fc03bde85a03197c99408dcd291734c855"
 dependencies = [
  "equivalent",
  "hashbrown",
@@ -1280,6 +1334,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "ruxcmd-core",
  "tempfile",
  "windows-sys 0.61.2",
@@ -1290,6 +1345,7 @@ name = "iostat"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
  "ruxcmd-core",
 ]
 
@@ -1328,6 +1384,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -1347,6 +1404,7 @@ name = "kill"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
  "windows-sys 0.61.2",
 ]
 
@@ -1369,6 +1427,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -1391,6 +1450,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -1407,6 +1467,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "windows-sys 0.61.2",
 ]
 
@@ -1424,6 +1485,7 @@ dependencies = [
  "chrono",
  "clap",
  "colored",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -1441,6 +1503,7 @@ dependencies = [
  "clap",
  "md5",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -1482,6 +1545,7 @@ name = "mkdir"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -1489,6 +1553,7 @@ name = "mkfifo"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
  "winapi",
 ]
 
@@ -1499,6 +1564,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
  "windows-sys 0.61.2",
 ]
@@ -1508,6 +1574,7 @@ name = "mpstat"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
  "ruxcmd-core",
 ]
 
@@ -1518,6 +1585,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -1544,6 +1612,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-build",
  "windows-sys 0.61.2",
 ]
 
@@ -1554,6 +1623,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "windows",
 ]
 
@@ -1564,6 +1634,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -1574,6 +1645,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
  "windows-sys 0.61.2",
 ]
@@ -1590,6 +1662,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-build",
  "windows",
 ]
 
@@ -1624,6 +1697,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -1634,6 +1708,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -1655,6 +1730,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-build",
  "tempfile",
  "windows-sys 0.61.2",
 ]
@@ -1719,6 +1795,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-build",
  "ruxcmd-core",
  "tempfile",
 ]
@@ -1730,6 +1807,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -1759,6 +1837,7 @@ dependencies = [
  "clap",
  "predicates",
  "ps-sys",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -1772,6 +1851,7 @@ name = "ping"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
  "windows-sys 0.61.2",
 ]
 
@@ -1789,6 +1869,7 @@ dependencies = [
  "clap",
  "predicates",
  "ps-sys",
+ "ruxcmd-build",
  "windows-sys 0.61.2",
 ]
 
@@ -1815,6 +1896,7 @@ dependencies = [
  "chrono",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -1853,6 +1935,7 @@ name = "printf"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -1872,6 +1955,7 @@ dependencies = [
  "clap",
  "predicates",
  "ps-core",
+ "ruxcmd-build",
  "thiserror 1.0.69",
 ]
 
@@ -1898,6 +1982,7 @@ name = "pwd"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -2011,6 +2096,7 @@ version = "1.0.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-build",
  "ruxcmd-core",
  "tempfile",
 ]
@@ -2021,6 +2107,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-build",
  "ruxcmd-core",
  "tempfile",
 ]
@@ -2105,6 +2192,7 @@ name = "reset"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
  "winapi",
 ]
 
@@ -2113,6 +2201,7 @@ name = "rev"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -2136,6 +2225,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -2146,6 +2236,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -2154,6 +2245,15 @@ name = "rustc-hash"
 version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "357703d41365b4b27c590e3ed91eabb1b663f07c4c084095e60cbed4362dff0d"
+
+[[package]]
+name = "rustc_version"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92"
+dependencies = [
+ "semver",
+]
 
 [[package]]
 name = "rustix"
@@ -2210,6 +2310,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
+name = "ruxcmd-build"
+version = "0.1.0"
+dependencies = [
+ "embed-resource",
+ "semver",
+ "toml",
+]
+
+[[package]]
 name = "ruxcmd-core"
 version = "0.1.0"
 dependencies = [
@@ -2227,6 +2336,7 @@ name = "sar"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
  "ruxcmd-core",
  "windows-sys 0.61.2",
 ]
@@ -2268,7 +2378,14 @@ name = "sed"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
+
+[[package]]
+name = "semver"
+version = "1.0.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd"
 
 [[package]]
 name = "seq"
@@ -2277,6 +2394,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -2322,6 +2440,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_spanned"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4e7523beb55eece201a2356bee0bbca0d1ab466c14c07703b2e0ee6d42cb0c2c"
+dependencies = [
+ "serde_core",
+]
+
+[[package]]
 name = "serde_urlencoded"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2352,6 +2479,7 @@ dependencies = [
  "clap",
  "hex",
  "predicates",
+ "ruxcmd-build",
  "sha1",
  "tempfile",
 ]
@@ -2375,6 +2503,7 @@ dependencies = [
  "clap",
  "hex",
  "predicates",
+ "ruxcmd-build",
  "sha2",
  "tempfile",
 ]
@@ -2387,6 +2516,7 @@ dependencies = [
  "clap",
  "hex",
  "predicates",
+ "ruxcmd-build",
  "sha2",
  "tempfile",
 ]
@@ -2402,6 +2532,7 @@ name = "shred"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -2411,6 +2542,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "ruxcmd-core",
  "tempfile",
 ]
@@ -2432,6 +2564,7 @@ name = "sleep"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -2457,6 +2590,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "ruxcmd-core",
  "tempfile",
 ]
@@ -2468,6 +2602,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -2483,6 +2618,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-build",
  "tempfile",
  "time 0.3.41",
  "windows-sys 0.61.2",
@@ -2494,6 +2630,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -2538,6 +2675,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -2598,6 +2736,7 @@ name = "tac"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -2605,6 +2744,7 @@ name = "tail"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -2615,6 +2755,7 @@ dependencies = [
  "clap",
  "flate2",
  "predicates",
+ "ruxcmd-build",
  "tar 0.4.46",
  "tempfile",
 ]
@@ -2635,6 +2776,7 @@ name = "tee"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -2661,6 +2803,7 @@ name = "test"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -2709,6 +2852,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-build",
  "windows-sys 0.61.2",
 ]
 
@@ -2752,6 +2896,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -2819,12 +2964,52 @@ dependencies = [
 ]
 
 [[package]]
+name = "toml"
+version = "1.1.8+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20489e00e4d8741d6be680764cc12e270655e375a20d1011e844a9c3379e678d"
+dependencies = [
+ "indexmap",
+ "serde_core",
+ "serde_spanned",
+ "toml_datetime",
+ "toml_parser",
+ "toml_writer",
+ "winnow",
+]
+
+[[package]]
+name = "toml_datetime"
+version = "1.1.2+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b86d767906c6c42421dcba507eb9d203e779497710a47782a224bb871653053"
+dependencies = [
+ "serde_core",
+]
+
+[[package]]
+name = "toml_parser"
+version = "1.1.5+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "baa693a8032d7e1cada7d0041e96126df243179ff061456783ac7f12bda4744c"
+dependencies = [
+ "winnow",
+]
+
+[[package]]
+name = "toml_writer"
+version = "1.1.3+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06bdbd8cfc056b8d2e2e85f29b56a3bdbecb527cef81eb39e3e7b98af4652770"
+
+[[package]]
 name = "top"
 version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "chrono",
  "clap",
+ "ruxcmd-build",
  "ruxcmd-core",
  "windows-sys 0.61.2",
 ]
@@ -2836,6 +3021,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
  "windows",
 ]
@@ -2892,6 +3078,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -2899,6 +3086,7 @@ name = "traceroute"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
  "windows-sys 0.61.2",
 ]
 
@@ -2928,6 +3116,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -2943,6 +3132,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -2956,6 +3146,7 @@ name = "uname"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -2963,6 +3154,7 @@ name = "unexpand"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -2978,6 +3170,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "ruxcmd-core",
  "tempfile",
 ]
@@ -2989,6 +3182,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -3005,6 +3199,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "ruxcmd-core",
  "tempfile",
  "zip 0.6.6",
@@ -3017,6 +3212,7 @@ dependencies = [
  "assert_cmd",
  "chrono",
  "clap",
+ "ruxcmd-build",
  "windows",
 ]
 
@@ -3039,6 +3235,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "windows-sys 0.61.2",
 ]
 
@@ -3072,6 +3269,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "ls",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -3087,7 +3285,28 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-build",
  "ruxcmd-core",
+]
+
+[[package]]
+name = "vswhom"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be979b7f07507105799e854203b470ff7c78a1639e330a58f183b5fea574608b"
+dependencies = [
+ "libc",
+ "vswhom-sys",
+]
+
+[[package]]
+name = "vswhom-sys"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb067e4cbd1ff067d1df46c9194b5de0e98efd2810bbc95c5d5e5f25a3231150"
+dependencies = [
+ "cc",
+ "libc",
 ]
 
 [[package]]
@@ -3098,6 +3317,7 @@ dependencies = [
  "chrono",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "windows",
 ]
 
@@ -3197,6 +3417,7 @@ dependencies = [
  "chrono",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -3207,6 +3428,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "ruxcmd-build",
  "tempfile",
 ]
 
@@ -3245,6 +3467,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "reqwest",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -3252,6 +3475,7 @@ name = "whereis"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -3260,6 +3484,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-build",
  "ruxcmd-core",
  "tempfile",
 ]
@@ -3270,6 +3495,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "clap",
+ "ruxcmd-build",
  "windows",
 ]
 
@@ -3278,6 +3504,7 @@ name = "whoami"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -3608,6 +3835,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650"
 
 [[package]]
+name = "winnow"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23b97319f7b8343df12cc98938e5c3eb436064524c8d2b4e30a1d3a36eecdf81"
+
+[[package]]
+name = "winreg"
+version = "0.56.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d6f32a0ff4a9f6f01231eb2059cc85479330739333e0e58cadf03b6af2cca10"
+dependencies = [
+ "cfg-if",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "wit-bindgen"
 version = "0.57.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3631,6 +3874,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-build",
  "windows-sys 0.61.2",
 ]
 
@@ -3649,6 +3893,7 @@ name = "yes"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -3681,6 +3926,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "flate2",
+ "ruxcmd-build",
 ]
 
 [[package]]
@@ -3758,6 +4004,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "ruxcmd-build",
  "tempfile",
 ]
 

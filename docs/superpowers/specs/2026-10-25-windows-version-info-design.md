@@ -1,0 +1,13 @@
+# Windows executable version resources
+
+Approved scope: embed Windows Details properties in every one of the 125 command executables, including ordinary Cargo builds; validate them during packaging. No self-signed certificate, trust-store change, signing, version bump, or publication is part of this change.
+
+The root suite version supplies ProductVersion (full SemVer) and fixed FILEVERSION/PRODUCTVERSION (major, minor, patch, 0). FileVersion is the four-part numeric string. CompanyName is `Tim and RuxCmd contributors`; LegalCopyright matches LICENSE; ProductName is `RuxCmd`. FileDescription comes from each package description; InternalName and OriginalFilename use the binary target name, particularly ps-bin -> ps.exe. Missing descriptions must be filled with concrete command descriptions.
+
+Add a build-only ruxcmd-build library, a shared build/windows-version.rs entry point, and build-dependency hooks for binary packages. Use embed-resource compile_for so resources attach to named executable targets only, never to ls.rlib and its vdir consumer. Generate UTF-8 RC with an explicit code page and English/Unicode translation. Reject invalid SemVer, numeric components exceeding Windows WORD range, empty mandatory strings, control characters, and ambiguous binary target metadata. Track the workspace and package manifests with rerun-if-changed so version/description edits invalidate cached resources. Windows resource compilation errors fail the build. No build timestamp or absolute source path is embedded.
+
+A shared PowerShell validator reads FileVersionInfo without starting programs or Explorer. Verify checks all release binaries. Packaging validates before copying/hashing and after extraction, and records version fields in the manifest. Missing, stale, mismatched or incorrectly named resources fail. Existing help smoke, native dependency, checksum and extraction checks remain required. All open desktop tests remain opt-in.
+
+Tests cover version mapping including prerelease flags and overflow; resource string escaping; binary alias and library isolation; all required string/fixed fields on real EXEs; missing resource, wrong version, and wrong command negatives; rebuild after suite metadata changes. Current version remains 0.3.1 until a later release is requested.
+
+Implementation choices are the agent's: build-only helper library, embed-resource + TOML + SemVer parsing; current checkout on codex/windows-version-info, keeping existing build caches. There will be 129 packages and 125 commands.

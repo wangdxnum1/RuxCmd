@@ -1,4 +1,6 @@
 [package]
+build = "../../build/windows-version.rs"
+description = "Display logged-in users and their activity"
 license.workspace = true
 repository.workspace = true
 name = "w"
@@ -13,3 +15,6 @@ chrono = "0.4"
 [dev-dependencies]
 assert_cmd.workspace = true
 predicates.workspace = true
+
+[build-dependencies]
+ruxcmd-build.workspace = true
