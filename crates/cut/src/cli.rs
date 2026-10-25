@@ -5,6 +5,9 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(name = "cut", version, about, disable_version_flag = true)]
 pub struct Args {
+    /// Use NUL instead of newline to separate input and output records
+    #[arg(short = 'z', long = "zero-terminated")]
+    pub zero_terminated: bool,
     /// Select only these bytes
     #[arg(short = 'b', long = "bytes")]
     pub bytes: Option<String>,

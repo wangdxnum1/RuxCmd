@@ -8,4 +8,8 @@ description = "A Windows paste clone — merge lines of files"
 authors = ["Tim"]
 
 [dependencies]
+ruxcmd-core = { path = "../ruxcmd-core" }
 clap = { version = "4", features = ["derive"] }
+[dev-dependencies]
+assert_cmd.workspace = true
+tempfile.workspace = true

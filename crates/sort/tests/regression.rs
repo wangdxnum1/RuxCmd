@@ -234,7 +234,7 @@ fn sort_stdout_bytes(file: &std::path::Path) -> (Vec<u8>, Option<i32>) {
     (output.stdout.clone(), output.status.code())
 }
 
-/// Lines that are not valid UTF-8 must be sorted (on their lossy text) and
+/// Lines that are not valid UTF-8 must be sorted by their original bytes and
 /// echoed with their original bytes; the pre-fix `read_line` replaced
 /// invalid bytes with U+FFFD on output.
 #[test]
@@ -245,9 +245,9 @@ fn non_utf8_lines_keep_original_bytes() {
     fs::write(&path, data).unwrap();
     let (stdout, code) = sort_stdout_bytes(&path);
     assert_eq!(code, Some(0));
-    // The lossy text of both marker lines starts with U+FFFD, so both sort
-    // after "apple" and order between themselves by the readable remainder.
-    assert_eq!(stdout, b"apple\n\xFF banana\n\xFE cherry\n");
+    // GNU C byte order distinguishes FE from FF rather than comparing the
+    // readable remainder after a shared lossy replacement character.
+    assert_eq!(stdout, b"apple\n\xFE cherry\n\xFF banana\n");
 }
 
 /// Trailing blanks are part of the line: only the `\r` of a CRLF terminator

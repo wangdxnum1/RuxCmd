@@ -1,158 +1,134 @@
 mod cli;
 
 use clap::Parser;
+use ruxcmd_core::lines::ByteLines;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{self, BufReader, Write};
+
+enum Input {
+    File(ByteLines<BufReader<File>>),
+    Stdin,
+}
 
 fn main() {
     let args = cli::Args::parse();
+    if let Err(error) = run(&args) {
+        eprintln!("paste: {error}");
+        std::process::exit(1);
+    }
+}
 
-    // GNU paste: `-d LIST` uses the list's characters in turn between output
-    // columns, restarting from the first character once the list is exhausted.
-    // An explicitly empty list means no separator; without `-d` it is TAB.
-    let delimiters: Vec<char> = args
+fn run(args: &cli::Args) -> io::Result<()> {
+    let separator = if args.zero_terminated { 0 } else { b'\n' };
+    let delimiters = args
         .delimiters
-        .map(|d| d.chars().collect())
-        .unwrap_or_else(|| vec!['\t']);
-    let serial = args.serial;
-
-    let mut exit_code = 0i32;
-
-    let readers: Vec<Box<dyn BufRead>> = if args.files.is_empty() {
-        vec![Box::new(BufReader::new(std::io::stdin()))]
-    } else {
-        args.files
-            .iter()
-            .map(|path| {
-                let path_str = path.to_string_lossy();
-                if path_str == "-" {
-                    Box::new(BufReader::new(std::io::stdin())) as Box<dyn BufRead>
-                } else {
-                    match File::open(path) {
-                        Ok(file) => Box::new(BufReader::new(file)) as Box<dyn BufRead>,
-                        Err(e) => {
-                            eprintln!("paste: {}: {}", path.display(), e);
-                            exit_code = 1;
-                            Box::new(BufReader::new(std::io::empty())) as Box<dyn BufRead>
-                        }
-                    }
-                }
-            })
-            .collect()
-    };
-
-    if exit_code != 0 {
-        std::process::exit(exit_code);
+        .as_deref()
+        .map(parse_delimiters)
+        .unwrap_or_else(|| vec![vec![b'\t']]);
+    let mut inputs = Vec::new();
+    if args.files.is_empty() {
+        inputs.push(Input::Stdin);
     }
-
-    if serial {
-        if let Err(e) = paste_serial(readers, &delimiters) {
-            eprintln!("paste: {}", e);
-            exit_code = 1;
+    for path in &args.files {
+        if path.as_os_str() == "-" {
+            inputs.push(Input::Stdin);
+        } else {
+            inputs.push(Input::File(ByteLines::with_separator(
+                BufReader::new(File::open(path)?),
+                separator,
+            )));
+        }
+    }
+    let mut stdin = ByteLines::with_separator(BufReader::new(io::stdin()), separator);
+    let mut out = io::BufWriter::new(io::stdout().lock());
+    if args.serial {
+        for input in &mut inputs {
+            let mut count = 0;
+            while let Some(record) = next_record(input, &mut stdin)? {
+                if count > 0 {
+                    out.write_all(delimiter_for(&delimiters, count - 1))?;
+                }
+                out.write_all(&record)?;
+                count += 1;
+            }
+            out.write_all(&[separator])?;
         }
     } else {
-        if let Err(e) = paste_parallel(readers, &delimiters) {
-            eprintln!("paste: {}", e);
-            exit_code = 1;
-        }
-    }
-
-    std::process::exit(exit_code);
-}
-
-/// Strip the end-of-line terminator: `\n`, or the `\r\n` pair. A `\r` that is
-/// not part of the terminator (e.g. a lone `\r` on the unterminated last
-/// line) is kept.
-fn strip_eol(line: &str) -> &str {
-    let s = line.strip_suffix('\n').unwrap_or(line);
-    s.strip_suffix('\r').unwrap_or(s)
-}
-
-/// Delimiter between output column `index` and the next one, cycling through
-/// the `-d` character list. Without `-d` (empty list) there is no separator.
-fn delimiter_for(delimiters: &[char], index: usize) -> String {
-    if delimiters.is_empty() {
-        return String::new();
-    }
-    delimiters[index % delimiters.len()].to_string()
-}
-
-fn paste_parallel(
-    mut readers: Vec<Box<dyn BufRead>>,
-    delimiters: &[char],
-) -> Result<(), std::io::Error> {
-    let mut lines: Vec<Option<String>> = readers.iter_mut().map(|_| None).collect();
-    let mut eof_flags: Vec<bool> = readers.iter().map(|_| false).collect();
-    let mut active_readers = readers.len();
-
-    loop {
-        for (i, reader) in readers.iter_mut().enumerate() {
-            if !eof_flags[i] && lines[i].is_none() {
-                let mut line = String::new();
-                match reader.read_line(&mut line) {
-                    Ok(0) => {
-                        eof_flags[i] = true;
-                        active_readers -= 1;
-                    }
-                    Ok(_) => {
-                        lines[i] = Some(strip_eol(&line).to_string());
-                    }
-                    Err(e) => return Err(e),
-                }
-            }
-        }
-
-        if active_readers == 0 {
-            break;
-        }
-
-        let mut output = String::new();
-        for (i, line) in lines.iter().enumerate() {
-            if i > 0 {
-                output.push_str(&delimiter_for(delimiters, i - 1));
-            }
-            output.push_str(line.as_deref().unwrap_or(""));
-        }
-        println!("{}", output);
-
-        for line in lines.iter_mut() {
-            *line = None;
-        }
-    }
-
-    Ok(())
-}
-
-fn paste_serial(
-    mut readers: Vec<Box<dyn BufRead>>,
-    delimiters: &[char],
-) -> Result<(), std::io::Error> {
-    for reader in readers.iter_mut() {
-        let mut lines: Vec<String> = Vec::new();
-        let mut line = String::new();
-
         loop {
-            match reader.read_line(&mut line) {
-                Ok(0) => break,
-                Ok(_) => {
-                    lines.push(strip_eol(&line).to_string());
-                    line.clear();
-                }
-                Err(e) => return Err(e),
+            let records: Vec<_> = inputs
+                .iter_mut()
+                .map(|input| next_record(input, &mut stdin))
+                .collect::<io::Result<_>>()?;
+            if records.iter().all(Option::is_none) {
+                break;
             }
-        }
-
-        if !lines.is_empty() {
-            let mut output = String::new();
-            for (i, line) in lines.iter().enumerate() {
-                if i > 0 {
-                    output.push_str(&delimiter_for(delimiters, i - 1));
+            for (index, record) in records.iter().enumerate() {
+                if index > 0 {
+                    out.write_all(delimiter_for(&delimiters, index - 1))?;
                 }
-                output.push_str(line);
+                if let Some(record) = record {
+                    out.write_all(record)?;
+                }
             }
-            println!("{}", output);
+            out.write_all(&[separator])?;
         }
     }
+    out.flush()
+}
 
-    Ok(())
+fn next_record(
+    input: &mut Input,
+    stdin: &mut ByteLines<BufReader<io::Stdin>>,
+) -> io::Result<Option<Vec<u8>>> {
+    match input {
+        Input::File(reader) => reader.next().transpose(),
+        Input::Stdin => stdin.next().transpose(),
+    }
+}
+
+fn parse_delimiters(text: &str) -> Vec<Vec<u8>> {
+    let mut result = Vec::new();
+    let mut chars = text.chars().peekable();
+    while let Some(ch) = chars.next() {
+        let value = if ch == '\\' {
+            match chars.peek().copied() {
+                Some('n') => {
+                    chars.next();
+                    Some('\n')
+                }
+                Some('t') => {
+                    chars.next();
+                    Some('\t')
+                }
+                Some('0') => {
+                    chars.next();
+                    None
+                }
+                Some('\\') => {
+                    chars.next();
+                    Some('\\')
+                }
+                _ => Some(ch),
+            }
+        } else {
+            Some(ch)
+        };
+        result.push(
+            value
+                .map(|ch| {
+                    let mut buffer = [0; 4];
+                    ch.encode_utf8(&mut buffer).as_bytes().to_vec()
+                })
+                .unwrap_or_default(),
+        );
+    }
+    result
+}
+
+fn delimiter_for(delimiters: &[Vec<u8>], index: usize) -> &[u8] {
+    if delimiters.is_empty() {
+        &[]
+    } else {
+        &delimiters[index % delimiters.len()]
+    }
 }

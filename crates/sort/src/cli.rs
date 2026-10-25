@@ -11,6 +11,9 @@ use std::path::PathBuf;
     disable_help_flag = true
 )]
 pub struct Args {
+    /// Use NUL instead of newline to separate input and output records
+    #[arg(short = 'z', long = "zero-terminated")]
+    pub zero_terminated: bool,
     /// Sort in reverse order
     #[arg(short = 'r', long = "reverse")]
     pub reverse: bool,

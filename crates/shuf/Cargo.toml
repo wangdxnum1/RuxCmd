@@ -8,6 +8,7 @@ description = "Generate random permutations of input lines"
 authors = ["Tim"]
 
 [dependencies]
+ruxcmd-core = { path = "../ruxcmd-core" }
 clap = { version = "4", features = ["derive"] }
 
 [dev-dependencies]

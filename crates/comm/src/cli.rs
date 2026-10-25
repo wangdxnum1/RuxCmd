@@ -8,6 +8,9 @@ use clap::Parser;
     disable_version_flag = true
 )]
 pub struct Cli {
+    /// Use NUL instead of newline as the record delimiter
+    #[arg(short = 'z', long = "zero-terminated")]
+    pub zero_terminated: bool,
     #[arg(short = 'v', long = "version", help = "Show version")]
     pub version: bool,
 

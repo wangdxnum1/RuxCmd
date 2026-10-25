@@ -5,6 +5,9 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(name = "paste", version = "0.1.0", about, disable_version_flag = true)]
 pub struct Args {
+    /// Use NUL instead of newline as the record delimiter
+    #[arg(short = 'z', long = "zero-terminated")]
+    pub zero_terminated: bool,
     #[arg(short = 'v', long = "version", action = ArgAction::Version, help = "Print version information")]
     pub version: (),
 

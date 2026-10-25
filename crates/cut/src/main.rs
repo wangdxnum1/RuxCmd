@@ -2,155 +2,161 @@ mod cli;
 
 use clap::Parser;
 use ruxcmd_core::lines::ByteLines;
-use std::fs;
-use std::io::{BufRead, BufReader, Write};
+use std::fs::File;
+use std::io::{self, BufRead, BufReader, Write};
 
 fn main() {
     let args = cli::Args::parse();
-
     let delimiter = args.delimiter.unwrap_or('\t');
     let output_delimiter = args
         .output_delimiter
         .clone()
         .unwrap_or_else(|| delimiter.to_string());
-
-    let stdout = std::io::stdout();
-    let mut out = std::io::BufWriter::new(stdout.lock());
-
-    if args.files.is_empty() {
-        let stdin = std::io::stdin();
-        process_lines(
-            stdin.lock(),
-            "<stdin>",
-            &args,
-            delimiter,
-            &output_delimiter,
-            &mut out,
-        );
+    let separator = if args.zero_terminated { 0 } else { b'\n' };
+    let files = if args.files.is_empty() {
+        vec![std::path::PathBuf::from("-")]
     } else {
-        for file in &args.files {
-            let file_name = file.display().to_string();
-            match fs::File::open(file) {
-                Ok(f) => process_lines(
-                    BufReader::new(f),
-                    &file_name,
-                    &args,
-                    delimiter,
-                    &output_delimiter,
-                    &mut out,
-                ),
-                Err(e) => eprintln!("cut: {}: {}", file_name, e),
-            }
+        args.files.clone()
+    };
+    let stdout = io::stdout();
+    let mut out = io::BufWriter::new(stdout.lock());
+    let mut failed = false;
+    for path in files {
+        let reader: io::Result<Box<dyn BufRead>> = if path.as_os_str() == "-" {
+            Ok(Box::new(BufReader::new(io::stdin())))
+        } else {
+            File::open(&path).map(|file| Box::new(BufReader::new(file)) as Box<dyn BufRead>)
+        };
+        let result = reader.and_then(|reader| {
+            process_records(
+                reader,
+                &args,
+                delimiter,
+                &output_delimiter,
+                separator,
+                &mut out,
+            )
+        });
+        if let Err(error) = result {
+            eprintln!("cut: {}: {}", path.display(), error);
+            failed = true;
         }
     }
-
-    let _ = out.flush();
+    if let Err(error) = out.flush() {
+        eprintln!("cut: {error}");
+        failed = true;
+    }
+    if failed {
+        std::process::exit(1);
+    }
 }
 
-/// Read lines as raw bytes: field/character selection matches on lossy UTF-8,
-/// `-b` and the no-selection passthrough echo the original bytes. A read error
-/// is reported on stderr instead of silently truncating the rest of the input.
-fn process_lines<R: BufRead>(
+fn process_records<R: BufRead, W: Write>(
     reader: R,
-    name: &str,
     args: &cli::Args,
     delimiter: char,
     output_delimiter: &str,
-    out: &mut dyn Write,
-) {
-    for entry in ByteLines::new(reader) {
-        let raw = match entry {
-            Ok(raw) => raw,
-            Err(e) => {
-                eprintln!("cut: {}: read error: {}", name, e);
-                break;
-            }
-        };
-
-        let line = String::from_utf8_lossy(&raw);
-
-        // P2 (unchanged this round): -s also applies to -b/-c modes.
-        if args.only_delimited && !line.contains(delimiter) {
+    separator: u8,
+    out: &mut W,
+) -> io::Result<()> {
+    let mut encoded = [0; 4];
+    let delimiter_bytes = delimiter.encode_utf8(&mut encoded).as_bytes();
+    for record in ByteLines::with_separator(reader, separator) {
+        let raw = record?;
+        let has_delimiter = raw
+            .windows(delimiter_bytes.len())
+            .any(|part| part == delimiter_bytes);
+        // Preserve this port's existing -s handling for byte/character modes.
+        if args.only_delimited && !has_delimiter {
             continue;
         }
+        let result = if let Some(spec) = &args.bytes {
+            parse_spec(spec, raw.len())
+                .into_iter()
+                .filter_map(|index| raw.get(index).copied())
+                .collect()
+        } else if let Some(spec) = &args.fields {
+            cut_fields(&raw, spec, delimiter_bytes, output_delimiter.as_bytes())
+        } else if let Some(spec) = &args.characters {
+            cut_chars(&raw, spec)
+        } else {
+            raw
+        };
+        out.write_all(&result)?;
+        out.write_all(&[separator])?;
+    }
+    Ok(())
+}
 
-        if let Some(bytes_spec) = &args.bytes {
-            let indices = parse_spec(bytes_spec, raw.len());
-            for &i in &indices {
-                if i < raw.len() {
-                    let _ = out.write_all(&raw[i..i + 1]);
+fn cut_fields(line: &[u8], spec: &str, delimiter: &[u8], output_delimiter: &[u8]) -> Vec<u8> {
+    let mut fields = Vec::new();
+    let mut start = 0;
+    let mut position = 0;
+    while position + delimiter.len() <= line.len() {
+        if &line[position..position + delimiter.len()] == delimiter {
+            fields.push(&line[start..position]);
+            position += delimiter.len();
+            start = position;
+        } else {
+            position += 1;
+        }
+    }
+    if fields.is_empty() {
+        return line.to_vec();
+    }
+    fields.push(&line[start..]);
+    let mut result = Vec::new();
+    let mut first = true;
+    for index in parse_spec(spec, fields.len()) {
+        if let Some(field) = fields.get(index) {
+            if !first {
+                result.extend_from_slice(output_delimiter);
+            }
+            result.extend_from_slice(field);
+            first = false;
+        }
+    }
+    result
+}
+
+fn cut_chars(raw: &[u8], spec: &str) -> Vec<u8> {
+    match std::str::from_utf8(raw) {
+        Ok(text) => {
+            let mut starts: Vec<_> = text.char_indices().map(|(index, _)| index).collect();
+            starts.push(raw.len());
+            let mut result = Vec::new();
+            for index in parse_spec(spec, starts.len() - 1) {
+                if index + 1 < starts.len() {
+                    result.extend_from_slice(&raw[starts[index]..starts[index + 1]]);
                 }
             }
-            let _ = out.write_all(b"\n");
-            continue;
+            result
         }
-
-        let result = if let Some(fields_spec) = &args.fields {
-            cut_fields(&line, fields_spec, delimiter, output_delimiter)
-        } else if let Some(chars_spec) = &args.characters {
-            cut_chars(&line, chars_spec)
-        } else {
-            // No selection mode: pass the original line through byte for byte.
-            let _ = out.write_all(&raw);
-            let _ = out.write_all(b"\n");
-            continue;
-        };
-
-        let _ = writeln!(out, "{}", result);
+        Err(_) => parse_spec(spec, raw.len())
+            .into_iter()
+            .filter_map(|index| raw.get(index).copied())
+            .collect(),
     }
-}
-
-fn cut_fields(line: &str, spec: &str, delimiter: char, output_delimiter: &str) -> String {
-    // GNU cut passes lines without any delimiter through untouched (unless
-    // -s was given, which is handled by the caller).
-    if !line.contains(delimiter) {
-        return line.to_string();
-    }
-    let fields: Vec<&str> = line.split(delimiter).collect();
-    let indices = parse_spec(spec, fields.len());
-
-    indices
-        .iter()
-        .filter(|&&i| i < fields.len())
-        .map(|&i| fields[i])
-        .collect::<Vec<&str>>()
-        .join(output_delimiter)
-}
-
-fn cut_chars(line: &str, spec: &str) -> String {
-    let chars: Vec<char> = line.chars().collect();
-    let indices = parse_spec(spec, chars.len());
-
-    indices
-        .iter()
-        .filter(|&&i| i < chars.len())
-        .map(|&i| chars[i])
-        .collect()
 }
 
 fn parse_spec(spec: &str, max_len: usize) -> Vec<usize> {
     let mut indices = Vec::new();
-
     for part in spec.split(',') {
         if part.contains('-') {
             let range: Vec<&str> = part.split('-').collect();
-            let start: usize = range[0].parse::<usize>().unwrap_or(1).saturating_sub(1);
-            let end: usize = if range.len() > 1 && !range[1].is_empty() {
+            let start = range[0].parse::<usize>().unwrap_or(1).saturating_sub(1);
+            let end = if range.len() > 1 && !range[1].is_empty() {
                 range[1].parse::<usize>().unwrap_or(max_len)
             } else {
                 max_len
             };
-
-            for i in start..end {
-                indices.push(i);
-            }
+            indices.extend(start..end.min(max_len));
         } else {
-            let idx: usize = part.parse::<usize>().unwrap_or(1).saturating_sub(1);
-            if idx < max_len {
-                indices.push(idx);
+            let index = part.parse::<usize>().unwrap_or(1).saturating_sub(1);
+            if index < max_len {
+                indices.push(index);
             }
         }
     }
-
     indices
 }

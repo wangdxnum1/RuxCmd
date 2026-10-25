@@ -9,6 +9,9 @@ use std::path::PathBuf;
     disable_version_flag = true
 )]
 pub struct Args {
+    /// Use NUL instead of newline as the record delimiter
+    #[arg(short = 'z', long = "zero-terminated")]
+    pub zero_terminated: bool,
     #[arg(short = 'v', long = "version", action = clap::ArgAction::SetTrue)]
     pub version: bool,
 

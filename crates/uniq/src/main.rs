@@ -1,104 +1,84 @@
 mod cli;
 
 use clap::Parser;
-use cli::Cli;
+use ruxcmd_core::lines::ByteLines;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
-use std::process;
+use std::io::{self, BufRead, BufReader, Write};
 
 fn main() {
-    let cli = Cli::parse();
-
-    if cli.version {
+    let args = cli::Cli::parse();
+    if args.version {
         println!("uniq 0.1.0");
-        process::exit(0);
+        return;
     }
+    let result = run(&args);
+    if let Err(error) = result {
+        eprintln!("uniq: {error}");
+        std::process::exit(1);
+    }
+}
 
-    let reader: Box<dyn BufRead> = match &cli.file {
-        Some(path) => {
-            let file = File::open(path).unwrap_or_else(|e| {
-                eprintln!("Error: cannot open file '{}': {}", path, e);
-                process::exit(1);
-            });
-            Box::new(BufReader::new(file))
-        }
-        None => Box::new(BufReader::new(std::io::stdin())),
+fn run(args: &cli::Cli) -> io::Result<()> {
+    let reader: Box<dyn BufRead> = match args.file.as_deref() {
+        Some(path) if path != "-" => Box::new(BufReader::new(File::open(path)?)),
+        _ => Box::new(BufReader::new(io::stdin())),
     };
-
-    process_lines(reader, &cli);
-}
-
-fn process_lines(reader: Box<dyn BufRead>, cli: &Cli) {
-    let mut prev_line: Option<String> = None;
-    let mut prev_key: Option<String> = None;
-    let mut count: usize = 0;
-
-    for line_result in reader.lines() {
-        let line = line_result.unwrap_or_else(|e| {
-            eprintln!("Error reading line: {}", e);
-            process::exit(1);
-        });
-
-        let key = make_key(&line, cli);
-
-        if prev_key.is_none() {
-            prev_line = Some(line);
-            prev_key = Some(key);
-            count = 1;
-            continue;
-        }
-
-        let same_group = match prev_key {
-            Some(ref pk) => *pk == key,
-            None => false,
-        };
-
-        if same_group {
-            count += 1;
-        } else if let Some(prev) = prev_line.take() {
-            // Print the original line; the key is only ever used for comparing.
-            print_line(&prev, count, cli);
-            prev_line = Some(line);
-            prev_key = Some(key);
-            count = 1;
+    let separator = if args.zero_terminated { 0 } else { b'\n' };
+    let mut previous: Option<(Vec<u8>, Vec<u8>, usize)> = None;
+    let mut out = io::BufWriter::new(io::stdout().lock());
+    for record in ByteLines::with_separator(reader, separator) {
+        let record = record?;
+        let key = make_key(&record, args);
+        match previous.as_mut() {
+            Some((_, old_key, count)) if *old_key == key => *count += 1,
+            _ => {
+                if let Some((record, _, count)) = previous.take() {
+                    print_record(&mut out, &record, count, args, separator)?;
+                }
+                previous = Some((record, key, 1));
+            }
         }
     }
-
-    if let Some(line) = prev_line {
-        print_line(&line, count, cli);
+    if let Some((record, _, count)) = previous {
+        print_record(&mut out, &record, count, args, separator)?;
     }
+    out.flush()
 }
 
-fn make_key(line: &str, cli: &Cli) -> String {
-    let mut key = line.to_string();
-
-    if let Some(n) = cli.skip_fields {
-        let mut fields = key.split_whitespace();
-        for _ in 0..n {
-            fields.next();
+fn make_key(record: &[u8], args: &cli::Cli) -> Vec<u8> {
+    let mut position = 0;
+    for _ in 0..args.skip_fields.unwrap_or(0) {
+        while position < record.len() && matches!(record[position], b' ' | b'\t' | b'\n') {
+            position += 1;
         }
-        key = fields.collect::<Vec<_>>().join(" ");
+        while position < record.len() && !matches!(record[position], b' ' | b'\t' | b'\n') {
+            position += 1;
+        }
     }
-
-    if cli.ignore_case {
-        key = key.to_lowercase();
-    }
-
-    key
-}
-
-fn print_line(line: &str, count: usize, cli: &Cli) {
-    if cli.duplicate_only && count == 1 {
-        return;
-    }
-
-    if cli.unique_only && count > 1 {
-        return;
-    }
-
-    if cli.count {
-        println!("{:>7} {}", count, line);
+    let key = &record[position..];
+    if args.ignore_case {
+        match std::str::from_utf8(key) {
+            Ok(text) => text.to_lowercase().into_bytes(),
+            Err(_) => key.iter().map(u8::to_ascii_lowercase).collect(),
+        }
     } else {
-        println!("{}", line);
+        key.to_vec()
     }
+}
+
+fn print_record<W: Write>(
+    out: &mut W,
+    record: &[u8],
+    count: usize,
+    args: &cli::Cli,
+    separator: u8,
+) -> io::Result<()> {
+    if (args.duplicate_only && count == 1) || (args.unique_only && count > 1) {
+        return Ok(());
+    }
+    if args.count {
+        write!(out, "{:>7} ", count)?;
+    }
+    out.write_all(record)?;
+    out.write_all(&[separator])
 }

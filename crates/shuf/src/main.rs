@@ -1,6 +1,7 @@
 mod cli;
 
 use clap::Parser;
+use ruxcmd_core::lines::ByteLines;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 
@@ -29,7 +30,8 @@ fn main() {
         }
     };
 
-    let mut items: Vec<String> = Vec::new();
+    let mut items: Vec<Vec<u8>> = Vec::new();
+    let separator = if args.zero_terminated { 0 } else { b'\n' };
     let mut exit_code = 0i32;
 
     if let Some(range) = args.input_range.as_ref() {
@@ -41,7 +43,7 @@ fn main() {
             }
         };
         for n in lo..=hi {
-            items.push(n.to_string());
+            items.push(n.to_string().into_bytes());
         }
     } else {
         let mut read_lines = |r: Result<Box<dyn BufRead>, String>| {
@@ -53,7 +55,7 @@ fn main() {
                     return;
                 }
             };
-            for line in reader.lines() {
+            for line in ByteLines::with_separator(reader, separator) {
                 match line {
                     Ok(l) => items.push(l),
                     Err(e) => {
@@ -89,8 +91,8 @@ fn main() {
         .into_iter()
         .take(n)
         .flat_map(|l| {
-            let mut v = l.into_bytes();
-            v.push(b'\n');
+            let mut v = l;
+            v.push(separator);
             v
         })
         .collect();

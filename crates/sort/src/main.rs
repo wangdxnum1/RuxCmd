@@ -8,6 +8,7 @@ use std::io::{BufRead, BufReader, Write};
 
 fn main() {
     let args = cli::Args::parse();
+    let record_separator = if args.zero_terminated { 0 } else { b'\n' };
 
     let separator = parse_separator(&args);
     let key = args.key.as_deref().map(parse_key_spec);
@@ -19,7 +20,7 @@ fn main() {
 
     if args.files.is_empty() {
         let stdin = std::io::stdin();
-        if !read_lines(stdin.lock(), &mut lines) {
+        if !read_lines(stdin.lock(), &mut lines, record_separator) {
             failures += 1;
         }
     } else {
@@ -27,7 +28,7 @@ fn main() {
             // `-` means standard input, like GNU sort.
             if file.as_os_str() == "-" {
                 let stdin = std::io::stdin();
-                if !read_lines(stdin.lock(), &mut lines) {
+                if !read_lines(stdin.lock(), &mut lines, record_separator) {
                     failures += 1;
                 }
                 continue;
@@ -35,7 +36,7 @@ fn main() {
             let file_name = file.display().to_string();
             match fs::File::open(file) {
                 Ok(f) => {
-                    if !read_lines(BufReader::new(f), &mut lines) {
+                    if !read_lines(BufReader::new(f), &mut lines, record_separator) {
                         failures += 1;
                     }
                 }
@@ -53,14 +54,14 @@ fn main() {
             std::process::exit(1);
         }
     } else {
-        lines.sort_by(|a, b| compare_lines(&a.text, &b.text, key, separator, &args));
+        lines.sort_by(|a, b| compare_lines(&a.raw, &b.raw, key, separator, &args));
 
         if args.unique {
             // Deduplicate after sorting: two lines are duplicates when their
             // sort keys compare equal (with -k the key, not the whole line,
             // decides).
             lines.dedup_by(|a, b| {
-                compare_keys(&a.text, &b.text, key, separator, &args) == Ordering::Equal
+                compare_keys(&a.raw, &b.raw, key, separator, &args) == Ordering::Equal
             });
         }
 
@@ -70,10 +71,9 @@ fn main() {
 
         let mut stdout = std::io::stdout().lock();
         for line in &lines {
-            // Echo the original bytes (invalid UTF-8 included); the line
-            // terminator is always rebuilt as `\n`.
+            // Echo the original bytes and rebuild the selected terminator.
             let _ = stdout.write_all(&line.raw);
-            let _ = stdout.write_all(b"\n");
+            let _ = stdout.write_all(&[record_separator]);
         }
         let _ = stdout.flush();
     }
@@ -83,28 +83,21 @@ fn main() {
     }
 }
 
-/// One input line: the original bytes with the line terminator removed, plus
-/// a lossy UTF-8 view used for key extraction and comparison, so lines that
-/// are not valid UTF-8 are sorted and echoed instead of being truncated.
+/// One input record, with its original bytes and no record terminator.
 struct Line {
     raw: Vec<u8>,
-    text: String,
 }
 
 impl Line {
     fn new(raw: Vec<u8>) -> Self {
-        let text = String::from_utf8_lossy(&raw).into_owned();
-        Line { raw, text }
+        Line { raw }
     }
 }
 
-/// Reads lines as raw bytes (matching happens on the lossy UTF-8 view, output
-/// echoes the original bytes). Only the `\n` line terminator — and a `\r`
-/// that is part of a `\r\n` — is removed; other trailing whitespace is part
-/// of the line. Returns false when a read error interrupted the input
-/// (previously `read_line(...).unwrap_or(0)` silently ended the input there).
-fn read_lines<R: BufRead>(reader: R, lines: &mut Vec<Line>) -> bool {
-    for line in ByteLines::new(reader) {
+/// Read raw records. LF mode retains historical CRLF stripping; NUL mode
+/// removes only the NUL. A read error fails rather than truncating silently.
+fn read_lines<R: BufRead>(reader: R, lines: &mut Vec<Line>, separator: u8) -> bool {
+    for line in ByteLines::with_separator(reader, separator) {
         match line {
             Ok(raw) => lines.push(Line::new(raw)),
             Err(e) => {
@@ -169,15 +162,21 @@ fn parse_key_spec(spec: &str) -> KeySpec {
 /// Without a separator: fields are the whitespace-separated tokens, and the
 /// run of blanks preceding a token is part of that field (GNU behavior),
 /// so a field's span starts at the first blank of the preceding run.
-fn field_spans(line: &str, separator: Option<char>) -> Vec<(usize, usize)> {
+fn field_spans(line: &[u8], separator: Option<char>) -> Vec<(usize, usize)> {
     match separator {
         Some(sep) => {
             let mut spans = Vec::new();
             let mut start = 0;
-            for (idx, c) in line.char_indices() {
-                if c == sep {
+            let mut encoded = [0; 4];
+            let sep = sep.encode_utf8(&mut encoded).as_bytes();
+            let mut idx = 0;
+            while idx + sep.len() <= line.len() {
+                if &line[idx..idx + sep.len()] == sep {
                     spans.push((start, idx));
-                    start = idx + c.len_utf8();
+                    idx += sep.len();
+                    start = idx;
+                } else {
+                    idx += 1;
                 }
             }
             spans.push((start, line.len()));
@@ -185,7 +184,7 @@ fn field_spans(line: &str, separator: Option<char>) -> Vec<(usize, usize)> {
         }
         None => {
             let mut spans = Vec::new();
-            let bytes = line.as_bytes();
+            let bytes = line;
             let mut i = 0;
             while i < bytes.len() {
                 let run_start = i;
@@ -206,19 +205,19 @@ fn field_spans(line: &str, separator: Option<char>) -> Vec<(usize, usize)> {
 }
 
 fn is_blank(b: u8) -> bool {
-    b == b' ' || b == b'\t'
+    b == b' ' || b == b'\t' || b == b'\n'
 }
 
 /// The comparison key for `line`: the whole line, or the substring spanning
 /// the selected fields. Fields beyond the end of the line are empty, and an
 /// end field beyond the line extends the key to the end of the line.
-fn extract_key(line: &str, key: Option<KeySpec>, separator: Option<char>) -> &str {
+fn extract_key(line: &[u8], key: Option<KeySpec>, separator: Option<char>) -> &[u8] {
     let Some(spec) = key else {
         return line;
     };
     let spans = field_spans(line, separator);
     if spec.start > spans.len() {
-        return "";
+        return b"";
     }
     let start = spans[spec.start - 1].0;
     let end = match spec.end {
@@ -228,10 +227,16 @@ fn extract_key(line: &str, key: Option<KeySpec>, separator: Option<char>) -> &st
     &line[start..end]
 }
 
+fn fold_key(bytes: &[u8]) -> Vec<u8> {
+    match std::str::from_utf8(bytes) {
+        Ok(text) => text.to_lowercase().into_bytes(),
+        Err(_) => bytes.iter().map(u8::to_ascii_lowercase).collect(),
+    }
+}
 /// Primary comparison: only the sort keys decide (used for `-u` equality).
 fn compare_keys(
-    a: &str,
-    b: &str,
+    a: &[u8],
+    b: &[u8],
     key: Option<KeySpec>,
     separator: Option<char>,
     args: &cli::Args,
@@ -239,15 +244,15 @@ fn compare_keys(
     let ka = extract_key(a, key, separator);
     let kb = extract_key(b, key, separator);
     if args.numeric {
-        leading_number(ka)
-            .partial_cmp(&leading_number(kb))
+        leading_number(&String::from_utf8_lossy(ka))
+            .partial_cmp(&leading_number(&String::from_utf8_lossy(kb)))
             .unwrap_or(Ordering::Equal)
     } else if args.human_numeric {
-        human_number(ka)
-            .partial_cmp(&human_number(kb))
+        human_number(&String::from_utf8_lossy(ka))
+            .partial_cmp(&human_number(&String::from_utf8_lossy(kb)))
             .unwrap_or(Ordering::Equal)
     } else if args.ignore_case {
-        ka.to_lowercase().cmp(&kb.to_lowercase())
+        fold_key(ka).cmp(&fold_key(kb))
     } else {
         ka.cmp(kb)
     }
@@ -257,8 +262,8 @@ fn compare_keys(
 /// whole-line byte comparison when keys tie, unless `-u` (GNU last-resort
 /// comparison, disabled by -u/-s).
 fn compare_lines(
-    a: &str,
-    b: &str,
+    a: &[u8],
+    b: &[u8],
     key: Option<KeySpec>,
     separator: Option<char>,
     args: &cli::Args,
@@ -277,7 +282,7 @@ fn is_sorted(
     args: &cli::Args,
 ) -> bool {
     lines.windows(2).all(|w| {
-        let cmp = compare_lines(&w[0].text, &w[1].text, key, separator, args);
+        let cmp = compare_lines(&w[0].raw, &w[1].raw, key, separator, args);
         if args.reverse {
             // Reverse-sorted means non-increasing.
             cmp != Ordering::Less
@@ -290,7 +295,7 @@ fn is_sorted(
 /// The leading number of `s` (optional +/- sign, digits, optional decimal
 /// fraction) as used by GNU `-n`. Strings without a leading number are 0.
 fn leading_number(s: &str) -> f64 {
-    scan_leading_number(s.trim_start_matches([' ', '\t'])).0
+    scan_leading_number(s.trim_start_matches([' ', '\t', '\n'])).0
 }
 
 /// Scans the leading number in `s`; returns its value and the byte offset
@@ -328,7 +333,7 @@ fn scan_leading_number(s: &str) -> (f64, usize) {
 /// an optional K/M/G/T/P/E/Z/Y suffix, 1024-based. Strings without a
 /// leading number are 0.
 fn human_number(s: &str) -> f64 {
-    let trimmed = s.trim_start_matches([' ', '\t']);
+    let trimmed = s.trim_start_matches([' ', '\t', '\n']);
     let (value, end) = scan_leading_number(trimmed);
     if end == 0 {
         return 0.0;
