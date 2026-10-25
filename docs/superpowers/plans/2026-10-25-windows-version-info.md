@@ -39,6 +39,6 @@ Files: scripts/common.ps1, scripts/verify-version-info.ps1, scripts/build.ps1, s
 ### Task 3: Documentation, acceptance, review
 Files: CHANGELOG.md, docs/development{,-zh}.md, scripts/README{,-zh}.md, .superpowers/sdd/progress.md.
 - [x] Document fields, suite-version mapping, SDK requirement, unsigned status and 129-package inventory.
-- [ ] Run full Verify and package ZIP; inspect all 125 extracted EXEs without opening any desktop windows.
+- [x] Run full Verify and package ZIP; inspect all 125 extracted EXEs without opening any desktop windows.
 - [x] Request one independent whole-change review; resolve actionable findings and rerun affected checks.
-- [ ] Record evidence and finish with a clean feature branch.
+- [x] Record evidence and finish with a clean feature branch.
