@@ -6,6 +6,10 @@ use std::io::{self, BufReader, Read};
 
 fn main() {
     let args = cli::parse_args();
+    if args.zero && args.check {
+        eprintln!("sha512sum: the --zero option is not supported when verifying checksums");
+        std::process::exit(1);
+    }
     if args.tag && args.check {
         eprintln!("sha512sum: the --tag option is meaningless when verifying checksums");
         std::process::exit(1);
@@ -33,7 +37,7 @@ fn main() {
             } else {
                 File::open(&path).and_then(|f| compute_hash(BufReader::new(f)))
             };
-            hash.map(|hash| print_hash(&name, &hash, args.tag))
+            hash.map(|hash| print_hash(&name, &hash, args.tag, args.zero))
         };
         if let Err(error) = result {
             if !args.status {
@@ -69,18 +73,19 @@ fn escaped_name(name: &str) -> String {
         .replace('\r', "\\r")
 }
 
-fn print_hash(name: &str, hash: &str, tag: bool) {
-    let escaped = name.contains(['\\', '\n', '\r']);
+fn print_hash(name: &str, hash: &str, tag: bool, zero: bool) {
+    let escaped = !zero && name.contains(['\\', '\n', '\r']);
     let name = if escaped {
         escaped_name(name)
     } else {
         name.to_string()
     };
+    let end = if zero { '\0' } else { '\n' };
     let prefix = if escaped { "\\" } else { "" };
     if tag {
-        println!("{prefix}SHA512 ({name}) = {hash}");
+        print!("{prefix}SHA512 ({name}) = {hash}{end}");
     } else {
-        println!("{prefix}{hash}  {name}");
+        print!("{prefix}{hash}  {name}{end}");
     }
 }
 

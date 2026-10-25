@@ -5,6 +5,9 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(name = "md5sum", about, disable_version_flag = true)]
 pub struct Args {
+    /// End output records with NUL and do not escape file names
+    #[arg(short = 'z', long = "zero")]
+    pub zero: bool,
     /// Print version information and exit
     #[arg(short = 'v', long = "version")]
     pub version: bool,

@@ -19,10 +19,11 @@ fn main() {
     }
 
     let mut exit_code = 0i32;
+    let end = if args.zero { '\0' } else { '\n' };
 
     if args.files.is_empty() {
         match compute_cksum(std::io::stdin()) {
-            Ok((crc, length)) => println!("{crc} {length}"),
+            Ok((crc, length)) => print!("{crc} {length}{end}"),
             Err(error) => {
                 eprintln!("cksum: -: {error}");
                 exit_code = 1;
@@ -37,7 +38,7 @@ fn main() {
                 File::open(path).and_then(|file| compute_cksum(BufReader::new(file)))
             };
             match result {
-                Ok((crc, length)) => print_cksum(&path_str, crc, length),
+                Ok((crc, length)) => print_cksum(&path_str, crc, length, end),
                 Err(error) => {
                     eprintln!("cksum: {}: {error}", path.display());
                     exit_code = 1;
@@ -49,8 +50,8 @@ fn main() {
     std::process::exit(exit_code);
 }
 
-fn print_cksum(name: &str, crc: u32, length: u64) {
-    println!("{crc} {length} {name}");
+fn print_cksum(name: &str, crc: u32, length: u64, end: char) {
+    print!("{crc} {length} {name}{end}");
 }
 
 /// Build the 256-entry MSB-first CRC table for the POSIX polynomial once.

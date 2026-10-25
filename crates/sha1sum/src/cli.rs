@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 #[derive(Debug)]
 pub struct Args {
+    pub zero: bool,
     pub check: bool,
     pub quiet: bool,
     pub status: bool,
@@ -15,6 +16,13 @@ pub fn parse_args() -> Args {
         .version("0.1.0")
         .about("A Windows sha1sum clone — compute SHA1 hash of files")
         .disable_version_flag(true)
+        .arg(
+            Arg::new("zero")
+                .short('z')
+                .long("zero")
+                .action(ArgAction::SetTrue)
+                .help("End output records with NUL and do not escape file names"),
+        )
         .arg(
             Arg::new("version")
                 .short('v')
@@ -57,6 +65,7 @@ pub fn parse_args() -> Args {
         .get_matches();
 
     Args {
+        zero: matches.get_flag("zero"),
         check: matches.get_flag("check"),
         quiet: matches.get_flag("quiet"),
         status: matches.get_flag("status"),

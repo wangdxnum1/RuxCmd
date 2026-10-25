@@ -53,8 +53,8 @@ fn check_processes_all_files_before_exiting_nonzero() {
         .args(["-c", "c1.txt", "c2.txt"])
         .assert()
         .code(1)
-        .stdout("f1.txt: OK\n")
-        .stderr("f1.txt: FAILED\nmd5sum: WARNING: 1 computed checksum did NOT match\n");
+        .stdout("f1.txt: FAILED\nf1.txt: OK\n")
+        .stderr("md5sum: WARNING: 1 computed checksum did NOT match\n");
 }
 
 #[test]
