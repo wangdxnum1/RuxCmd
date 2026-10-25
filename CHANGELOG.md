@@ -4,6 +4,7 @@
 
 ## 0.3.0 — 命令扩展、NUL 模式与流式处理（2026-10-25）
 
+- 修复 top 行为测试遗漏系统态 CPU、在高内核负载主机上误报的问题；断言检查各列范围与百分比总和，并以失败样本锁定回归。
 - Round 16 为 15 个已有命令增加 NUL 模式：sort/uniq/cut/paste/comm/shuf/head/tail 的 -z/--zero-terminated，basename/dirname/md5sum/sha1sum/sha256sum/sha512sum/cksum 的 -z/--zero。仍为 125 个命令，无新增依赖包版本。
 - ruxcmd-core 的 ByteLines 增加可选分隔符，默认 LF/CRLF 规则保留；NUL 模式原样保留记录内 CR/LF 和非法 UTF-8。head/tail 不补末记录终止符；tail follow 在收到 NUL 前即可输出部分追加内容，并显式刷新初始输出。
 - 同步修复：sort 不再将不同非法字节经有损字符串混同；sort/uniq 字段按 GNU 的 space/TAB/LF 分界（CR 保留）；uniq -f 不归一化剩余空白；comm 隐藏列后压缩 TAB；paste 解码分隔符转义、重复 - 共享 stdin，串行空输入仍输出终止符；tail 多文件标题增加 LF 间隔，-v 作用于 stdin。
