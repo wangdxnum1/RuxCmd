@@ -125,58 +125,51 @@ Windows 并不直接暴露每个 Linux 字段的概念。以下是尽力映射�
 
 ## 项目架构
 
+```text
+crates/
+├── ps-sys/          # ps、pgrep、pkill 共用的 Win32 采集层
+│   └── src/         # 快照、进程信息、令牌、时间和 PEB 命令行
+└── ps-bin/          # 一个命令包，生成 ps.exe
+    └── src/
+        ├── main.rs / cli.rs
+        ├── process.rs                 # 内部进程与用户模型
+        ├── assemble.rs / meminfo.rs    # 原生数据映射及总内存缓存
+        ├── columns/                   # 静态元数据表 + 四组格式化函数
+        │   ├── mod.rs
+        │   ├── identity.rs / resources.rs
+        │   └── time.rs / command.rs
+        └── filter.rs / sort.rs / tree.rs / render.rs
 ```
-ps/
-├── ps-sys/        # 原始 Win32 FFI（支持 no_std，使用 thiserror）
-│   ├── snapshot   # EnumProcesses + Toolhelp32
-│   ├── procinfo   # PEB + NtQueryInformationProcess
-│   ├── token      # OpenProcessToken + LookupAccountSidW
-│   ├── times      # GetProcessTimes
-│   ├── threads    # 线程计数
-│   └── cmdline    # 从 PEB 获取 RTL_USER_PROCESS_PARAMETERS
-│
-├── ps-core/       # 数据模型 + 业务逻辑（无 Win32 依赖）
-│   ├── process    # Process 结构体，Windows → Linux 字段映射
-│   ├── columns/   # Column trait + 38+ 实现
-│   ├── filter     # -p, -u, -C 选择器
-│   ├── sort       # --sort 解析器 + 应用器
-│   ├── tree       # Forest 构建器 + 渲染器
-│   ├── state      # 状态字母映射
-│   └── user       # 用户解析
-│
-├── ps-bin/        # CLI 入口点
-│   ├── cli.rs     # clap 解析器
-│   ├── render.rs  # 表格 + 树渲染器
-│   └── main.rs    # 编排 snapshot → filter → sort → render
-│
-└── scripts/
-    └── release.ps1
-```
+
+原先只有一个调用方的 `ps-core` 已收回 `ps-bin` 内部。列定义使用静态描述表与
+普通函数，不再一列一个 trait 对象和文件。42 个已注册名称（含别名）的标题、
+宽度、对齐及格式均保留；排序键只针对选定列解析一次。归档的原始设计计划记录
+的是过去的三包结构。
 
 ## 跨平台映射
 
 | Linux 概念 | Windows 数据源 |
 | ---------- | -------------- |
 | `uid` / `user` | `OpenProcessToken` + `LookupAccountSidW` |
-| `ppid` | `ProcessBasicInformation.InheritedFromUniqueProcessId` |
+| `ppid` | Toolhelp32 parent PID |
 | `rss` / `vsz` | `GetProcessMemoryInfo` (WorkingSetSize / PagefileUsage) |
 | `pcpu` | (CPU 时间) ÷ (自 `CreateTime` 以来的运行时间) |
 | `time` / `times` | `GetProcessTimes` |
 | `pri` / `ni` | `GetPriorityClass` 映射到 0..40 范围 |
-| `stat` | `GetExitCodeProcess` + 主窗口存在性 |
+| `stat` | `S` 占位（无法取得每个进程的可运行状态） |
 | `start` | `GetProcessTimes`（创建时间） |
 | `cmd` / `args` | 从 PEB 获取 `RTL_USER_PROCESS_PARAMETERS` |
-| `tty` | `GetConsoleWindow`（为空则显示 `?`） |
+| `tty` | `?`（无法取得控制终端） |
 | `thcount` | `Thread32First/Next` 计数 |
-| `pgid` / `sid` | 两者都使用 `GetProcessId`（Windows 使用会话 = sid） |
+| `pgid` / `sid` | pgid 使用 PID，sid 使用 Windows 会话 ID |
 
 ## 测试
 
 ```powershell
-cargo test -p ps-sys -p ps-core
+cargo test -p ps-bin -p ps-sys -p pgrep -p pkill --all-targets --target x86_64-pc-windows-msvc --locked
 ```
 
-单元测试覆盖 Win32 层 (`ps-sys`) 和数据模型/列层 (`ps-core`)。不需要外部服务，可以离线运行。
+测试覆盖共享 Win32 层、ps 内部模型/列及 pgrep/pkill 消费者。42 列基线快照及别名/排序/缺失数据用例锁定重构前行为；需要正常 Windows API 权限，无需外部服务。
 
 ## 许可证
 

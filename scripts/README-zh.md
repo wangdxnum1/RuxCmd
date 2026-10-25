@@ -87,3 +87,20 @@ pwsh -File scripts/tests/package-tests.ps1
 ## verify-version-info.ps1
 
 只读检查全部 125 个 EXE，不启动程序；要求套件版本、命令身份、发布者、功能说明、版权、数字版本和构建标记均正确。-BinDir 指定目录，Debug 产物另加 -DebugBuild。Verify 和 ZIP 打包会自动检查；scripts/tests/version-resource-tests.ps1 提供三项真实 RC 编译回归。
+
+## ps 结构与重构验收
+
+ps 专属模型、过滤、排序、进程树及列格式化均位于 `ps-bin` 内部；`ps-sys` 继续由
+`ps`、`pgrep`、`pkill` 共享。42 名称注册表改用静态描述和四组格式化函数，不再
+逐列创建 trait 对象；c/cp 占位等现有兼容限制保持。单元测试包含旧实现的全列
+元数据/输出快照；标准 Verify 覆盖这些测试、全部命令、原生版本资源和打包行为。
+
+需要额外对比新旧程序时，将旧版保存在单独目录并保留 `ps.exe` 文件名，再运行：
+
+```powershell
+pwsh -File scripts/tests/ps-refactor-compare.ps1 -BaselineBinary target/ps-before-simplification/ps.exe
+```
+
+该对比查询自己的进程，检查 stdout/stderr/退出码与文件输出，不发送进程信号或
+打开桌面窗口。`docs/ps/docs/superpowers` 内的原始计划保留为历史资料，不代表
+当前包布局。

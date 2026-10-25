@@ -29,6 +29,10 @@
 
 ### Task 2: Docs, review, acceptance
 - [x] Update current bilingual structure docs and progress ledger (128 packages, 125 commands).
-- [ ] Request one independent whole-change review and resolve important findings.
-- [ ] Run full Verify, all version resource checks and clean local ZIP validation.
-- [ ] Record acceptance evidence and finish on a clean feature branch.
+- [x] Request one independent whole-change review and resolve important findings.
+- [x] Run full Verify and all version resource checks; the requested formal 0.3.2 release supersedes the local ZIP preview.
+- [x] Record implementation acceptance evidence; commit the clean branch for the requested main integration.
+
+## Approved delivery update
+
+The user explicitly requested merging/pushing main and publishing version 0.3.2. Deliver through scripts/release.ps1 -Publish after committing the version change. The formal pipeline reruns clean-source verification, creates the matching tag, verifies and uploads the ZIP/checksum. Publication and CI outcomes are checked live and reported to the user; no future outcome is claimed by this source plan.

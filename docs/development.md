@@ -4,7 +4,7 @@
 
 ## Project structure
 
-The root virtual workspace manages `crates/*`. Currently 129 packages produce 125 commands; `ps-sys`, `ps-core`, and `ruxcmd-core` are runtime library packages and `ruxcmd-build` is build-only, `ps-bin` produces `ps.exe`, and `ls` also provides a library reused by `vdir`. Cargo metadata is the single source of truth for the build and release tool inventories; smoke policies must stay consistent with that binary set.
+The root virtual workspace manages `crates/*`. Currently 128 packages produce 125 commands; `ps-sys` and `ruxcmd-core` are runtime library packages and `ruxcmd-build` is build-only, `ps-bin` produces `ps.exe`, and `ls` also provides a library reused by `vdir`. Cargo metadata is the single source of truth for the build and release tool inventories; smoke policies must stay consistent with that binary set.
 
 Editions 2021/2024 and each crate's original version are preserved. The root `Cargo.lock` pins the whole suite's dependencies, with resolver 3. The ps packages keep their originally declared Rust 1.75 metadata, but the repository as a whole is only validated against the pinned 1.99.0; no suite-wide MSRV is promised.
 
@@ -57,3 +57,23 @@ These descriptive properties are independent of Authenticode signing. This imple
     Format-List FileDescription,ProductName,CompanyName,FileVersion,ProductVersion,OriginalFilename,LegalCopyright
 pwsh -File scripts/verify-version-info.ps1
 ```
+
+## ps structure and refactor acceptance
+
+The ps-specific model, filters, sorting, tree and column formatting live inside
+`ps-bin`; `ps-sys` remains shared with `pgrep` and `pkill`. Columns use a static
+42-name registry and four formatter groups, without per-column trait objects.
+The existing limitations (including c/cp placeholders) are preserved. Unit tests
+contain the old all-column metadata/value fixture; the standard Verify pipeline
+covers these tests, all commands, native version resources and packaged behavior.
+
+For an optional old/new acceptance comparison, retain the old executable in a
+separate directory under the same `ps.exe` filename, then run:
+
+```powershell
+pwsh -File scripts/tests/ps-refactor-compare.ps1 -BaselineBinary target/ps-before-simplification/ps.exe
+```
+
+The comparison queries its own process and checks stdout/stderr/exit codes and
+file output; it never signals processes or opens desktop windows. Source plans
+under `docs/ps/docs/superpowers` are historical, not the current crate layout.

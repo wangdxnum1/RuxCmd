@@ -4,7 +4,7 @@
 
 ## 工程结构
 
-根 virtual workspace 管理 `crates/*`。目前 129 个 package 产出 125 个命令；`ps-sys`、`ps-core`、`ruxcmd-core` 是运行时库包，`ruxcmd-build` 是仅构建时使用的库包，`ps-bin` 产出 `ps.exe`，`ls` 同时提供供 `vdir` 复用的库。Cargo metadata 是构建及发布工具清单的唯一来源，冒烟策略必须与其二进制集合一致。
+根 virtual workspace 管理 `crates/*`。目前 128 个 package 产出 125 个命令；`ps-sys`、`ruxcmd-core` 是运行时库包，`ruxcmd-build` 是仅构建时使用的库包，`ps-bin` 产出 `ps.exe`，`ls` 同时提供供 `vdir` 复用的库。Cargo metadata 是构建及发布工具清单的唯一来源，冒烟策略必须与其二进制集合一致。
 
 Edition 2021/2024 和各 crate 原版本保留。根 Cargo.lock 固定整个套件的依赖，resolver 为 3。ps 保留原来声明的 Rust 1.75 元数据，但整个仓库当前只用固定的 1.99.0 验证，不承诺整体 MSRV。
 
@@ -57,3 +57,20 @@ Verify 通过 `scripts/verify-version-info.ps1` 读取所有文件属性，不�
     Format-List FileDescription,ProductName,CompanyName,FileVersion,ProductVersion,OriginalFilename,LegalCopyright
 pwsh -File scripts/verify-version-info.ps1
 ```
+
+## ps 结构与重构验收
+
+ps 专属模型、过滤、排序、进程树及列格式化均位于 `ps-bin` 内部；`ps-sys` 继续由
+`ps`、`pgrep`、`pkill` 共享。42 名称注册表改用静态描述和四组格式化函数，不再
+逐列创建 trait 对象；c/cp 占位等现有兼容限制保持。单元测试包含旧实现的全列
+元数据/输出快照；标准 Verify 覆盖这些测试、全部命令、原生版本资源和打包行为。
+
+需要额外对比新旧程序时，将旧版保存在单独目录并保留 `ps.exe` 文件名，再运行：
+
+```powershell
+pwsh -File scripts/tests/ps-refactor-compare.ps1 -BaselineBinary target/ps-before-simplification/ps.exe
+```
+
+该对比查询自己的进程，检查 stdout/stderr/退出码与文件输出，不发送进程信号或
+打开桌面窗口。`docs/ps/docs/superpowers` 内的原始计划保留为历史资料，不代表
+当前包布局。

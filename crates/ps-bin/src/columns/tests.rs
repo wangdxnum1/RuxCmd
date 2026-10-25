@@ -1,8 +1,5 @@
 use super::{all, lookup, Column};
-use crate::{
-    process::User,
-    process::{Process, ProcessFlags},
-};
+use crate::process::{Process, ProcessFlags, User};
 use std::time::{Duration, UNIX_EPOCH};
 
 fn fixture() -> Process {
@@ -107,4 +104,20 @@ fn sorting_preserves_numeric_order_aliases_and_selected_column_scope() {
     assert_eq!(sorted.iter().map(|p| p.pid).collect::<Vec<_>>(), [2, 3, 1]);
     let sorted = crate::sort::apply_sort(inputs, &spec, &selected(&["pid"]));
     assert_eq!(sorted.iter().map(|p| p.pid).collect::<Vec<_>>(), [1, 2, 3]);
+}
+
+#[test]
+fn pmem_uses_real_total_physical_memory() {
+    // Preserve the original nonzero working-set regression from ps-core.
+    let total =
+        crate::meminfo::total_physical_memory().expect("total physical memory must be available");
+    assert!(total > 0);
+    let working_set: u64 = 1_000_000_000;
+    let mut p = fixture();
+    p.working_set = working_set;
+    let out = value("pmem", &p);
+    let expected = format!("{:.1}", (working_set as f64 / total as f64) * 100.0);
+    assert_eq!(out, expected, "%MEM must use real total physical memory");
+    let value: f64 = out.parse().expect("%MEM must parse as a number");
+    assert!(value > 0.0 && value <= 100.0);
 }

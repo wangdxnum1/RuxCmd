@@ -132,59 +132,53 @@ rather than rendered as `?`.
 
 ## Architecture
 
+```text
+crates/
+├── ps-sys/          # Win32 collector shared by ps, pgrep and pkill
+│   └── src/         # snapshots, process data, tokens, times and PEB command lines
+└── ps-bin/          # one command package, producing ps.exe
+    └── src/
+        ├── main.rs / cli.rs
+        ├── process.rs                 # internal process and owner model
+        ├── assemble.rs / meminfo.rs    # map native data and cache total memory
+        ├── columns/                   # static metadata + four formatter groups
+        │   ├── mod.rs
+        │   ├── identity.rs / resources.rs
+        │   └── time.rs / command.rs
+        └── filter.rs / sort.rs / tree.rs / render.rs
 ```
-ps/
-├── ps-sys/        # raw Win32 FFI (no_std-friendly, thiserror)
-│   ├── snapshot   # EnumProcesses + Toolhelp32
-│   ├── procinfo   # PEB + NtQueryInformationProcess
-│   ├── token      # OpenProcessToken + LookupAccountSidW
-│   ├── times      # GetProcessTimes
-│   ├── threads    # thread count
-│   └── cmdline    # RTL_USER_PROCESS_PARAMETERS from PEB
-│
-├── ps-core/       # data model + business logic (no Win32)
-│   ├── process    # Process struct, Windows → Linux field mapping
-│   ├── columns/   # Column trait + 38+ implementations
-│   ├── filter     # -p, -u, -C selectors
-│   ├── sort       # --sort parser + applier
-│   ├── tree       # Forest builder + renderer
-│   ├── state      # stat-letter mapping
-│   └── user       # user resolution
-│
-├── ps-bin/        # CLI entry point
-│   ├── cli.rs     # clap parser
-│   ├── render.rs  # table + forest renderers
-│   └── main.rs    # orchestrates snapshot → filter → sort → render
-│
-└── scripts/
-    └── release.ps1
-```
+
+The former single-consumer `ps-core` package is internal to `ps-bin`. Columns
+use immutable descriptors and plain functions instead of one trait object and
+source file per column. All 42 registered names, including aliases, retain
+their headers, widths, alignment and formatting. Sort keys are resolved once
+against the selected columns. The archived original design plans describe the
+former three-package implementation.
 
 ## Cross-platform mapping
 
 | Linux concept      | Windows source                                          |
 | ------------------ | ------------------------------------------------------- |
 | `uid` / `user`     | `OpenProcessToken` + `LookupAccountSidW`                |
-| `ppid`             | `ProcessBasicInformation.InheritedFromUniqueProcessId`  |
+| `ppid`             | Toolhelp32 parent PID  |
 | `rss` / `vsz`      | `GetProcessMemoryInfo` (WorkingSetSize / PagefileUsage) |
 | `pcpu`             | (CPU time) ÷ (uptime since `CreateTime`)                |
 | `time` / `times`   | `GetProcessTimes`                                       |
 | `pri` / `ni`       | `GetPriorityClass` mapped to 0..40 range                |
-| `stat`             | `GetExitCodeProcess` + main window presence             |
+| `stat`             | `S` fallback (per-process runnable state is unavailable)             |
 | `start`            | `GetProcessTimes` (create time)                         |
 | `cmd` / `args`     | `RTL_USER_PROCESS_PARAMETERS` from PEB                  |
-| `tty`              | `GetConsoleWindow` (`?` if null)                        |
+| `tty`              | `?` (controlling TTY is unavailable)                        |
 | `thcount`          | `Thread32First/Next` count                              |
-| `pgid` / `sid`     | `GetProcessId` for both (Windows uses session = sid)    |
+| `pgid` / `sid`     | PID for pgid; Windows session ID for sid    |
 
 ## Testing
 
 ```powershell
-cargo test -p ps-sys -p ps-core
+cargo test -p ps-bin -p ps-sys -p pgrep -p pkill --all-targets --target x86_64-pc-windows-msvc --locked
 ```
 
-Unit tests cover the Win32 layer (`ps-sys`) and the data-model/column layer
-(`ps-core`). They do not require any external services and run offline.
+Tests cover the shared Win32 layer, the internal ps model/columns, and the pgrep/pkill consumers. The 42-column golden fixture and alias/sort/fallback tests preserve pre-refactor behavior. They require normal Windows API access and no external services.
 
 ## License
 

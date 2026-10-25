@@ -87,3 +87,23 @@ The entry-point tests use isolated temporary Git/Cargo projects and cover parame
 ## verify-version-info.ps1
 
 Reads all 125 EXEs without launching them and requires the configured suite version, identity, publisher, description, copyright, numeric versions and build flags. Use -BinDir to choose a directory; use -DebugBuild for debug artifacts. Verify and ZIP packaging invoke this gate automatically. Three real RC build regressions are in scripts/tests/version-resource-tests.ps1.
+
+## ps structure and refactor acceptance
+
+The ps-specific model, filters, sorting, tree and column formatting live inside
+`ps-bin`; `ps-sys` remains shared with `pgrep` and `pkill`. Columns use a static
+42-name registry and four formatter groups, without per-column trait objects.
+The existing limitations (including c/cp placeholders) are preserved. Unit tests
+contain the old all-column metadata/value fixture; the standard Verify pipeline
+covers these tests, all commands, native version resources and packaged behavior.
+
+For an optional old/new acceptance comparison, retain the old executable in a
+separate directory under the same `ps.exe` filename, then run:
+
+```powershell
+pwsh -File scripts/tests/ps-refactor-compare.ps1 -BaselineBinary target/ps-before-simplification/ps.exe
+```
+
+The comparison queries its own process and checks stdout/stderr/exit codes and
+file output; it never signals processes or opens desktop windows. Source plans
+under `docs/ps/docs/superpowers` are historical, not the current crate layout.
