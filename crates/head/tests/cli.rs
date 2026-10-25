@@ -106,3 +106,47 @@ fn v_prints_file_header_for_single_file() {
     let expected = format!("==> {} <==\na\n", path.display());
     assert_eq!(out.stdout, expected.as_bytes());
 }
+
+#[test]
+fn nul_mode_preserves_embedded_lf_cr_and_unterminated_records() {
+    for flag in ["-z", "--zero-terminated"] {
+        let out = run_head(&[flag, "-n", "2"], b"a\nx\0b\r\0c");
+        assert_eq!(out.status.code(), Some(0));
+        assert_eq!(out.stdout, b"a\nx\0b\r\0");
+        let out = run_head(&[flag, "-n", "9"], b"a\0b");
+        assert_eq!(out.stdout, b"a\0b");
+        assert!(run_head(&[flag], b"").stdout.is_empty());
+        let out = run_head(&[flag, "-c", "4"], b"a\nx\0b\0");
+        assert_eq!(out.stdout, b"a\nx\0");
+    }
+}
+
+#[test]
+fn nul_multi_file_headers_still_use_lf_separators() {
+    let first = temp_path("nul-head-first");
+    let second = temp_path("nul-head-second");
+    std::fs::write(&first, b"a\0").unwrap();
+    std::fs::write(&second, b"b\0").unwrap();
+    let out = run_head(
+        &[
+            "-z",
+            "-n",
+            "1",
+            first.to_str().unwrap(),
+            second.to_str().unwrap(),
+        ],
+        b"",
+    );
+    let _ = std::fs::remove_file(&first);
+    let _ = std::fs::remove_file(&second);
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(
+        out.stdout,
+        format!(
+            "==> {} <==\na\0\n==> {} <==\nb\0",
+            first.display(),
+            second.display()
+        )
+        .as_bytes()
+    );
+}

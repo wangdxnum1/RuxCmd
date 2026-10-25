@@ -13,6 +13,8 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 fn main() {
     let args = cli::Args::parse();
+    let separator = if args.zero_terminated { 0 } else { b'\n' };
+    let mut printed_header = false;
 
     // `-c N -f` follows like the line mode does: the initial output covers
     // the requested byte region, then appended bytes are streamed (pre-fix
@@ -31,7 +33,13 @@ fn main() {
             std::process::exit(1);
         }
         // P0 #23: no operand means standard input, like other filters.
-        if let Err(e) = tail_stdin(count, byte_mode, false) {
+        if let Err(e) = tail_stdin(
+            count,
+            byte_mode,
+            args.verbose,
+            separator,
+            &mut printed_header,
+        ) {
             eprintln!("tail: {}", e);
             std::process::exit(1);
         }
@@ -57,7 +65,9 @@ fn main() {
         match targets.len() {
             0 => std::process::exit(exit_code),
             1 => {
-                if let Err(e) = tail_follow_single(&targets[0], count, byte_mode, args.verbose) {
+                if let Err(e) =
+                    tail_follow_single(&targets[0], count, byte_mode, args.verbose, separator)
+                {
                     eprintln!("tail: {}: {}", targets[0].display(), e);
                     exit_code = 1;
                 }
@@ -65,7 +75,7 @@ fn main() {
             }
             _ => {
                 let show_headers = args.verbose || (!args.quiet && targets.len() > 1);
-                follow_multi(&targets, count, byte_mode, show_headers)
+                follow_multi(&targets, count, byte_mode, show_headers, separator)
             }
         }
     }
@@ -74,13 +84,21 @@ fn main() {
     let mut exit_code = 0i32;
     for file in &args.files {
         if file.as_os_str() == OsStr::new("-") {
-            if let Err(e) = tail_stdin(count, byte_mode, headers) {
+            if let Err(e) = tail_stdin(count, byte_mode, headers, separator, &mut printed_header) {
                 eprintln!("tail: {}", e);
                 exit_code = 1;
             }
         } else {
             let name = file.display().to_string();
-            if let Err(e) = tail_file(file, &name, count, byte_mode, headers) {
+            if let Err(e) = tail_file(
+                file,
+                &name,
+                count,
+                byte_mode,
+                headers,
+                separator,
+                &mut printed_header,
+            ) {
                 eprintln!("tail: {}: {}", name, e);
                 exit_code = 1;
             }
@@ -98,11 +116,17 @@ fn tail_file(
     count: Count,
     byte_mode: bool,
     show_header: bool,
+    separator: u8,
+    printed_header: &mut bool,
 ) -> Result<(), String> {
     let mut file = fs::File::open(path).map_err(|e| format!("cannot open file: {}", e))?;
 
     if show_header {
+        if *printed_header {
+            println!();
+        }
         println!("==> {} <==", name);
+        *printed_header = true;
     }
 
     if byte_mode {
@@ -119,7 +143,7 @@ fn tail_file(
         let mut data = Vec::new();
         file.read_to_end(&mut data)
             .map_err(|e| format!("cannot read: {}", e))?;
-        write_line_region(&data, count)?;
+        write_line_region(&data, count, separator)?;
     }
 
     Ok(())
@@ -127,9 +151,19 @@ fn tail_file(
 
 /// P0 #23: `tail` with no file operand (or a `-` operand) reads standard
 /// input; following standard input is not supported.
-fn tail_stdin(count: Count, byte_mode: bool, show_header: bool) -> Result<(), String> {
+fn tail_stdin(
+    count: Count,
+    byte_mode: bool,
+    show_header: bool,
+    separator: u8,
+    printed_header: &mut bool,
+) -> Result<(), String> {
     if show_header {
+        if *printed_header {
+            println!();
+        }
         println!("==> standard input <==");
+        *printed_header = true;
     }
 
     let mut data = Vec::new();
@@ -144,7 +178,7 @@ fn tail_stdin(count: Count, byte_mode: bool, show_header: bool) -> Result<(), St
             .write_all(&data[start..])
             .map_err(|e| format!("cannot write: {}", e))?;
     } else {
-        write_line_region(&data, count)?;
+        write_line_region(&data, count, separator)?;
     }
 
     Ok(())
@@ -163,19 +197,23 @@ fn byte_start(len: u64, count: Count) -> u64 {
 
 /// Start offset of the region the line mode outputs within `data`: the last
 /// N lines, or from line N onward for `+N` (1-indexed).
-fn line_start(data: &[u8], count: Count) -> usize {
+fn line_start(data: &[u8], count: Count, separator: u8) -> usize {
     match count {
         Count::Last(0) => data.len(),
-        Count::Last(n) => start_after_lines(data, line_count(data).saturating_sub(n)),
-        Count::From(n) => start_after_lines(data, n.saturating_sub(1)),
+        Count::Last(n) => start_after_lines(
+            data,
+            line_count(data, separator).saturating_sub(n),
+            separator,
+        ),
+        Count::From(n) => start_after_lines(data, n.saturating_sub(1), separator),
     }
 }
 
 /// Number of lines in `data`: newline-terminated lines plus a final
 /// unterminated one.
-fn line_count(data: &[u8]) -> usize {
-    let mut lines = data.iter().filter(|&&b| b == b'\n').count();
-    if !data.is_empty() && *data.last().unwrap() != b'\n' {
+fn line_count(data: &[u8], separator: u8) -> usize {
+    let mut lines = data.iter().filter(|&&b| b == separator).count();
+    if !data.is_empty() && *data.last().unwrap() != separator {
         lines += 1;
     }
     lines
@@ -183,13 +221,13 @@ fn line_count(data: &[u8]) -> usize {
 
 /// Offset just past the `skip`-th newline in `data` (the start of line
 /// skip+1); `data.len()` when the data has fewer newlines than `skip`.
-fn start_after_lines(data: &[u8], skip: usize) -> usize {
+fn start_after_lines(data: &[u8], skip: usize, separator: u8) -> usize {
     if skip == 0 {
         return 0;
     }
     let mut seen = 0usize;
     for (i, &b) in data.iter().enumerate() {
-        if b == b'\n' {
+        if b == separator {
             seen += 1;
             if seen == skip {
                 return i + 1;
@@ -203,10 +241,11 @@ fn start_after_lines(data: &[u8], skip: usize) -> usize {
 /// echoed as-is, a final line without a newline is not padded, and invalid
 /// UTF-8 passes through (the pre-fix `lines()` + `writeln!` rewrote all
 /// three and did not support `+N`).
-fn write_line_region(data: &[u8], count: Count) -> Result<(), String> {
-    let start = line_start(data, count);
-    io::stdout()
-        .write_all(&data[start..])
+fn write_line_region(data: &[u8], count: Count, separator: u8) -> Result<(), String> {
+    let start = line_start(data, count, separator);
+    let mut out = io::stdout().lock();
+    out.write_all(&data[start..])
+        .and_then(|()| out.flush())
         .map_err(|e| format!("cannot write: {}", e))
 }
 
@@ -228,6 +267,7 @@ fn tail_follow_single(
     count: Count,
     byte_mode: bool,
     show_header: bool,
+    separator: u8,
 ) -> Result<(), String> {
     let name = path.display().to_string();
     let mut file = fs::File::open(path).map_err(|e| format!("cannot open file: {}", e))?;
@@ -241,7 +281,7 @@ fn tail_follow_single(
         println!("==> {} <==", name);
     }
     if print_initial {
-        write_initial_region(&mut file, file_len, count, byte_mode)?;
+        write_initial_region(&mut file, file_len, count, byte_mode, separator)?;
     }
     file.seek(SeekFrom::Start(follow_from))
         .map_err(|e| format!("cannot seek: {}", e))?;
@@ -256,6 +296,7 @@ fn write_initial_region(
     file_len: u64,
     count: Count,
     byte_mode: bool,
+    separator: u8,
 ) -> Result<(), String> {
     if byte_mode {
         file.seek(SeekFrom::Start(byte_start(file_len, count)))
@@ -267,7 +308,7 @@ fn write_initial_region(
         let mut data = Vec::new();
         file.read_to_end(&mut data)
             .map_err(|e| format!("cannot read: {}", e))?;
-        write_line_region(&data, count)?;
+        write_line_region(&data, count, separator)?;
     }
     Ok(())
 }
@@ -318,7 +359,13 @@ impl HeaderPrinter {
 /// P0 #23: multi-file follow polls every operand from a single loop, so
 /// growth on any file is emitted (previously the first file's follow loop
 /// never returned and starved the remaining operands). Never returns.
-fn follow_multi(paths: &[PathBuf], count: Count, byte_mode: bool, show_headers: bool) -> ! {
+fn follow_multi(
+    paths: &[PathBuf],
+    count: Count,
+    byte_mode: bool,
+    show_headers: bool,
+    separator: u8,
+) -> ! {
     let mut headers = HeaderPrinter::new(show_headers);
     let mut targets: Vec<FollowTarget> = Vec::new();
 
@@ -344,7 +391,8 @@ fn follow_multi(paths: &[PathBuf], count: Count, byte_mode: bool, show_headers: 
         if let Some(header) = headers.ensure(targets.len(), &name) {
             println!("{}", header);
         }
-        if print_initial && let Err(e) = write_initial_region(&mut file, file_len, count, byte_mode)
+        if print_initial
+            && let Err(e) = write_initial_region(&mut file, file_len, count, byte_mode, separator)
         {
             eprintln!("tail: {}: {}", name, e);
         }
@@ -496,22 +544,22 @@ mod tests {
 
     #[test]
     fn line_start_last_n() {
-        assert_eq!(line_start(b"a\nb\nc\n", Count::Last(2)), 2);
+        assert_eq!(line_start(b"a\nb\nc\n", Count::Last(2), b'\n'), 2);
         // No final newline: the last line is still a line.
-        assert_eq!(line_start(b"a\nb\nc", Count::Last(2)), 2);
-        assert_eq!(line_start(b"a\nb\n", Count::Last(9)), 0);
-        assert_eq!(line_start(b"a\nb\n", Count::Last(0)), 4);
-        assert_eq!(line_start(b"", Count::Last(1)), 0);
+        assert_eq!(line_start(b"a\nb\nc", Count::Last(2), b'\n'), 2);
+        assert_eq!(line_start(b"a\nb\n", Count::Last(9), b'\n'), 0);
+        assert_eq!(line_start(b"a\nb\n", Count::Last(0), b'\n'), 4);
+        assert_eq!(line_start(b"", Count::Last(1), b'\n'), 0);
     }
 
     #[test]
     fn line_start_from_n() {
-        assert_eq!(line_start(b"a\nb\nc\n", Count::From(2)), 2);
-        assert_eq!(line_start(b"a\nb\nc\n", Count::From(1)), 0);
-        assert_eq!(line_start(b"a\nb\nc\n", Count::From(0)), 0);
+        assert_eq!(line_start(b"a\nb\nc\n", Count::From(2), b'\n'), 2);
+        assert_eq!(line_start(b"a\nb\nc\n", Count::From(1), b'\n'), 0);
+        assert_eq!(line_start(b"a\nb\nc\n", Count::From(0), b'\n'), 0);
         // From a line beyond the end prints nothing.
-        assert_eq!(line_start(b"a\nb\nc\n", Count::From(9)), 6);
-        assert_eq!(line_start(b"a\nb\nc", Count::From(3)), 4);
+        assert_eq!(line_start(b"a\nb\nc\n", Count::From(9), b'\n'), 6);
+        assert_eq!(line_start(b"a\nb\nc", Count::From(3), b'\n'), 4);
     }
 
     #[test]

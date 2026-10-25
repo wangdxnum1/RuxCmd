@@ -5,6 +5,9 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(name = "tail", version, about)]
 pub struct Args {
+    /// Use NUL instead of newline as the record delimiter
+    #[arg(short = 'z', long = "zero-terminated")]
+    pub zero_terminated: bool,
     /// Print the last N lines instead of the last 10; `+N` prints from
     /// line N onward
     #[arg(short = 'n', long = "lines", default_value = "10", value_name = "N")]

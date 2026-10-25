@@ -7,6 +7,7 @@ use std::path::Path;
 
 fn main() {
     let args = cli::Args::parse();
+    let separator = if args.zero_terminated { 0 } else { b'\n' };
 
     // Usage error (exit 1): `-n` and `-c` cannot be combined.
     if args.lines.is_some() && args.bytes.is_some() {
@@ -20,7 +21,14 @@ fn main() {
     if args.files.is_empty() {
         let stdin = std::io::stdin();
         // `-v` prints the header for standard input too (GNU name, like tail).
-        if let Err(e) = head_reader(stdin.lock(), "standard input", lines, bytes, args.verbose) {
+        if let Err(e) = head_reader(
+            stdin.lock(),
+            "standard input",
+            lines,
+            bytes,
+            args.verbose,
+            separator,
+        ) {
             eprintln!("head: {}", e);
             std::process::exit(1);
         }
@@ -44,7 +52,7 @@ fn main() {
             let file_name = file.display().to_string();
             let header = show_header(i);
 
-            if let Err(e) = head_file(file, &file_name, lines, bytes, header) {
+            if let Err(e) = head_file(file, &file_name, lines, bytes, header, separator) {
                 eprintln!("head: {}: {}", file_name, e);
                 exit_code = 1;
             }
@@ -64,10 +72,11 @@ fn head_file(
     lines: usize,
     bytes: Option<usize>,
     show_header: bool,
+    separator: u8,
 ) -> Result<(), String> {
     let file = fs::File::open(path).map_err(|e| format!("cannot open file: {}", e))?;
     let reader = BufReader::new(file);
-    head_reader(reader, name, lines, bytes, show_header)
+    head_reader(reader, name, lines, bytes, show_header, separator)
 }
 
 fn head_reader<R: Read>(
@@ -76,6 +85,7 @@ fn head_reader<R: Read>(
     lines: usize,
     bytes: Option<usize>,
     show_header: bool,
+    separator: u8,
 ) -> Result<(), String> {
     if show_header {
         println!("==> {} <==", name);
@@ -100,7 +110,7 @@ fn head_reader<R: Read>(
         let mut raw: Vec<u8> = Vec::new();
         for _ in 0..lines {
             raw.clear();
-            match reader.read_until(b'\n', &mut raw) {
+            match reader.read_until(separator, &mut raw) {
                 Ok(0) => break,
                 Ok(_) => {}
                 Err(e) => return Err(format!("cannot read: {}", e)),

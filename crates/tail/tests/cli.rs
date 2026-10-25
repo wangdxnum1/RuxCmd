@@ -142,7 +142,7 @@ fn multi_file_without_follow_keeps_headers_and_order() {
     let _ = std::fs::remove_file(&b);
     assert_eq!(out.status.code(), Some(0));
     let expected = format!(
-        "==> {} <==\na1\na2\n==> {} <==\nb1\nb2\n",
+        "==> {} <==\na1\na2\n\n==> {} <==\nb1\nb2\n",
         a.display(),
         b.display()
     );
@@ -316,4 +316,75 @@ fn invalid_number_values_report_and_exit_1() {
     let out = run_tail(&["-c", "abc"], b"");
     assert_eq!(out.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&out.stderr).contains("invalid number of bytes"));
+}
+
+#[test]
+fn nul_mode_counts_records_and_preserves_raw_byte_regions() {
+    for flag in ["-z", "--zero-terminated"] {
+        let out = run_tail(&[flag, "-n", "2"], b"a\nx\0b\r\0c");
+        assert_eq!(out.status.code(), Some(0));
+        assert_eq!(out.stdout, b"b\r\0c");
+        let out = run_tail(&[flag, "-n", "+2"], b"a\nx\0b\r\0c");
+        assert_eq!(out.stdout, b"b\r\0c");
+        let out = run_tail(&[flag, "-n", "1"], b"a\0b\0");
+        assert_eq!(out.stdout, b"b\0");
+        let out = run_tail(&[flag, "-c", "2"], b"a\0b\0c");
+        assert_eq!(out.stdout, b"\0c");
+        assert!(run_tail(&[flag], b"").stdout.is_empty());
+    }
+}
+
+#[test]
+fn nul_follow_streams_partial_appends_without_waiting_for_nul() {
+    let path = temp_path("nul-follow");
+    std::fs::write(&path, b"a\0b\0").unwrap();
+    let mut child = spawn_tail(&["-z", "-n", "1", "-f", path.to_str().unwrap()]);
+    let initial = read_exact_with_deadline(&mut child, 2, Duration::from_secs(5));
+    append(&path, b"partial");
+    let partial = read_exact_with_deadline(&mut child, 7, Duration::from_secs(5));
+    append(&path, b"\0");
+    let terminator = read_exact_with_deadline(&mut child, 1, Duration::from_secs(5));
+    let _ = child.kill();
+    let _ = child.wait();
+    let _ = std::fs::remove_file(path);
+    assert_eq!(initial, b"b\0");
+    assert_eq!(partial, b"partial");
+    assert_eq!(terminator, b"\0");
+}
+
+#[test]
+fn nul_multi_file_headers_still_use_lf_separators() {
+    let first = temp_path("nul-tail-first");
+    let second = temp_path("nul-tail-second");
+    std::fs::write(&first, b"a\0").unwrap();
+    std::fs::write(&second, b"b\0").unwrap();
+    let out = run_tail(
+        &[
+            "-z",
+            "-n",
+            "1",
+            first.to_str().unwrap(),
+            second.to_str().unwrap(),
+        ],
+        b"",
+    );
+    let _ = std::fs::remove_file(&first);
+    let _ = std::fs::remove_file(&second);
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(
+        out.stdout,
+        format!(
+            "==> {} <==\na\0\n==> {} <==\nb\0",
+            first.display(),
+            second.display()
+        )
+        .as_bytes()
+    );
+}
+
+#[test]
+fn nul_verbose_stdin_has_a_line_terminated_header() {
+    let out = run_tail(&["-z", "-v", "-n", "1"], b"a\0");
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, b"==> standard input <==\na\0");
 }

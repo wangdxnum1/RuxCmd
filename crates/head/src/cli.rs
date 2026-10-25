@@ -5,6 +5,9 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(name = "head", version, about)]
 pub struct Args {
+    /// Use NUL instead of newline as the record delimiter
+    #[arg(short = 'z', long = "zero-terminated")]
+    pub zero_terminated: bool,
     /// Print the first N lines instead of the first 10
     #[arg(short = 'n', long = "lines", value_name = "N")]
     pub lines: Option<i64>,
