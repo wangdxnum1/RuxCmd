@@ -6,7 +6,7 @@ fn main() {
     let args = cli::Args::parse_or_exit();
 
     for path in &args.path {
-        println!("{}", dirname(path));
+        print!("{}{}", dirname(path), if args.zero { '\0' } else { '\n' });
     }
 }
 

@@ -34,7 +34,7 @@ fn main() {
         } else {
             basename
         };
-        println!("{}", result);
+        print!("{}{}", result, if cli.zero { '\0' } else { '\n' });
     }
 }
 

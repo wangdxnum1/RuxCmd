@@ -4,6 +4,9 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(name = "dirname", version, about, disable_version_flag = true)]
 pub struct Args {
+    /// Terminate each output name with NUL instead of newline
+    #[arg(short = 'z', long = "zero")]
+    pub zero: bool,
     /// File path
     #[arg(required = true)]
     pub path: Vec<String>,

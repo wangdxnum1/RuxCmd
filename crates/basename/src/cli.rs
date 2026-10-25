@@ -3,6 +3,9 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(author, about, long_about = None, disable_version_flag = true)]
 pub struct Cli {
+    /// Terminate each output name with NUL instead of newline
+    #[arg(short = 'z', long = "zero")]
+    pub zero: bool,
     #[arg(short = 'v', long = "version", help = "Display version information")]
     pub version: bool,
 
