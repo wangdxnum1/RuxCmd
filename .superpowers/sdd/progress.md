@@ -226,3 +226,5 @@
   * 豁免 2 类:MSYS 二进制模式校验和格式(前缀转义 + * 分隔符,环境差异);rev 缺失(Git for Windows 不附带,自动跳过)
   * 同步更新 compatibility 双语 5 行 + 4 个锁定旧行为的测试
 - Task 3: complete (最终 274 过/0 失败/13 跳过,种子 20261025)
+- CI 修复追加:差分修复波次导致远端 CI 连续 3 次失败,根因链:①本地提交前漏跑 cargo fmt(seq 格式);②sha256sum supports_dash_stdin 测试仍断言单空格(本地 grep head 截断漏看失败);③verify-behavior.ps1 的 wc 行为断言未同步 stdin 裸计数变更。三个教训已固化:每轮提交前必跑 cargo fmt --all --check;测试失败统计禁止 head 截断;改输出格式的命令必须同步核查 verify-behavior.ps1 断言。
+- 最终状态:CI 绿(fix(scripts) 40150144341);difftest 274 过/0 失败/13 跳过(种子 20261025)。
