@@ -1270,6 +1270,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "install"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "clap",
+ "predicates",
+ "ruxcmd-core",
+ "tempfile",
+]
+
+[[package]]
 name = "iostat"
 version = "0.1.0"
 dependencies = [
@@ -1383,6 +1394,16 @@ name = "log"
 version = "0.4.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
+
+[[package]]
+name = "logname"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "clap",
+ "predicates",
+ "windows-sys 0.61.2",
+]
 
 [[package]]
 name = "lru-slab"
@@ -1538,6 +1559,17 @@ dependencies = [
  "clap",
  "predicates",
  "tempfile",
+]
+
+[[package]]
+name = "nohup"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "clap",
+ "predicates",
+ "tempfile",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2979,6 +3011,16 @@ dependencies = [
  "idna",
  "percent-encoding",
  "serde",
+]
+
+[[package]]
+name = "users"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "clap",
+ "predicates",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

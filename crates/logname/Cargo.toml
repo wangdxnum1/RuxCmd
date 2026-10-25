@@ -1,0 +1,16 @@
+[package]
+license.workspace = true
+repository.workspace = true
+name = "logname"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows logname clone — print the current login name"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+windows-sys = { version = "0.61", features = ["Win32_System_WindowsProgramming"] }
+
+[dev-dependencies]
+assert_cmd.workspace = true
+predicates.workspace = true

@@ -1,0 +1,19 @@
+[package]
+license.workspace = true
+repository.workspace = true
+name = "nohup"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows nohup clone — run a command detached from the current job, Linux-style"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_Threading",
+] }
+
+[dev-dependencies]
+assert_cmd.workspace = true
+predicates.workspace = true
+tempfile.workspace = true
