@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- 新增 GNU 差分测试框架 scripts/difftest.ps1:对 cat/head/tail/sort/uniq/tr/cut/paste/fold/wc/nl/grep/sed/od/seq/echo/printf 等 30+ 命令的 87 个用例矩阵,生成确定性随机输入(ASCII/CRLF/非 UTF-8/空/无尾换行/长行),与 Git 自带 GNU 工具逐字节比对 stdout 与退出码;支持种子复现、单命令筛选、已知差异豁免表与缺失工具自动跳过。
+- 差分测试首轮发现并修复 5 个 GNU 对齐缺陷:seq 缺结尾换行;cut 无分隔符行未按 GNU 透传;nl 未给无尾换行输入补终止换行;sed 未保留缺失尾换行(纠正 0.2.0 前的"恒补 \n"错误假设);md5sum/sha256sum 文本模式改用 GNU 两空格分隔。MSYS 二进制模式校验和输出差异登记为已知差异。
+- 更新 wc/sed/nl/cut/md5sum 兼容性表条目与相关测试锁定。
+
+## 0.2.0
 - 新增 ruxcmd-core 共享 crate(字节安全读行/路径净化/CPU 采样/只读清除),which/readlink/realpath、iostat/mpstat/sar/top/vmstat、grep/cut/sort、cp/unzip 的重复实现收敛(净删约 500 行);dirname/basename/head/tail/sed/fold 因语义差异保留本地实现(已记录)。
 - 流式化:curl/wget 下载与 base64 编解码改为流式(300MB 下载内存峰值 342MB→11.5MB);nl/od/hexdump/strings/iconv 逐行/分块处理(1550 次随机差分验证与旧实现输出一致)。
 

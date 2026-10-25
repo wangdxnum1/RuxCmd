@@ -207,7 +207,22 @@
 - 阶段1: v0.2.0 版本提交(f71e9b8,CHANGELOG 版本节 + README Release 入口);首次 -Publish 因与 ruxcmd-core 创建并发导致 Tests 混合状态失败,干净树重跑
 - 阶段2: ruxcmd-core 共享 crate 建立(a650730,lines/paths/cpu/fsutil 四模块 13 单测);paths 迁移(which/readlink/realpath 替换;dirname 保留本地实现——缺 UNC 映射语义差异已记录;basename 无对应函数);cpu 迁移(iostat/mpstat/sar/top/vmstat 五 crate 净删 412 行,统一由 core 覆盖采样测试)
 - 阶段2续: lines 迁移(grep/cut/sort 替换;head/tail/sed/fold 语义不等价保留——head 需终止符原样回写、tail 字节偏移、sed/fold 只剥 
- 保 );fsutil 迁移(cp/unzip 替换;rm 经查证 std 1.99 remove_file 已带 POSIX 删除语义无需接入,新增只读删除回归测试)
+ 保 
+);fsutil 迁移(cp/unzip 替换;rm 经查证 std 1.99 remove_file 已带 POSIX 删除语义无需接入,新增只读删除回归测试)
 - 阶段3: 流式化完成(curl/wget 300MB 下载峰值 342→11.5MB;base64 304→4.6MB,发现并修复跨块 carry bug;nl/od/hexdump/strings(含 UTF-16/32 全编码)/iconv 流式,随机差分 1550 次新旧一致;nl 非 UTF-8 从报错改 lossy 透传为唯一行为变化)
 - 发布事故记录: 第一次 -Publish 因与 ruxcmd-core 开发并发致 Tests 混合状态失败;第二次在 dirty 树上跑到打包被拒但已推送 tag v0.2.0(指向 4b995a7,该提交含 core 迁移,Verify 全绿,作为 0.2.0 锚点成立);第三次对齐 HEAD==tag 后发布成功。教训:发布运行期间禁止改动工作区。
 - CI 修复(0279064/ca92741):本地 Verify 全绿但远端 CI 连续失败的两个环境差异缺陷——①env -u/赋值覆盖大小写敏感(runner 环境变量名为 Path 而本地为 PATH);②sync 自递归比较未归一化 self 路径(runner TEMP 为 8.3 短名 RUNNER~1,canonicalize 后形态不一致)。教训:Windows 语义的测试要按"变量名/路径大小写与短名形态都可能不同"设计,本地绿不等于 CI 绿。
+
+---
+
+# Round 14 Progress Ledger(差分测试框架)
+
+依据:迭代方向二"质量护城河"决策(2026-10-25)。
+
+- Task 1: complete (scripts/difftest.ps1 — 确定性 LCG 输入生成器 6 种形态(ascii/crlf/nonutf8/empty/notrail/long)x 2 变体;87 用例矩阵覆盖 30+ 命令;逐字节 stdout + 退出码比对;种子复现/-Cases 筛选/已知差异豁免表/缺失 GNU 工具自动跳过)
+  * 开发教训:PowerShell 陷阱 `func % N` 中 % 被解析为函数参数而非取模(裸命令后必须加括号);-Verbose 与 CmdletBinding 内置参数冲突改名 -ShowAll;Git 新版 git.exe 路径需向上搜索 usr/bin
+- Task 2: complete (首轮全量 246 过/44 失败,差异分类裁决:)
+  * 修 5 类真 bug:seq 尾换行;cut 无分隔符行透传;nl 终止最后一行;sed 保留缺失尾换行(纠正 Round 12 错误假设——GNU sed 实际保留,当时误判"恒补换行");md5sum/sha256sum 两空格文本模式
+  * 豁免 2 类:MSYS 二进制模式校验和格式(前缀转义 + * 分隔符,环境差异);rev 缺失(Git for Windows 不附带,自动跳过)
+  * 同步更新 compatibility 双语 5 行 + 4 个锁定旧行为的测试
+- Task 3: complete (最终 274 过/0 失败/13 跳过,种子 20261025)
