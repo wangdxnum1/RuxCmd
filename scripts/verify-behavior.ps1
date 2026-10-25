@@ -5,7 +5,7 @@ $directory = Get-FileSystemPath $BinDir
 $tests = @(
     @{ Name = 'cat'; Arguments = @(); Input = "hello`n"; Output = "hello`n"; Exit = 0 },
     @{ Name = 'echo'; Arguments = @('hello', 'world'); Input = ''; Output = "hello world`n"; Exit = 0 },
-    @{ Name = 'wc'; Arguments = @('-l'); Input = "one`ntwo`n"; Output = "2 <stdin>`n"; Exit = 0 },
+    @{ Name = 'wc'; Arguments = @('-l'); Input = "one`ntwo`n"; Output = "2`n"; Exit = 0 },
     @{ Name = 'grep'; Arguments = @('needle'); Input = "hay`nneedle`n"; Output = "needle`n"; Exit = 0 },
     @{ Name = 'grep'; Arguments = @('missing'); Input = "hay`n"; Output = ''; Exit = 1 },
     @{ Name = 'true'; Arguments = @(); Input = ''; Output = ''; Exit = 0 },
