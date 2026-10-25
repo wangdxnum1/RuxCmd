@@ -63,6 +63,8 @@ pwsh -File scripts/release.ps1 -Publish -Draft
 
 GNU 差分检查独立于 Verify 执行：
 
+Round 16 为专属用例增加 NUL、未终止 NUL、二进制 NUL 和连续空记录形态，不改变旧 LF 矩阵。摘要 `--tag -z` 和四种普通摘要校验均实际比较；仅在参照 `--help` 成功且确实不含选项时跳过该用例。例如 Git 的 GNU cksum 8.32 不支持 `--zero`，RuxCmd 仍有已知 CRC 向量测试；启动失败不会被记为“不支持”。
+
 ```powershell
 ./scripts/difftest.ps1
 ./scripts/difftest.ps1 -Cases rmdir,link,unlink,mktemp,install,cksum,sha1sum,sha512sum

@@ -63,6 +63,8 @@ The scripts finish local verification and packaging before pushing the tag and u
 
 GNU differential checks run separately from Verify:
 
+Round 16 adds dedicated NUL, unterminated NUL, binary NUL and consecutive-empty-record shapes to selected cases; the old LF matrix is unchanged. Hash `--tag -z` and all four normal hash verification modes are compared directly. Option-specific skips require a successful reference `--help`; for example Git's GNU cksum 8.32 lacks `--zero`, while the RuxCmd option is covered by known CRC vectors. Startup failures remain failures.
+
 ```powershell
 ./scripts/difftest.ps1
 ./scripts/difftest.ps1 -Cases rmdir,link,unlink,mktemp,install,cksum,sha1sum,sha512sum

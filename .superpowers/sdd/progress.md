@@ -251,3 +251,32 @@
 - GNU 差分：最终完整 release 矩阵 362 过 / 0 失败 / 31 跳过（seed 20261025，variants 2）；跳过仅为 GNU 缺失的 rev、MSYS 校验和生成格式、WTS/utmp 与 vdir 长格式差异。SHA 校验模式、文件创建/删除/替换与 mktemp 规范化名后的真实文件状态均实际对比。
 - 差分框架回归：直接进程调用中 .NET ArgumentList 不强制引用无空格参数，MSYS 将 `[:lower:]` 误作文件 glob。仅固定 locale 不能解决；改为无 shell、按 Windows CRT 规则逐参强制加引号，并加入字符类、字面双引号/空格/尾反斜杠 printf 用例；tr/printf 20/20 通过后全矩阵通过。
 - 本地候选 ZIP：`dist/round15-completion/ruxcmd-0.2.0-x86_64-pc-windows-msvc.zip`，125 个 exe；DLL、manifest/checksum、解压后 125 项冒烟及 8 项行为通过，dirty=True（提交前本地候选，不发布新版本）。SHA256：e5ae7ca6429158b0ed678532e3d9d89648bdfacdc866379071f342e13a1787a5。
+
+---
+
+# Round 16 Progress Ledger（NUL 分隔支持）
+
+Spec：docs/superpowers/specs/2026-10-25-round16-zero-terminated-design.md。
+Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
+基线 fe136eb；分支 codex/round16-zero-terminated；设计提交 d57d999。
+
+- Task 0: complete — 设计与计划经独立 builder check；维护者明确“按推荐方案直接实现，技术细节由你决定”，15 个命令范围，inline 执行 + 最终独立审查。
+- Task 1: implemented/verified — ByteLines 可选分隔符；新增 NUL 内容/连续空记录/空输入测试，首次因缺失 with_separator API 失败后通过；加入部分读取错误测试。core 15 tests + 1 doc test 通过，保留默认 LF/CRLF 规则。
+- Task 2: implemented/verified — sort/cut 的 -z 与原始字节选择/比较；新用例先因缺 flag 失败后通过。sort 非 UTF-8 默认排序的旧断言锁定有损顺序，已改为 GNU C 原始字节序。
+- Task 3: implemented/verified — uniq/comm/paste/shuf 的 NUL 记录；保留字节、压缩 comm 隐藏列、paste 转义/共享 stdin/串行空输入、shuf 多重集合和固定源复现；新用例先失败后通过。
+- Task 4: implemented/verified — head/tail 记录计数与原始字节输出；tail 初始 NUL 输出显式 flush；有界 follow 部分追加、NUL 多文件标题和 stdin -v 测试通过。
+- Task 5: implemented/verified — basename/dirname -z/--zero 输出；短/长选项、多操作数、后缀和操作数内 LF 测试先失败后通过。
+- Task 6: implemented/verified — 五种校验输出 NUL；四摘要 -z -c exit1、tag/原始反斜杠输出；md5sum/sha256sum 同步 stdin 清单、精确文件名、FAILED stdout 和读取错误修正。五包新用例先失败后通过。
+- Task 7: locally verified — NUL 差分/具体选项探测、双语 compatibility/CHANGELOG/脚本说明已完成；完整 Verify、GNU 差分、ZIP 均通过。交付条件为当前分支推送及远端 CI 成功，最终状态见 Actions 及交付消息。
+- Ruling: 使用已有 core 扩展，不重构全局命令框架；head/tail 保留原始字节路径；不新增包版本，不合并 main 或发布版本。
+- GNU evidence: paste -z -s 空 stdin 输出单 NUL；head/tail 不补末记录终止符；paste -z -s -d '\n' 插入 LF 并以 NUL 结尾；uniq 保留不同非法字节；sha1sum -z -c exit 1。本机 GNU cksum 为 8.32，无 -z。
+- Final review: 独立 reviewer 完成全部生产改动审查，发现 sort 字段 LF 遗漏会造成 -u 丢记录，及 tail 多文件标题 LF/stdin -v 缺口；加测试观察失败后修正。GNU 差分另发现 uniq -f 的同类 LF 问题，已用原始字节用例复现后修复；未发现其他重要缺陷，不进行重复审查。
+- Ruling: 初始设计误将字段空白限定为 space/TAB；GNU 实测及 8.32 system.h field_sep 源码证明另含 LF（不含 CR）。已修正 sort/uniq 字段规则、数值前导空白、spec/plan，避免 -u 合并不同记录；不把此真实差异列为豁免。
+- Ruling: 为实现明确要求的 GNU 标题格式，同时修正 tail 默认模式遗漏的标题间 LF 和 stdin -v；旧默认模式测试改为 GNU 已证实输出。必要行为修正已列 CHANGELOG，未扩大命令范围。
+- Dependency record: 新增的 core/测试依赖引用全部复用锁定版本；无新包版本。集中最终测试覆盖 15 命令及 core：190 passed / 0 failed（target/round16-focused-final.log）。
+
+- 完整验收：scripts/build.ps1 -Task Verify 通过（167.5s）；894 Rust tests / 0 failed，125 smoke，8 behavior，17 package-script tests + 18 entrypoint-script tests。历史 warnings 按原门禁报告。
+- GNU 差分最终：698 pass / 0 fail / 32 skip（seed 20261025，variants 2）；新 NUL 形态不污染旧矩阵；四摘要 tag-zero 与普通清单模式均实际对照。cksum 8.32 仅因 --zero 缺失跳过这一新增 case。
+- 本地候选 ZIP：dist/round16-completion/ruxcmd-0.2.0-x86_64-pc-windows-msvc.zip，125 exe，dirty=True；DLL/manifest/hash/解压 smoke+behavior 通过。SHA256：e61ed4bf913b03c759fd981a3b804355fd5bf084b31289d9b2761197b6472996。
+- 源码提交：8665836（core）、3a8e385（六文本工具 + 锁文件）、de4678a（head/tail）、08ab937（路径输出）、2f58f63（校验和）；最终文档/差分提交随后记录于 Git 历史。
+- 远端状态入口：https://github.com/wangdxnum1/RuxCmd/actions?query=branch%3Acodex%2Fround16-zero-terminated；本台账固定本地可复现验收，最终 CI 链接由交付消息给出。

@@ -93,14 +93,25 @@ function New-RandText([int]$lines) {
 
 # Input shapes: each variant produces one file per shape.
 $shapes = @('ascii', 'crlf', 'nonutf8', 'empty', 'notrail', 'long')
+$recordShapes = @('nul', 'nulnotrail', 'nulbinary', 'nulemptyrecords')
 $work = Join-Path ([System.IO.Path]::GetTempPath()) ("difftest-" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $work | Out-Null
 
 $inputs = @{}   # "$shape$variant" -> file path
 for ($v = 0; $v -lt $Variants; $v++) {
-    foreach ($shape in $shapes) {
+    foreach ($shape in ($shapes + $recordShapes)) {
         $path = Join-Path $work ("$shape$v.in")
         switch ($shape) {
+            { $_ -in @('nul','nulnotrail') } {
+                $records = @((New-RandText 20).TrimEnd("`n") -split "`n")
+                $records[0] += "`nembedded"
+                $records[1] += "`r"
+                $text = $records -join ([string][char]0)
+                if ($shape -eq 'nul') { $text += [char]0 }
+                [IO.File]::WriteAllText($path, $text)
+            }
+            'nulbinary' { [IO.File]::WriteAllBytes($path, [byte[]]@(255,10,97,0,254,13,98,0,0,122,0,195,40,0)) }
+            'nulemptyrecords' { [IO.File]::WriteAllBytes($path, [byte[]]@(0,0)) }
             'ascii'    { [System.IO.File]::WriteAllText($path, (New-RandText 40)) }
             'crlf'     { [System.IO.File]::WriteAllText($path, ((New-RandText 40) -replace "`n", "`r`n")) }
             'notrail'  { $t = New-RandText 40; [System.IO.File]::WriteAllText($path, $t.TrimEnd("`n")) }
@@ -132,6 +143,7 @@ for ($v = 0; $v -lt $Variants; $v++) {
 # Known differences are keyed 'cmd|argv-pattern' in $KnownDifferences.
 # ---------------------------------------------------------------------------
 $allShapes = $shapes
+$allRecords = $recordShapes + @('empty')
 $matrix = @(
     # --- cat -------------------------------------------------------------
     @{ cmd='cat';    argv=@();                shapes=$allShapes }
@@ -270,6 +282,54 @@ $matrix = @(
     @{ cmd='sha512sum'; argv=@('--check','bad.sum'); shapes=@('ascii'); fixture=$true }
     @{ cmd='users';  argv=@();                shapes=@('empty') }
     @{ cmd='logname'; argv=@();               shapes=@('empty') }
+    # --- Round 16: NUL record processing (old matrices keep LF shapes) ----
+    @{ cmd='sort'; argv=@('-z'); shapes=$allRecords }
+    @{ cmd='sort'; argv=@('--zero-terminated','-r'); shapes=$allRecords }
+    @{ cmd='sort'; argv=@('-z','-u'); shapes=$allRecords }
+    @{ cmd='sort'; argv=@('-z','-n'); shapes=$allRecords }
+    @{ cmd='sort'; argv=@('-z','-t',' ','-k','2,2'); shapes=$allRecords }
+    @{ cmd='sort'; argv=@('-z','-k','2,2'); shapes=$allRecords }
+    @{ cmd='sort'; argv=@('-z','-k','2,2','-u'); shapes=$allRecords }
+    @{ cmd='sort'; argv=@('-z','-f','-u'); shapes=$allRecords }
+    @{ cmd='uniq'; argv=@('-z'); shapes=$allRecords }
+    @{ cmd='uniq'; argv=@('-z','-c'); shapes=$allRecords }
+    @{ cmd='uniq'; argv=@('--zero-terminated','-i'); shapes=$allRecords }
+    @{ cmd='uniq'; argv=@('-z','-f','1'); shapes=$allRecords }
+    @{ cmd='cut'; argv=@('-z','-b','1-3'); shapes=$allRecords }
+    @{ cmd='cut'; argv=@('--zero-terminated','-c','1-3'); shapes=$allRecords }
+    @{ cmd='cut'; argv=@('-z','-d',' ','-f','2'); shapes=$allRecords }
+    @{ cmd='paste'; argv=@('-z'); shapes=$allRecords }
+    @{ cmd='paste'; argv=@('-z','-s'); shapes=$allRecords }
+    @{ cmd='paste'; argv=@('-z','-s','-d','\0'); shapes=$allRecords }
+    @{ cmd='paste'; argv=@('-z','-d','\n','-','-'); shapes=$allRecords }
+    @{ cmd='head'; argv=@('-z','-n','2'); shapes=$allRecords }
+    @{ cmd='head'; argv=@('--zero-terminated','-n','1'); shapes=$allRecords }
+    @{ cmd='head'; argv=@('-z','-c','5'); shapes=$allRecords }
+    @{ cmd='head'; argv=@('-z','-n','1','one','two'); shapes=@('empty'); fixture=$true }
+    @{ cmd='tail'; argv=@('-z','-n','2'); shapes=$allRecords }
+    @{ cmd='tail'; argv=@('-z','-n','+2'); shapes=$allRecords }
+    @{ cmd='tail'; argv=@('--zero-terminated','-n','0'); shapes=$allRecords }
+    @{ cmd='tail'; argv=@('-z','-c','5'); shapes=$allRecords }
+    @{ cmd='tail'; argv=@('-z','-v','-n','1'); shapes=$allRecords }
+    @{ cmd='tail'; argv=@('-z','-c','1','one','two'); shapes=@('empty'); fixture=$true }
+    @{ cmd='comm'; argv=@('-z','one','two'); shapes=@('empty'); fixture=$true }
+    @{ cmd='comm'; argv=@('-z','-1','-2','one','two'); shapes=@('empty'); fixture=$true }
+    @{ cmd='comm'; argv=@('-z','-3','one','two'); shapes=@('empty'); fixture=$true }
+    @{ cmd='shuf'; argv=@('--zero-terminated','-n','0'); shapes=$allRecords }
+    @{ cmd='shuf'; argv=@('-z','-i','7-7'); shapes=@('empty') }
+    @{ cmd='basename'; argv=@('-z','-a','/a/file.txt',"dir/a`nb.txt"); shapes=@('empty') }
+    @{ cmd='dirname'; argv=@('--zero','a/file.txt',"dir`nname/file"); shapes=@('empty') }
+    @{ cmd='md5sum'; argv=@('-z','--tag','source'); shapes=@('ascii','nonutf8','empty'); fixture=$true; requiresOption='--zero' }
+    @{ cmd='sha1sum'; argv=@('-z','--tag','source'); shapes=@('ascii','nonutf8','empty'); fixture=$true; requiresOption='--zero' }
+    @{ cmd='sha256sum'; argv=@('-z','--tag','source'); shapes=@('ascii','nonutf8','empty'); fixture=$true; requiresOption='--zero' }
+    @{ cmd='sha512sum'; argv=@('-z','--tag','source'); shapes=@('ascii','nonutf8','empty'); fixture=$true; requiresOption='--zero' }
+    @{ cmd='md5sum'; argv=@('--check','good.sum'); shapes=@('ascii','nonutf8'); fixture=$true }
+    @{ cmd='md5sum'; argv=@('--check','bad.sum'); shapes=@('ascii'); fixture=$true }
+    @{ cmd='md5sum'; argv=@('--check'); shapes=@('ascii'); fixture=$true; stdinFile='good.sum' }
+    @{ cmd='sha256sum'; argv=@('--check','good.sum'); shapes=@('ascii','nonutf8'); fixture=$true }
+    @{ cmd='sha256sum'; argv=@('--check','bad.sum'); shapes=@('ascii'); fixture=$true }
+    @{ cmd='sha256sum'; argv=@('--check'); shapes=@('ascii'); fixture=$true; stdinFile='good.sum' }
+    @{ cmd='cksum'; argv=@('-z','source'); shapes=@('ascii','nonutf8','empty'); fixture=$true; requiresOption='--zero' }
 )
 
 # ---------------------------------------------------------------------------
@@ -279,8 +339,8 @@ $KnownDifferences = @{
     # MSYS2 coreutils default to binary mode: checksum lines gain a leading
     # backslash and use the `*` separator. RuxCmd matches Linux GNU text
     # mode (`hash  name`, two spaces, no escape).
-    'md5sum|*'    = 'MSYS binary-mode checksum formatting; RuxCmd matches Linux text mode'
-    'sha256sum|*' = 'MSYS binary-mode checksum formatting; RuxCmd matches Linux text mode'
+    'md5sum|{in}'    = 'MSYS binary-mode checksum formatting; RuxCmd matches Linux text mode'
+    'sha256sum|{in}' = 'MSYS binary-mode checksum formatting; RuxCmd matches Linux text mode'
     'sha1sum|{in}'   = 'MSYS binary-mode checksum formatting; RuxCmd matches Linux text mode'
     'sha512sum|{in}' = 'MSYS binary-mode checksum formatting; RuxCmd matches Linux text mode'
     # vdir inherits the ls long-format layout (column set, nlink, date style),
@@ -346,12 +406,25 @@ function New-CaseFixture([string]$directory, [string]$inputPath, [string]$comman
     }
     [IO.File]::Copy($inputPath, (Join-Path $directory 'source'))
     [IO.File]::WriteAllText((Join-Path $directory 'nonempty/keep'), 'keep')
+    if ($command -eq 'comm') {
+        [IO.File]::WriteAllBytes((Join-Path $directory 'one'), [byte[]]@(0,97,10,120,0,115,104,97,114,101,100,0,255))
+        [IO.File]::WriteAllBytes((Join-Path $directory 'two'), [byte[]]@(0,98,13,0,115,104,97,114,101,100,0,254,0))
+    }
+    if ($command -in @('head','tail')) {
+        [IO.File]::WriteAllBytes((Join-Path $directory 'one'), [byte[]]@(97,10,120,0,98,0))
+        [IO.File]::WriteAllBytes((Join-Path $directory 'two'), [byte[]]@(99,13,0,100,10))
+    }
     if ($hardlinkTarget) {
         [IO.File]::WriteAllText((Join-Path $directory 'other'), 'keep other')
         New-Item -ItemType HardLink -Path (Join-Path $directory 'installed') -Target (Join-Path $directory 'other') | Out-Null
     }
-    if ($command -in @('sha1sum','sha512sum')) {
-        $algorithm = if ($command -eq 'sha1sum') { [Security.Cryptography.SHA1]::Create() } else { [Security.Cryptography.SHA512]::Create() }
+    if ($command -in @('md5sum','sha1sum','sha256sum','sha512sum')) {
+        $algorithm = switch ($command) {
+            'md5sum' { [Security.Cryptography.MD5]::Create() }
+            'sha1sum' { [Security.Cryptography.SHA1]::Create() }
+            'sha256sum' { [Security.Cryptography.SHA256]::Create() }
+            'sha512sum' { [Security.Cryptography.SHA512]::Create() }
+        }
         try { $digest = [Convert]::ToHexString($algorithm.ComputeHash([IO.File]::ReadAllBytes($inputPath))).ToLowerInvariant() }
         finally { $algorithm.Dispose() }
         [IO.File]::WriteAllText((Join-Path $directory 'good.sum'), "$digest  source`n")
@@ -379,6 +452,7 @@ function Show-Bytes([byte[]]$bytes, [int]$max = 120) {
 $stats = [ordered]@{ Pass = 0; Fail = 0; Skip = 0 }
 $failures = [System.Collections.Generic.List[string]]::new()
 $skipReported = @{}
+$referenceHelp = @{}
 
 $selected = if ($Cases) { $matrix | Where-Object { $_.cmd -cin $Cases } } else { $matrix }
 Write-Host ("inputs=" + $inputs.Count + " cases=" + $selected.Count)
@@ -396,6 +470,19 @@ foreach ($case in $selected) {
         continue
     }
     Write-Host ("case: " + $case.cmd)
+    if ($case.requiresOption) {
+        if (-not $referenceHelp.ContainsKey($case.cmd)) {
+            $helpResult = Invoke-Tool (Join-Path $GnuBin ($case.cmd + '.exe')) @('--help') $inputs['empty0'] $null
+            if ($helpResult.Code -ne 0) { throw "GNU option probe failed for $($case.cmd): exit $($helpResult.Code), $($helpResult.Error)" }
+            $referenceHelp[$case.cmd] = [Text.Encoding]::UTF8.GetString($helpResult.Bytes)
+        }
+        $optionPattern = '(?<![\w-])' + [regex]::Escape($case.requiresOption) + '(?![\w-])'
+        if ($referenceHelp[$case.cmd] -notmatch $optionPattern) {
+            $stats.Skip++
+            Write-Host "SKIP  ${key}: GNU reference does not support $($case.requiresOption)"
+            continue
+        }
+    }
     $skip = $null
     foreach ($k in $KnownDifferences.Keys) {
         if ($key -like $k) { $skip = $KnownDifferences[$k]; break }
