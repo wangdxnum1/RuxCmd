@@ -1,12 +1,17 @@
 //! Tests for the P1 fixes: open must go through ShellExecuteW (no
 //! cmd/powershell quoting/injection), -R must succeed despite explorer's
 //! exit code 1, and -W must wait for the launched process to exit.
+//!
+//! These checks launch real desktop apps. Keep them opt-in: Explorer can
+//! navigate asynchronously after a tempfile has already been removed.
+//! Run explicitly with `cargo test -p open --test cli -- --ignored`.
 
 use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 use std::time::Instant;
 
 #[test]
+#[ignore = "interactive desktop: opens the default file association"]
 fn opens_local_file_with_default_association() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("note.txt");
@@ -17,6 +22,7 @@ fn opens_local_file_with_default_association() {
 }
 
 #[test]
+#[ignore = "interactive desktop: launches a visible command window"]
 fn application_mode_runs_program_with_arguments() {
     // cmd.exe /c exit terminates immediately: exercises ShellExecuteW with
     // lpParameters and leaves no process behind.
@@ -27,6 +33,7 @@ fn application_mode_runs_program_with_arguments() {
 }
 
 #[test]
+#[ignore = "interactive desktop: launches a visible ping window"]
 fn wait_blocks_until_application_exits() {
     // ping -n 2 takes about one second; -W must not return before the
     // application exits.
@@ -43,6 +50,7 @@ fn wait_blocks_until_application_exits() {
 }
 
 #[test]
+#[ignore = "interactive desktop: opens Explorer on temporary paths"]
 fn reveal_file_in_explorer_succeeds() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("f.txt");
@@ -62,7 +70,7 @@ fn reveal_file_in_explorer_succeeds() {
 }
 
 #[test]
-#[ignore] // smoke test: opens the default web browser
+#[ignore = "interactive desktop: opens the default web browser"]
 fn url_containing_ampersand_is_passed_through() {
     // The URL must reach the browser intact (& is a cmd metacharacter; with
     // ShellExecuteW there is no cmd shell to truncate it).

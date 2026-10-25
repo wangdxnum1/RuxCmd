@@ -16,6 +16,8 @@ Cargo 命令可在根使用 `--workspace`，也可在单个 crate 目录运行�
 
 发布冒烟只运行经过源码检查的帮助入口，以及 true/false 的退出码。每个进程有超时，异步读取输出和错误，超时终止本次进程树。帮助通过说明启动/参数入口能工作，不证明全部业务行为正确。
 
+`open` 的五项桌面集成检查标记为 `#[ignore]`：它们会启动资源管理器、文件关联程序、命令窗口或浏览器，常规 `cargo test`、Verify 和发布验证均不执行。需要时在测试桌面手动运行 `cargo test -p open --test cli --target x86_64-pc-windows-msvc --locked -- --ignored`。资源管理器可能在临时测试路径删除后才完成导航并弹出“位置不可用”，因此不要将这些交互检查纳入无人值守验证。
+
 路径按 PowerShell 当前目录解析，即使执行过 Set-Location 而 .NET 进程目录未同步，也可正确使用相对 BinDir/OutputDir。进程等待、stdin 写入和输出管道共用截止时间；Windows Job Object 负责本次子进程及其后代的生命周期，包括父进程先退出而后代仍持有输出管道的情况。
 
 `scripts/tests/package-tests.ps1` 的 17 个测试检查含空格路径、Set-Location 后的相对路径、参数、超时、继承输出管道的后代、阻塞 stdin、大输出、ps-bin/ps 名称、清单遗漏、旧产物、校验篡改、发行标签和拒绝覆盖等失败条件。

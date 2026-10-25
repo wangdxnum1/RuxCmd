@@ -16,6 +16,8 @@ The unified entry point is `scripts/build.ps1`; `-Task Verify` runs the same com
 
 Release smoke checks only run help entries that were reviewed in source, plus true/false exit codes. Every process has a timeout, reads output and errors asynchronously, and on timeout terminates that process tree. Passing the help check proves the startup/argument entry point works; it does not prove all business behavior.
 
+The five `open` desktop integration checks are marked `#[ignore]`: they launch Explorer, file associations, command windows, or a browser. They do not run during ordinary `cargo test`, Verify, or release validation. To run them manually on a test desktop, use `cargo test -p open --test cli --target x86_64-pc-windows-msvc --locked -- --ignored`. Explorer may navigate after temporary test paths have been deleted and show a location-unavailable dialog; do not include these interactive checks in unattended verification.
+
 Paths are resolved against the PowerShell current directory, so relative BinDir/OutputDir values keep working even after Set-Location when the .NET process directory has not been synced. Process waits, stdin writes, and output pipes share a common deadline; a Windows Job Object owns the lifetime of the spawned child tree, including descendants that outlive a parent already exited while still holding output pipes.
 
 The 17 tests in `scripts/tests/package-tests.ps1` cover failure conditions such as paths containing spaces, relative paths after Set-Location, arguments, timeouts, descendants inheriting output pipes, blocking stdin, large outputs, ps-bin/ps naming, manifest omissions, stale artifacts, checksum tampering, release tags, and refusing overwrites.
