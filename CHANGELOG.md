@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.3.0 — 命令扩展、NUL 模式与流式处理（2026-10-25）
+
 - Round 16 为 15 个已有命令增加 NUL 模式：sort/uniq/cut/paste/comm/shuf/head/tail 的 -z/--zero-terminated，basename/dirname/md5sum/sha1sum/sha256sum/sha512sum/cksum 的 -z/--zero。仍为 125 个命令，无新增依赖包版本。
 - ruxcmd-core 的 ByteLines 增加可选分隔符，默认 LF/CRLF 规则保留；NUL 模式原样保留记录内 CR/LF 和非法 UTF-8。head/tail 不补末记录终止符；tail follow 在收到 NUL 前即可输出部分追加内容，并显式刷新初始输出。
 - 同步修复：sort 不再将不同非法字节经有损字符串混同；sort/uniq 字段按 GNU 的 space/TAB/LF 分界（CR 保留）；uniq -f 不归一化剩余空白；comm 隐藏列后压缩 TAB；paste 解码分隔符转义、重复 - 共享 stdin，串行空输入仍输出终止符；tail 多文件标题增加 LF 间隔，-v 作用于 stdin。
@@ -17,7 +19,6 @@
 - 差分测试首轮发现并修复 5 个 GNU 对齐缺陷:seq 缺结尾换行;cut 无分隔符行未按 GNU 透传;nl 未给无尾换行输入补终止换行;sed 未保留缺失尾换行(纠正 0.2.0 前的"恒补 \n"错误假设);md5sum/sha256sum 文本模式改用 GNU 两空格分隔。MSYS 二进制模式校验和输出差异登记为已知差异。
 - 更新 wc/sed/nl/cut/md5sum 兼容性表条目与相关测试锁定。
 
-## 0.2.0
 - 新增 ruxcmd-core 共享 crate(字节安全读行/路径净化/CPU 采样/只读清除),which/readlink/realpath、iostat/mpstat/sar/top/vmstat、grep/cut/sort、cp/unzip 的重复实现收敛(净删约 500 行);dirname/basename/head/tail/sed/fold 因语义差异保留本地实现(已记录)。
 - 流式化:curl/wget 下载与 base64 编解码改为流式(300MB 下载内存峰值 342MB→11.5MB);nl/od/hexdump/strings/iconv 逐行/分块处理(1550 次随机差分验证与旧实现输出一致)。
 
