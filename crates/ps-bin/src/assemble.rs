@@ -1,31 +1,22 @@
 #![cfg(windows)]
 
+use crate::process::User;
 use crate::process::{Process, ProcessFlags};
-use crate::state::ProcessState;
-use crate::user::User;
 use ps_sys::ProcessRaw;
 
 pub fn assemble_one(r: ProcessRaw) -> Process {
     let mut flags = ProcessFlags::empty();
-    let (
-        image_path,
-        session_id,
-        working_set,
-        peak_working_set,
-        pagefile_usage,
-        priority_class,
-        wow64,
-    ) = match r.info {
+    let (image_path, session_id, working_set, pagefile_usage, priority_class, wow64) = match r.info
+    {
         Ok(i) => (
             i.image_path,
             i.session_id,
             i.working_set,
-            i.peak_working_set,
             i.pagefile_usage,
             i.priority_class,
             i.wow64,
         ),
-        Err(_) => (String::new(), 0, 0, 0, 0, 0, false),
+        Err(_) => (String::new(), 0, 0, 0, 0, false),
     };
     if wow64 {
         flags |= ProcessFlags::WOW64;
@@ -37,7 +28,6 @@ pub fn assemble_one(r: ProcessRaw) -> Process {
     let user_info = match r.user {
         Ok(u) => User {
             name: u.name,
-            domain: u.domain,
             sid: u.sid,
         },
         Err(_) => User::default(),
@@ -63,18 +53,15 @@ pub fn assemble_one(r: ProcessRaw) -> Process {
         user: user_info,
         // Windows exposes no runnable-vs-sleeping state per process; every
         // normal process reports Sleeping (declared difference from procps).
-        state: ProcessState::Sleeping,
+        state: 'S',
         priority_class,
         nice,
         start_time: start,
         kernel_time: kernel,
         user_time: user,
         thread_count: r.thread_count,
-        handles: None,
         working_set,
-        peak_working_set,
         virtual_size,
-        exit_status: None,
         flags,
     }
 }
@@ -89,10 +76,6 @@ fn map_nice(prio: u32) -> i32 {
         0x00000100 => -20,
         _ => 10,
     }
-}
-
-pub fn snapshot() -> Vec<Process> {
-    snapshot_with(ps_sys::CollectOptions::FULL)
 }
 
 pub fn snapshot_with(opts: ps_sys::CollectOptions) -> Vec<Process> {

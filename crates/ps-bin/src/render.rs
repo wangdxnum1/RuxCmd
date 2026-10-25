@@ -1,18 +1,14 @@
 use std::io::Write;
 
-use ps_core::column::{Column, FormatCtx, ProcessSample};
-use ps_core::process::Process;
+use crate::columns::Column;
+use crate::process::Process;
 
 pub fn render_table<W: Write>(
     out: &mut W,
     procs: &[Process],
-    cols: &[Box<dyn Column>],
+    cols: &[&Column],
     no_headers: bool,
 ) -> std::io::Result<()> {
-    let ctx = FormatCtx {
-        now: std::time::Instant::now(),
-        prev: None,
-    };
     if !no_headers {
         let headers: Vec<String> = cols
             .iter()
@@ -24,7 +20,7 @@ pub fn render_table<W: Write>(
         let row: Vec<String> = cols
             .iter()
             .map(|c| {
-                let s = c.format(p, &ctx);
+                let s = c.format(p);
                 pad(&s, c.width(), c.align_right())
             })
             .collect();
@@ -35,15 +31,11 @@ pub fn render_table<W: Write>(
 
 pub fn render_forest<W: Write>(
     out: &mut W,
-    forest: &ps_core::tree::Forest,
-    cols: &[Box<dyn Column>],
+    forest: &crate::tree::Forest,
+    cols: &[&Column],
     no_headers: bool,
     ascii_mode: bool,
 ) -> std::io::Result<()> {
-    let ctx = FormatCtx {
-        now: std::time::Instant::now(),
-        prev: None,
-    };
     if !no_headers {
         let mut headers: Vec<String> = vec![pad("", cols[0].width(), false)];
         for c in cols {
@@ -58,7 +50,7 @@ pub fn render_forest<W: Write>(
     };
     for (i, root) in forest.roots.iter().enumerate() {
         let last = i + 1 == forest.roots.len();
-        render_node(out, root, "", last, cols, &ctx, mid, end, bar, no_headers)?;
+        render_node(out, root, "", last, cols, mid, end, bar, no_headers)?;
     }
     Ok(())
 }
@@ -66,11 +58,10 @@ pub fn render_forest<W: Write>(
 #[allow(clippy::too_many_arguments)]
 fn render_node<W: Write>(
     out: &mut W,
-    node: &ps_core::tree::Node,
+    node: &crate::tree::Node,
     prefix: &str,
     last: bool,
-    cols: &[Box<dyn Column>],
-    ctx: &FormatCtx,
+    cols: &[&Column],
     mid: &str,
     end: &str,
     bar: &str,
@@ -79,7 +70,7 @@ fn render_node<W: Write>(
     let symbol = if last { end } else { mid };
     let row: Vec<String> = std::iter::once(format!("{prefix}{symbol}"))
         .chain(cols.iter().map(|c| {
-            let s = c.format(&node.proc, ctx);
+            let s = c.format(&node.proc);
             pad(&s, c.width(), c.align_right())
         }))
         .collect();
@@ -93,7 +84,6 @@ fn render_node<W: Write>(
             &next_prefix,
             child_last,
             cols,
-            ctx,
             mid,
             end,
             bar,
@@ -120,13 +110,4 @@ fn display_width(s: &str) -> usize {
 
 fn truncate(s: &str, w: usize) -> String {
     s.chars().take(w).collect()
-}
-
-#[allow(dead_code)]
-pub fn make_sample(p: &Process) -> ProcessSample {
-    ProcessSample {
-        pid: p.pid,
-        cpu_total: p.kernel_time + p.user_time,
-        at: std::time::Instant::now(),
-    }
 }

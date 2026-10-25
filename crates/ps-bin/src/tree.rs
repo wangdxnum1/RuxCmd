@@ -53,9 +53,8 @@ fn build_node(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::process::User;
     use crate::process::{Process, ProcessFlags};
-    use crate::state::ProcessState;
-    use crate::user::User;
 
     fn p(pid: u32, ppid: u32) -> Process {
         Process {
@@ -67,18 +66,15 @@ mod tests {
             image_path: String::new(),
             cmdline: None,
             user: User::default(),
-            state: ProcessState::Running,
+            state: 'R',
             priority_class: 0,
             nice: 10,
             start_time: None,
             kernel_time: Default::default(),
             user_time: Default::default(),
             thread_count: 1,
-            handles: None,
             working_set: 0,
-            peak_working_set: 0,
             virtual_size: 0,
-            exit_status: None,
             flags: ProcessFlags::empty(),
         }
     }

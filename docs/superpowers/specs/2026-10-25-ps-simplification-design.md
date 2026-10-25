@@ -1,0 +1,11 @@
+# ps structure simplification
+
+Approved scope: retain ps-sys as the native process collector shared by ps/pgrep/pkill; move the single-consumer ps-core implementation into ps-bin; consolidate per-column files and remove unused framework APIs. This is a behavior-preserving refactor, not a correctness/feature expansion. Existing ps-bin -> ps.exe naming and Windows version-resource hooks stay intact. The branch builds on the completed Windows resource feature.
+
+Replace 40 zero-sized Column implementations and Box<dyn Column> factories with immutable static Column descriptors and plain formatting functions. Keep the registry's exact 42-name order (including ni/f aliases), headers, widths, alignment, selected-column sort matching, numeric/string comparator, output layouts, error/exit behavior, and known limitations. Four formatter groups (identity, resources, time, command) plus columns/mod.rs replace the 41 column files. Keep clear process collection/model/filter/sort/tree/render modules inside ps-bin.
+
+Remove only unused APIs: WidthMode, FilterExpr/FilterOp/passes_filter_expr, parse_list, col_kind, supported(), and the never-used previous-sample scaffolding. Existing callers always pass no previous sample; c/cp remain '?' and pcpu remains its existing lifetime average. Do not change filtering semantics, hidden sort keys, time formats, tree construction, unsupported group/TTY data, CLI text, or ps-sys.
+
+Characterize old output with a deterministic all-column fixture and a preserved baseline executable. Add registry/alias/format/selection/sort/tree coverage as needed; port all existing ps-core unit tests into ps-bin. Compare old/new CLI help, version, registry, stable fields, ASCII/Unicode trees, empty selection, unknown-column errors, and file output. Validate native ps-sys/pgrep/pkill tests, full Verify, 125 version resources and ZIP extraction. No desktop app launch, signing, version bump, merge, push or publication is included.
+
+Delete crates/ps-core only after its code/tests have migrated. Cargo workspace wildcard then contains 128 packages and 125 commands. Update current bilingual docs/infrastructure mappings and preserve original archived design documents as historical references.

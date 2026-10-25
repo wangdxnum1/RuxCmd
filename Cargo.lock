@@ -1952,21 +1952,11 @@ name = "ps-bin"
 version = "0.1.0"
 dependencies = [
  "assert_cmd",
+ "bitflags",
  "clap",
  "predicates",
- "ps-core",
- "ruxcmd-build",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "ps-core"
-version = "0.1.0"
-dependencies = [
- "bitflags",
- "once_cell",
  "ps-sys",
- "thiserror 1.0.69",
+ "ruxcmd-build",
 ]
 
 [[package]]

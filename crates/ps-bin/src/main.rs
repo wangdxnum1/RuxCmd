@@ -1,15 +1,22 @@
 #![cfg(windows)]
 
+mod assemble;
 mod cli;
+mod columns;
+mod filter;
+mod meminfo;
+mod process;
 mod render;
+mod sort;
+mod tree;
 
 use std::io::Write;
 use std::process::ExitCode;
 
 use clap::Parser;
-use ps_core::column::BoxCol;
-use ps_core::filter::Selector;
-use ps_core::{assemble, filter, sort, tree, CollectOptions};
+use columns::Column;
+use filter::Selector;
+use ps_sys::CollectOptions;
 
 use cli::Cli;
 use render::{render_forest, render_table};
@@ -49,8 +56,8 @@ fn run() -> AppResult<()> {
     let mut cli = Cli::parse();
 
     if cli.list_columns {
-        for (k, _) in ps_core::registry() {
-            println!("{k}");
+        for column in columns::all() {
+            println!("{}", column.name());
         }
         return Ok(());
     }
@@ -71,11 +78,11 @@ fn run() -> AppResult<()> {
         }
     }
 
-    let cols: Vec<BoxCol> = resolve_columns(&cli)?;
+    let cols: Vec<&'static Column> = resolve_columns(&cli)?;
 
     // %MEM needs total physical memory; sample it once up front and fail
     // loudly instead of silently emitting wrong percentages.
-    if ps_core::total_physical_memory().is_none() {
+    if meminfo::total_physical_memory().is_none() {
         return Err(Box::new(MemoryUnavailable));
     }
 
@@ -97,12 +104,8 @@ fn run() -> AppResult<()> {
         let sel = Selector {
             pids: cli.pid.clone(),
             users: cli.user.clone(),
-            group: Vec::new(),
             session: Vec::new(),
             comm_patterns: cli.comm.clone(),
-            include_all: cli.select_all || cli.select_all_tty,
-            include_no_ttys: cli.include_no_tty,
-            explicit: true,
         };
         procs.retain(|p| filter::passes(p, &sel));
     }
@@ -129,12 +132,12 @@ fn run() -> AppResult<()> {
     Ok(())
 }
 
-fn resolve_columns(cli: &Cli) -> AppResult<Vec<BoxCol>> {
+fn resolve_columns(cli: &Cli) -> AppResult<Vec<&'static Column>> {
     let names = cli.columns_to_render();
     let mut cols = Vec::with_capacity(names.len());
     for n in &names {
-        if let Some(f) = ps_core::lookup(n) {
-            cols.push(f());
+        if let Some(column) = columns::lookup(n) {
+            cols.push(column);
         } else {
             eprintln!("ps: warning: unknown column '{n}', skipped");
         }

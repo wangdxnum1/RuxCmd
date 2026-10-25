@@ -1,6 +1,6 @@
 #![cfg(windows)]
 
-use crate::column::FormatCtx;
+use crate::columns::Column;
 use crate::process::Process;
 
 #[derive(Debug, Clone, Default)]
@@ -29,32 +29,20 @@ pub fn parse_sort(spec: &[String]) -> SortSpec {
     SortSpec { keys }
 }
 
-pub fn apply_sort(
-    mut procs: Vec<Process>,
-    spec: &SortSpec,
-    cols: &[Box<dyn crate::column::Column>],
-) -> Vec<Process> {
+pub fn apply_sort(mut procs: Vec<Process>, spec: &SortSpec, cols: &[&Column]) -> Vec<Process> {
     if spec.keys.is_empty() {
         procs.sort_by_key(|p| p.pid);
         return procs;
     }
-    let keys = spec.keys.clone();
+    let keys: Vec<_> = spec
+        .keys
+        .iter()
+        .filter_map(|key| find_col(cols, &key.name).map(|column| (column, key.reverse)))
+        .collect();
     procs.sort_by(|a, b| {
-        for k in &keys {
-            let Some(ca) = find_col(cols, &k.name) else {
-                continue;
-            };
-            let Some(cb) = find_col(cols, &k.name) else {
-                continue;
-            };
-            let ctx = FormatCtx {
-                now: std::time::Instant::now(),
-                prev: None,
-            };
-            let sa = ca.format(a, &ctx);
-            let sb = cb.format(b, &ctx);
-            let ord = natural_cmp(&sa, &sb);
-            let ord = if k.reverse { ord.reverse() } else { ord };
+        for (column, reverse) in &keys {
+            let ord = natural_cmp(&column.format(a), &column.format(b));
+            let ord = if *reverse { ord.reverse() } else { ord };
             if ord != std::cmp::Ordering::Equal {
                 return ord;
             }
@@ -64,14 +52,10 @@ pub fn apply_sort(
     procs
 }
 
-fn find_col<'a>(
-    cols: &'a [Box<dyn crate::column::Column>],
-    name: &str,
-) -> Option<&'a Box<dyn crate::column::Column>> {
-    cols.iter().find(|c| {
-        c.header().eq_ignore_ascii_case(name)
-            || format!("{:?}", c.kind()).eq_ignore_ascii_case(name)
-    })
+fn find_col<'a>(cols: &[&'a Column], name: &str) -> Option<&'a Column> {
+    cols.iter()
+        .copied()
+        .find(|column| column.matches_sort_key(name))
 }
 
 fn natural_cmp(a: &str, b: &str) -> std::cmp::Ordering {
@@ -85,9 +69,8 @@ fn natural_cmp(a: &str, b: &str) -> std::cmp::Ordering {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::process::User;
     use crate::process::{Process, ProcessFlags};
-    use crate::state::ProcessState;
-    use crate::user::User;
 
     fn p(pid: u32) -> Process {
         Process {
@@ -99,18 +82,15 @@ mod tests {
             image_path: String::new(),
             cmdline: None,
             user: User::default(),
-            state: ProcessState::Running,
+            state: 'R',
             priority_class: 0,
             nice: 10,
             start_time: None,
             kernel_time: Default::default(),
             user_time: Default::default(),
             thread_count: 1,
-            handles: None,
             working_set: 0,
-            peak_working_set: 0,
             virtual_size: 0,
-            exit_status: None,
             flags: ProcessFlags::empty(),
         }
     }
