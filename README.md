@@ -160,7 +160,7 @@ Cargo.lock               Shared, committed dependency lockfile
 rust-toolchain.toml      Pinned Rust toolchain
 ```
 
-**128 packages produce 125 commands**: 124 commands each have one package; `ps` uses two libraries (`ps-sys`, `ps-core`) and one executable package (`ps-bin`, producing `ps.exe`). `ruxcmd-core` provides shared helpers; `ls` exposes both a binary and a library reused by `vdir`. Independent non-command projects are outside the suite.
+**129 packages produce 125 commands**: 124 commands each have one package; `ps` uses two libraries (`ps-sys`, `ps-core`) and one executable package (`ps-bin`, producing `ps.exe`). `ruxcmd-core` provides shared helpers and `ruxcmd-build` is a build-only library for executable version resources; `ls` exposes both a binary and a library reused by `vdir`. Independent non-command projects are outside the suite.
 
 ## Contributing and documentation
 

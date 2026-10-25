@@ -22,23 +22,23 @@
 
 ### Task 1: Shared compiler and all binary hooks
 Files: crates/ruxcmd-build/{Cargo.toml,src/lib.rs}, build/windows-version.rs, Cargo.toml, crates/*/Cargo.toml.
-- [ ] Write metadata/version/escaping tests and observe failure before implementation.
-- [ ] Implement validated resource rendering and named-binary linking; fill 30 missing package descriptions.
-- [ ] Add shared build hooks to 125 packages; leave library-only packages unhooked.
-- [ ] Test helper and build ls/vdir/ps in debug and release; inspect resources with FileVersionInfo.
-- [ ] Verify root-version-only rebuild and restore metadata.
-- [ ] Commit the tested build feature.
+- [x] Write metadata/version/escaping tests and observe failure before implementation.
+- [x] Implement validated resource rendering and named-binary linking; fill 30 missing package descriptions.
+- [x] Add shared build hooks to 125 packages; leave library-only packages unhooked.
+- [x] Test helper and build ls/vdir/ps in debug and release; inspect resources with FileVersionInfo.
+- [x] Verify root-version-only rebuild and restore metadata.
+- [x] Commit the tested build feature.
 
 ### Task 2: Verification and release gates
 Files: scripts/common.ps1, scripts/verify-version-info.ps1, scripts/build.ps1, scripts/package.ps1, scripts/tests/package-tests.ps1.
-- [ ] Add version-field validation and regression cases; observe rejection of existing unresourced binaries.
-- [ ] Wire validation into Verify and package staging/extraction; add manifest version fields.
-- [ ] Run positive inventory validation and missing/wrong-version/wrong-command negatives.
-- [ ] Commit the tested gate.
+- [x] Add version-field validation and regression cases; observe rejection of existing unresourced binaries.
+- [x] Wire validation into Verify and package staging/extraction; add manifest version fields.
+- [x] Run positive inventory validation and missing/wrong-version/wrong-command negatives.
+- [x] Commit the tested gate.
 
 ### Task 3: Documentation, acceptance, review
 Files: CHANGELOG.md, docs/development{,-zh}.md, scripts/README{,-zh}.md, .superpowers/sdd/progress.md.
-- [ ] Document fields, suite-version mapping, SDK requirement, unsigned status and 129-package inventory.
+- [x] Document fields, suite-version mapping, SDK requirement, unsigned status and 129-package inventory.
 - [ ] Run full Verify and package ZIP; inspect all 125 extracted EXEs without opening any desktop windows.
-- [ ] Request one independent whole-change review; resolve actionable findings and rerun affected checks.
+- [x] Request one independent whole-change review; resolve actionable findings and rerun affected checks.
 - [ ] Record evidence and finish with a clean feature branch.

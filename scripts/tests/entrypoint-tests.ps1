@@ -159,13 +159,31 @@ fn main() {
 }
 '@ | Set-Content -LiteralPath (Join-Path $fixture 'src/main.rs') -Encoding utf8NoBOM
         @'
-param([string]$BinDir)
+param([string]$BinDir, [switch]$DebugBuild)
 if ($env:CARGO_NET_OFFLINE -ne 'true') { throw 'Offline was not passed to verification.' }
 throw 'Offline child confirmed; controlled failure.'
-'@ | Set-Content -LiteralPath (Join-Path $fixture 'scripts/smoke-test.ps1') -Encoding utf8NoBOM
+'@ | Set-Content -LiteralPath (Join-Path $fixture 'scripts/verify-version-info.ps1') -Encoding utf8NoBOM
         $result = Invoke-ToolProcess $pwsh @('-NoProfile', '-File', $build, '-Task', 'Verify', '-Offline') -TimeoutSeconds 120
         Assert-EntryProcess $result 1 'Offline child confirmed; controlled failure'
         if ($result.Output -match 'Verify completed') { throw 'Verify claimed success after child failure.' }
+    }
+    Test-Entry 'Debug Verify forwards configuration to package resource checks' {
+        @'
+param([string]$BinDir, [switch]$DebugBuild)
+if (-not $DebugBuild) { throw 'Debug resource configuration was not forwarded.' }
+'@ | Set-Content -LiteralPath (Join-Path $fixture 'scripts/verify-version-info.ps1') -Encoding utf8NoBOM
+        foreach ($name in @('smoke-test.ps1', 'verify-behavior.ps1')) {
+            'param([string]$BinDir)' | Set-Content -LiteralPath (Join-Path $fixture "scripts/$name") -Encoding utf8NoBOM
+        }
+        [IO.Directory]::CreateDirectory((Join-Path $fixture 'scripts/tests')) | Out-Null
+        '# controlled no-op' | Set-Content -LiteralPath (Join-Path $fixture 'scripts/tests/version-resource-tests.ps1') -Encoding utf8NoBOM
+        @'
+param([string]$BinDir, [switch]$DebugBuild)
+if (-not $DebugBuild -or -not $BinDir.EndsWith('debug')) { throw 'Debug package configuration was not forwarded.' }
+throw 'Debug package flags confirmed; controlled failure.'
+'@ | Set-Content -LiteralPath (Join-Path $fixture 'scripts/tests/package-tests.ps1') -Encoding utf8NoBOM
+        $result = Invoke-ToolProcess $pwsh @('-NoProfile', '-File', $build, '-Task', 'Verify', '-Configuration', 'Debug', '-Offline') -TimeoutSeconds 120
+        Assert-EntryProcess $result 1 'Debug package flags confirmed; controlled failure'
     }
     Write-Host "Entrypoint tests passed: $script:Passed cases."
 } finally { Remove-OwnedDirectory $fixture $fixtureParent }

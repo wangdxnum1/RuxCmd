@@ -1,5 +1,5 @@
 #Requires -Version 7.0
-param([string]$BinDir, [string]$Case)
+param([string]$BinDir, [string]$Case, [switch]$DebugBuild)
 . (Join-Path $PSScriptRoot '../common.ps1')
 $workspace = Get-WorkspaceInfo
 if (-not $BinDir) { $BinDir = Join-Path $script:RepositoryRoot "target/$($workspace.Target)/release" }
@@ -24,6 +24,25 @@ function Assert-Throws([scriptblock]$Body, [string]$Pattern) {
 function Assert-Equal($Actual, $Expected) { if ($Actual -cne $Expected) { throw "Expected <$Expected>, got <$Actual>" } }
 try {
     $pwsh = Join-Path $PSHOME 'pwsh.exe'
+    Test-Case 'version resources: all command fields validate' {
+        foreach ($binary in $workspace.Binaries) {
+            Assert-BinaryVersionInfo (Join-Path $BinDir "$($binary.Name).exe") $binary $workspace -DebugBuild:$DebugBuild | Out-Null
+        }
+    }
+    Test-Case 'version resources: missing resources are rejected' {
+        $missing = Join-Path $temporary 'no-resource.exe'
+        [IO.File]::WriteAllText($missing, 'not a resource-bearing PE')
+        Assert-Throws { Assert-BinaryVersionInfo $missing $workspace.Binaries[0] $workspace -DebugBuild:$DebugBuild } 'Version resource mismatch'
+    }
+    Test-Case 'version resources: stale suite versions are rejected' {
+        $stale = [pscustomobject]@{ Version = '9.8.7'; Windows = $workspace.Windows }
+        $binary = $workspace.Binaries | Where-Object Name -CEQ 'ps'
+        Assert-Throws { Assert-BinaryVersionInfo (Join-Path $BinDir 'ps.exe') $binary $stale -DebugBuild:$DebugBuild } 'ProductVersion'
+    }
+    Test-Case 'version resources: incorrect binary identities are rejected' {
+        $binary = $workspace.Binaries | Where-Object Name -CEQ 'ps'
+        Assert-Throws { Assert-BinaryVersionInfo (Join-Path $BinDir 'ls.exe') $binary $workspace -DebugBuild:$DebugBuild } 'OriginalFilename'
+    }
     Test-Case 'positive and negative release tag validation' {
         Assert-ReleaseVersion '0.1.0' 'v0.1.0'
         Assert-Throws { Assert-ReleaseVersion '0.1.0' 'v0.2.0' } 'does not match'

@@ -25,7 +25,7 @@ pwsh -File scripts/build.ps1 -Task Verify -Jobs 4
 pwsh -File scripts/build.ps1 -Task Clean -Configuration Debug -WhatIf
 ```
 
-`Verify` 必须覆盖整个 workspace，不接受 `-Package`。依次执行格式/check/Clippy、Rust 测试、编译、全部命令冒烟、代表性行为及两组脚本测试。任何一步失败均立即停止。实际产物目录由 Cargo metadata 确定，也支持 `CARGO_TARGET_DIR`；普通配置为 `target/x86_64-pc-windows-msvc/{release|debug}/`。
+`Verify` 必须覆盖整个 workspace，不接受 `-Package`。依次执行格式/check/Clippy、Rust 测试、编译、原生版本资源检查、全部命令冒烟、代表性行为及全部脚本测试。任何一步失败均立即停止。实际产物目录由 Cargo metadata 确定，也支持 `CARGO_TARGET_DIR`；普通配置为 `target/x86_64-pc-windows-msvc/{release|debug}/`。
 
 `Clean` 使用 `cargo clean`，显式选择 workspace 或指定包，只处理选定目标和配置的项目编译产物，保留第三方依赖缓存；不清理 `dist`、源码或用户文件。`Check` 只检查格式，不修改源码。`-WhatIf` 不能替代实际验证。
 
@@ -83,3 +83,7 @@ pwsh -File scripts/tests/package-tests.ps1
 ```
 
 入口测试使用隔离的临时 Git/Cargo 工程，覆盖参数、编译失败、实际 Debug 编译、只读预览、tag/仓库/清单校验等，不联系 GitHub 也不实际发布。
+
+## verify-version-info.ps1
+
+只读检查全部 125 个 EXE，不启动程序；要求套件版本、命令身份、发布者、功能说明、版权、数字版本和构建标记均正确。-BinDir 指定目录，Debug 产物另加 -DebugBuild。Verify 和 ZIP 打包会自动检查；scripts/tests/version-resource-tests.ps1 提供三项真实 RC 编译回归。

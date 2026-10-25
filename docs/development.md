@@ -4,7 +4,7 @@
 
 ## Project structure
 
-The root virtual workspace manages `crates/*`. Currently 128 packages produce 125 commands; `ps-sys`, `ps-core`, and `ruxcmd-core` are library packages, `ps-bin` produces `ps.exe`, and `ls` also provides a library reused by `vdir`. Cargo metadata is the single source of truth for the build and release tool inventories; smoke policies must stay consistent with that binary set.
+The root virtual workspace manages `crates/*`. Currently 129 packages produce 125 commands; `ps-sys`, `ps-core`, and `ruxcmd-core` are runtime library packages and `ruxcmd-build` is build-only, `ps-bin` produces `ps.exe`, and `ls` also provides a library reused by `vdir`. Cargo metadata is the single source of truth for the build and release tool inventories; smoke policies must stay consistent with that binary set.
 
 Editions 2021/2024 and each crate's original version are preserved. The root `Cargo.lock` pins the whole suite's dependencies, with resolver 3. The ps packages keep their originally declared Rust 1.75 metadata, but the repository as a whole is only validated against the pinned 1.99.0; no suite-wide MSRV is promised.
 
@@ -20,7 +20,7 @@ The five `open` desktop integration checks are marked `#[ignore]`: they launch E
 
 Paths are resolved against the PowerShell current directory, so relative BinDir/OutputDir values keep working even after Set-Location when the .NET process directory has not been synced. Process waits, stdin writes, and output pipes share a common deadline; a Windows Job Object owns the lifetime of the spawned child tree, including descendants that outlive a parent already exited while still holding output pipes.
 
-The 17 tests in `scripts/tests/package-tests.ps1` cover failure conditions such as paths containing spaces, relative paths after Set-Location, arguments, timeouts, descendants inheriting output pipes, blocking stdin, large outputs, ps-bin/ps naming, manifest omissions, stale artifacts, checksum tampering, release tags, and refusing overwrites.
+The 21 tests in `scripts/tests/package-tests.ps1` cover failure conditions such as paths containing spaces, relative paths after Set-Location, arguments, timeouts, descendants inheriting output pipes, blocking stdin, large outputs, ps-bin/ps naming, manifest omissions, stale artifacts, checksum tampering, release tags, and refusing overwrites.
 
 ## Packaging implementation
 
@@ -41,3 +41,19 @@ Existing packages of the same version are never overwritten. By default the scri
 - Old per-command target caches left over from the migration are not release inputs and are ignored; maintainers can clean them manually when disk space is needed.
 - Windows ARM64, x86, minimum Windows versions, and full GNU/POSIX compatibility remain unverified.
 - For remote CI, real results are whatever GitHub Actions reports; local command success does not mean the remote workflow has run.
+
+## Windows executable properties
+
+All 125 commands embed VERSIONINFO during ordinary Cargo debug and release builds. Windows SDK RC is required; resource compilation failures stop the build. The shared build entry is `build/windows-version.rs`, backed by the build-only `ruxcmd-build` library. Resources link only to the named binary target, so `ps-bin` yields `ps.exe` and `vdir` does not inherit the identity of its `ls` library dependency.
+
+The root `workspace.metadata.ruxcmd.version` supplies ProductVersion; FileVersion and both fixed numeric versions use major.minor.patch.0. ProductName, CompanyName, and copyright come from `workspace.metadata.ruxcmd.windows`; FileDescription comes from each package description, while InternalName/OriginalFilename use the executable target. Pre-release and debug flags reflect the build. Changes to the root or package manifest trigger resource regeneration; no timestamp or local source path is embedded.
+
+Verify checks every executable through `scripts/verify-version-info.ps1` without launching it. Packaging checks the fields before hashing and again after extraction, and records them as `binaries[].versionInfo` in manifest.json. Missing or stale fields, mismatched identities, fixed numeric versions, and build flags are rejected. Four resource cases extend package-script tests to 21; three independent-workspace RC compilation cases cover Unicode/quotes/backslashes, spaced paths, binary aliases, root-version-only rebuilds, hyphens in SemVer build metadata, and debug/release flags.
+
+These descriptive properties are independent of Authenticode signing. This implementation does not create certificates or change trust stores; executables remain unsigned. To inspect without opening Explorer:
+
+```powershell
+(Get-Item ./target/x86_64-pc-windows-msvc/release/ls.exe).VersionInfo |
+    Format-List FileDescription,ProductName,CompanyName,FileVersion,ProductVersion,OriginalFilename,LegalCopyright
+pwsh -File scripts/verify-version-info.ps1
+```

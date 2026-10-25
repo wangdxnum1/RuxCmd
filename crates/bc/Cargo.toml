@@ -1,6 +1,6 @@
 [package]
 build = "../../build/windows-version.rs"
-description = "Evaluate arbitrary precision arithmetic expressions"
+description = "Evaluate integer arithmetic expressions"
 license.workspace = true
 repository.workspace = true
 name = "bc"

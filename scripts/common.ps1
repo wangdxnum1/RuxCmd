@@ -88,14 +88,43 @@ function Get-WorkspaceInfo {
             if ($package.id -notin $metadata.workspace_members) { continue }
             foreach ($target in $package.targets) {
                 if ('bin' -in $target.kind) {
-                    [pscustomobject]@{ Name = $target.name; PackageName = $package.name; PackageId = $package.id; PackageVersion = $package.version }
+                    [pscustomobject]@{ Name = $target.name; PackageName = $package.name; PackageId = $package.id; PackageVersion = $package.version; Description = $package.description }
                 }
             }
         }
     )
     if ($bins.Count -eq 0 -or @($bins.Name | Sort-Object -Unique).Count -ne $bins.Count) { throw 'No binaries or duplicate binary names in workspace.' }
     $suite = $metadata.metadata.ruxcmd
-    [pscustomobject]@{ Version = $suite.version; Target = $suite.target; TargetDirectory = $metadata.target_directory; Packages = @($metadata.packages | Where-Object { $_.id -in $metadata.workspace_members } | ForEach-Object name); Binaries = @($bins | Sort-Object Name) }
+    $windows = if ($suite.PSObject.Properties['windows']) { $suite.windows } else { $null }
+    [pscustomobject]@{ Version = $suite.version; Target = $suite.target; Windows = $windows; TargetDirectory = $metadata.target_directory; Packages = @($metadata.packages | Where-Object { $_.id -in $metadata.workspace_members } | ForEach-Object name); Binaries = @($bins | Sort-Object Name) }
+}
+
+function Assert-BinaryVersionInfo {
+    param([string]$Path, $Binary, $Workspace, [switch]$DebugBuild)
+    if (-not $Workspace.Windows) { throw 'Missing workspace Windows version metadata.' }
+    $numeric = ($Workspace.Version -split '[-+]', 2)[0] + '.0'
+    $expected = [ordered]@{
+        OriginalFilename = "$($Binary.Name).exe"
+        InternalName = $Binary.Name
+        ProductName = $Workspace.Windows.productName
+        ProductVersion = $Workspace.Version
+        FileVersion = $numeric
+        CompanyName = $Workspace.Windows.companyName
+        LegalCopyright = $Workspace.Windows.copyright
+        FileDescription = $Binary.Description
+    }
+    $info = [Diagnostics.FileVersionInfo]::GetVersionInfo((Get-FileSystemPath $Path))
+    foreach ($field in $expected.Keys) {
+        if ([string]::IsNullOrWhiteSpace($expected[$field]) -or $info.$field -cne $expected[$field]) {
+            throw "Version resource mismatch in ${Path}: $field (expected '$($expected[$field])', got '$($info.$field)')."
+        }
+    }
+    $fileWords = @($info.FileMajorPart, $info.FileMinorPart, $info.FileBuildPart, $info.FilePrivatePart) -join '.'
+    $productWords = @($info.ProductMajorPart, $info.ProductMinorPart, $info.ProductBuildPart, $info.ProductPrivatePart) -join '.'
+    if ($fileWords -cne $numeric -or $productWords -cne $numeric) { throw "Version resource fixed numeric version mismatch in $Path" }
+    $isPrerelease = (($Workspace.Version -split '\+', 2)[0]).Contains('-')
+    if ($info.IsDebug -ne [bool]$DebugBuild -or $info.IsPreRelease -ne $isPrerelease) { throw "Version resource build flags mismatch in $Path" }
+    [pscustomobject]$expected
 }
 
 function Assert-ReleaseVersion {

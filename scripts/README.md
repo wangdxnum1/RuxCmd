@@ -25,7 +25,7 @@ pwsh -File scripts/build.ps1 -Task Verify -Jobs 4
 pwsh -File scripts/build.ps1 -Task Clean -Configuration Debug -WhatIf
 ```
 
-`Verify` must cover the whole workspace and does not accept `-Package`. It runs formatting/check/Clippy, the Rust tests, compilation, all command smoke checks, representative behavior checks, and both script test suites in order, stopping at the first failure. The actual artifact directory is determined by Cargo metadata, and `CARGO_TARGET_DIR` is supported; the normal configuration is `target/x86_64-pc-windows-msvc/{release|debug}/`.
+`Verify` must cover the whole workspace and does not accept `-Package`. It runs formatting/check/Clippy, the Rust tests, compilation, native version-resource checks, all command smoke checks, representative behavior checks, and all script test suites in order, stopping at the first failure. The actual artifact directory is determined by Cargo metadata, and `CARGO_TARGET_DIR` is supported; the normal configuration is `target/x86_64-pc-windows-msvc/{release|debug}/`.
 
 `Clean` uses `cargo clean`, explicitly selecting the workspace or given packages, and only removes this repository's build artifacts for the selected targets and configuration, keeping third-party dependency caches; it does not clean `dist`, sources, or user files. `Check` inspects formatting only and never modifies sources. `-WhatIf` is not a substitute for real verification.
 
@@ -83,3 +83,7 @@ pwsh -File scripts/tests/package-tests.ps1
 ```
 
 The entry-point tests use isolated temporary Git/Cargo projects and cover parameters, compilation failures, real Debug builds, read-only previews, and tag/repository/manifest validation, without contacting GitHub or publishing anything.
+
+## verify-version-info.ps1
+
+Reads all 125 EXEs without launching them and requires the configured suite version, identity, publisher, description, copyright, numeric versions and build flags. Use -BinDir to choose a directory; use -DebugBuild for debug artifacts. Verify and ZIP packaging invoke this gate automatically. Three real RC build regressions are in scripts/tests/version-resource-tests.ps1.

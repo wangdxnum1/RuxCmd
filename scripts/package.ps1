@@ -37,11 +37,12 @@ try {
     $binaryRecords = @(
         foreach ($binary in $workspace.Binaries) {
             $source = $artifacts[$binary.Name]
+            $versionInfo = Assert-BinaryVersionInfo $source $binary $workspace
             $dlls = @(Get-NativeDependencies $source $dumpbin)
             $relative = "bin/$($binary.Name).exe"
             $destination = Join-Path $stage $relative
             Copy-Item -LiteralPath $source -Destination $destination
-            [ordered]@{ name = $binary.Name; packageVersion = $binary.PackageVersion; file = $relative; sha256 = Get-FileDigest $destination; dependencies = $dlls }
+            [ordered]@{ name = $binary.Name; packageVersion = $binary.PackageVersion; file = $relative; sha256 = Get-FileDigest $destination; dependencies = $dlls; versionInfo = $versionInfo }
         }
     )
     & (Join-Path $PSScriptRoot 'smoke-test.ps1') -BinDir (Join-Path $stage 'bin')
@@ -61,6 +62,9 @@ try {
     [IO.Compression.ZipFile]::ExtractToDirectory($privateArchive, $verify)
     $readManifest = Get-Content -LiteralPath (Join-Path $verify 'manifest.json') -Raw | ConvertFrom-Json
     Assert-ArchiveDirectory $verify $readManifest
+    foreach ($binary in $workspace.Binaries) {
+        Assert-BinaryVersionInfo (Join-Path $verify "bin/$($binary.Name).exe") $binary $workspace | Out-Null
+    }
     & (Join-Path $PSScriptRoot 'smoke-test.ps1') -BinDir (Join-Path $verify 'bin')
     & (Join-Path $PSScriptRoot 'verify-behavior.ps1') -BinDir (Join-Path $verify 'bin')
     # Reserve the final paths exclusively after verification. Never overwrite a concurrent run.

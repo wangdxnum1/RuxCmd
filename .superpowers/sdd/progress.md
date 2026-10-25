@@ -280,3 +280,12 @@ Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
 - 本地候选 ZIP：dist/round16-completion/ruxcmd-0.2.0-x86_64-pc-windows-msvc.zip，125 exe，dirty=True；DLL/manifest/hash/解压 smoke+behavior 通过。SHA256：e61ed4bf913b03c759fd981a3b804355fd5bf084b31289d9b2761197b6472996。
 - 源码提交：8665836（core）、3a8e385（六文本工具 + 锁文件）、de4678a（head/tail）、08ab937（路径输出）、2f58f63（校验和）；最终文档/差分提交随后记录于 Git 历史。
 - 远端状态入口：https://github.com/wangdxnum1/RuxCmd/actions?query=branch%3Acodex%2Fround16-zero-terminated；本台账固定本地可复现验收，最终 CI 链接由交付消息给出。
+
+## Windows version resources (2026-10-25)
+- Approved: 125 EXE VERSIONINFO fields and packaging validation; no self-signed certificate.
+- Plan: docs/superpowers/plans/2026-10-25-windows-version-info.md; inline execution.
+- Ruling: shared build-only helper and binary-specific resource linking; current checkout on feature branch to reuse existing target cache. No publication in this implementation task.
+- Task 1 verified: helper 7 unit tests; real RC 3 independent-workspace cases; 125 release EXE fields correct, ps/vdir identities isolated. Initial real RC quote failure reproduced and fixed using doubled RC quotes.
+- Task 2 implemented/targeted verified: missing-resource gate fails on original EXEs; all-resource and 3 negative package cases pass (4 total). Full Verify/ZIP pending.
+- Independent review: 3 findings reproduced before fixes (missing entrypoint gate fixture; Debug configuration forwarding; build-metadata hyphen mistaken for prerelease). Corrected; 125 Debug resources + 3 negatives, 3 real RC cases and 19 entrypoint cases now pass. bc description corrected to integer arithmetic to match i128 implementation.
+- Final Verify passed: 161.5s, 898 Rust tests / 0 failures; 125 version resources, 125 smoke, 8 behavior, 3 real RC build cases, 21 package-script cases and 19 entrypoint cases. Independent reviewer confirmed all 3 findings resolved; no production changes after this run.

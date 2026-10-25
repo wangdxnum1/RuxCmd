@@ -4,7 +4,7 @@
 
 ## 工程结构
 
-根 virtual workspace 管理 `crates/*`。目前 128 个 package 产出 125 个命令；`ps-sys`、`ps-core`、`ruxcmd-core` 是库包，`ps-bin` 产出 `ps.exe`，`ls` 同时提供供 `vdir` 复用的库。Cargo metadata 是构建及发布工具清单的唯一来源，冒烟策略必须与其二进制集合一致。
+根 virtual workspace 管理 `crates/*`。目前 129 个 package 产出 125 个命令；`ps-sys`、`ps-core`、`ruxcmd-core` 是运行时库包，`ruxcmd-build` 是仅构建时使用的库包，`ps-bin` 产出 `ps.exe`，`ls` 同时提供供 `vdir` 复用的库。Cargo metadata 是构建及发布工具清单的唯一来源，冒烟策略必须与其二进制集合一致。
 
 Edition 2021/2024 和各 crate 原版本保留。根 Cargo.lock 固定整个套件的依赖，resolver 为 3。ps 保留原来声明的 Rust 1.75 元数据，但整个仓库当前只用固定的 1.99.0 验证，不承诺整体 MSRV。
 
@@ -20,7 +20,7 @@ Cargo 命令可在根使用 `--workspace`，也可在单个 crate 目录运行�
 
 路径按 PowerShell 当前目录解析，即使执行过 Set-Location 而 .NET 进程目录未同步，也可正确使用相对 BinDir/OutputDir。进程等待、stdin 写入和输出管道共用截止时间；Windows Job Object 负责本次子进程及其后代的生命周期，包括父进程先退出而后代仍持有输出管道的情况。
 
-`scripts/tests/package-tests.ps1` 的 17 个测试检查含空格路径、Set-Location 后的相对路径、参数、超时、继承输出管道的后代、阻塞 stdin、大输出、ps-bin/ps 名称、清单遗漏、旧产物、校验篡改、发行标签和拒绝覆盖等失败条件。
+`scripts/tests/package-tests.ps1` 的 21 个测试检查含空格路径、Set-Location 后的相对路径、参数、超时、继承输出管道的后代、阻塞 stdin、大输出、ps-bin/ps 名称、清单遗漏、旧产物、校验篡改、发行标签和拒绝覆盖等失败条件。
 
 ## 打包实现
 
@@ -41,3 +41,19 @@ Cargo 命令可在根使用 `--workspace`，也可在单个 crate 目录运行�
 - 迁移留下的旧各命令 target 缓存不属于发布输入，且被忽略；需要腾空间时可由维护者另行清理。
 - Windows ARM64、x86、最低 Windows 版本和完整 GNU/POSIX 兼容性尚未验证。
 - 远程 CI 的真实运行结果以 GitHub Actions 为准，本地命令通过不等于远程 workflow 已运行。
+
+## Windows 可执行文件属性
+
+全部 125 个命令在普通 Cargo Debug/Release 编译时嵌入 VERSIONINFO，需要 Windows SDK 的 RC 编译器；资源编译失败会中止构建。共享入口为 `build/windows-version.rs`，由仅构建时使用的 `ruxcmd-build` 库实现。资源只链接到指定二进制目标，因此 `ps-bin` 正确生成 `ps.exe`，`vdir` 不会继承依赖库 `ls` 的文件身份。
+
+根 `workspace.metadata.ruxcmd.version` 提供产品版本；文件版本及两组固定数字版本使用 major.minor.patch.0。产品名称、公司名称及版权来自 `workspace.metadata.ruxcmd.windows`；文件说明来自各包 description，内部名称与原始文件名使用可执行目标名称。Debug 和预发布标记随构建设置；根或包清单变化会重新生成资源，不嵌入编译时间或本机源码路径。
+
+Verify 通过 `scripts/verify-version-info.ps1` 读取所有文件属性，不启动程序或资源管理器。打包在计算哈希之前和解压后各校验一次，并将字段记录到 manifest.json 的 `binaries[].versionInfo`。缺失/过期字段、错误命令身份、固定数字版本或构建标记均会被拒绝。四项资源用例使打包脚本测试增至 21 项；另有三项独立工作区的真实 RC 编译测试，覆盖中文/引号/反斜杠、空格路径、二进制别名、仅改根版本号的缓存刷新、带连字符的构建元数据及 Debug/Release 标记。
+
+这些说明字段与 Authenticode 数字签名相互独立。本次不创建证书或修改信任存储，可执行文件仍未签名。无需打开资源管理器即可查看：
+
+```powershell
+(Get-Item ./target/x86_64-pc-windows-msvc/release/ls.exe).VersionInfo |
+    Format-List FileDescription,ProductName,CompanyName,FileVersion,ProductVersion,OriginalFilename,LegalCopyright
+pwsh -File scripts/verify-version-info.ps1
+```
