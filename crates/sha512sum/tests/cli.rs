@@ -59,8 +59,8 @@ fn check_processes_all_files_before_exiting_nonzero() {
         .args(["-c", "c1.txt", "c2.txt"])
         .assert()
         .code(1)
-        .stdout("f1.txt: OK\n")
-        .stderr("f1.txt: FAILED\nsha512sum: WARNING: 1 computed checksum did NOT match\n");
+        .stdout("f1.txt: FAILED\nf1.txt: OK\n")
+        .stderr("sha512sum: WARNING: 1 computed checksum did NOT match\n");
 }
 
 #[test]
@@ -129,4 +129,65 @@ fn check_file_without_valid_lines_is_an_error() {
         .stderr(predicates::str::contains(
             "no properly formatted SHA512 checksum lines found",
         ));
+}
+#[test]
+fn checks_stdin_manifest_and_rejects_empty_manifest() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("source"), b"hello").unwrap();
+    for args in [vec!["-c"], vec!["-c", "-"]] {
+        cargo_bin_cmd!("sha512sum")
+            .current_dir(dir.path())
+            .args(&args)
+            .write_stdin(format!("{SHA512_HELLO}  source\n"))
+            .assert()
+            .success()
+            .stdout("source: OK\n");
+        cargo_bin_cmd!("sha512sum")
+            .args(&args)
+            .write_stdin("")
+            .assert()
+            .code(1);
+    }
+}
+
+#[test]
+fn checks_exact_filename_whitespace_and_valid_digest() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("two  spaces.txt"), b"hello").unwrap();
+    fs::write(
+        dir.path().join("manifest"),
+        format!("{SHA512_HELLO}  two  spaces.txt\n"),
+    )
+    .unwrap();
+    cargo_bin_cmd!("sha512sum")
+        .current_dir(dir.path())
+        .args(["-c", "manifest"])
+        .assert()
+        .success()
+        .stdout("two  spaces.txt: OK\n");
+    fs::write(dir.path().join("invalid"), "xyz  two  spaces.txt\n").unwrap();
+    cargo_bin_cmd!("sha512sum")
+        .current_dir(dir.path())
+        .args(["-c", "invalid"])
+        .assert()
+        .code(1)
+        .stdout("");
+}
+
+#[test]
+fn checks_gnu_escaped_paths_and_tagged_checksums() {
+    let dir = tempdir().unwrap();
+    fs::create_dir(dir.path().join("nested")).unwrap();
+    fs::write(dir.path().join("nested/file"), b"hello").unwrap();
+    for record in [
+        format!("\\{SHA512_HELLO}  nested\\\\file\n"),
+        format!("SHA512 (nested/file) = {SHA512_HELLO}\n"),
+    ] {
+        fs::write(dir.path().join("manifest"), record).unwrap();
+        cargo_bin_cmd!("sha512sum")
+            .current_dir(dir.path())
+            .args(["-c", "manifest"])
+            .assert()
+            .success();
+    }
 }

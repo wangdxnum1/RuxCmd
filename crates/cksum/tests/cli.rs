@@ -13,7 +13,7 @@ fn known_vector_123456789() {
         .write_stdin("123456789")
         .assert()
         .success()
-        .stdout(format!("{CKSUM_123456789} -\n"));
+        .stdout(format!("{CKSUM_123456789}\n"));
 }
 
 #[test]
@@ -22,7 +22,7 @@ fn empty_input_yields_the_complemented_initial_crc() {
         .write_stdin("")
         .assert()
         .success()
-        .stdout(format!("{CKSUM_EMPTY} -\n"));
+        .stdout(format!("{CKSUM_EMPTY}\n"));
 }
 
 #[test]
@@ -69,13 +69,13 @@ fn algorithm_flag_accepts_crc() {
         .write_stdin("123456789")
         .assert()
         .success()
-        .stdout(format!("{CKSUM_123456789} -\n"));
+        .stdout(format!("{CKSUM_123456789}\n"));
     cargo_bin_cmd!("cksum")
         .arg("--algorithm=crc")
         .write_stdin("hello")
         .assert()
         .success()
-        .stdout(format!("{CKSUM_HELLO} -\n"));
+        .stdout(format!("{CKSUM_HELLO}\n"));
 }
 
 #[test]

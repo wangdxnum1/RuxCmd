@@ -21,27 +21,26 @@ fn main() {
     let mut exit_code = 0i32;
 
     if args.files.is_empty() {
-        let stdin = std::io::stdin();
-        let (crc, length) = compute_cksum(stdin);
-        print_cksum("-", crc, length);
+        match compute_cksum(std::io::stdin()) {
+            Ok((crc, length)) => println!("{crc} {length}"),
+            Err(error) => {
+                eprintln!("cksum: -: {error}");
+                exit_code = 1;
+            }
+        }
     } else {
         for path in &args.files {
             let path_str = path.to_string_lossy();
-            if path_str == "-" {
-                let stdin = std::io::stdin();
-                let (crc, length) = compute_cksum(stdin);
-                print_cksum("-", crc, length);
+            let result = if path_str == "-" {
+                compute_cksum(std::io::stdin())
             } else {
-                match File::open(path) {
-                    Ok(file) => {
-                        let reader = BufReader::new(file);
-                        let (crc, length) = compute_cksum(reader);
-                        print_cksum(&path_str, crc, length);
-                    }
-                    Err(e) => {
-                        eprintln!("cksum: {}: {}", path.display(), e);
-                        exit_code = 1;
-                    }
+                File::open(path).and_then(|file| compute_cksum(BufReader::new(file)))
+            };
+            match result {
+                Ok((crc, length)) => print_cksum(&path_str, crc, length),
+                Err(error) => {
+                    eprintln!("cksum: {}: {error}", path.display());
+                    exit_code = 1;
                 }
             }
         }
@@ -74,13 +73,16 @@ fn crc32_table() -> &'static [u32; 256] {
     })
 }
 
-fn compute_cksum<R: Read>(mut reader: R) -> (u32, u64) {
+fn compute_cksum<R: Read>(mut reader: R) -> std::io::Result<(u32, u64)> {
     let table = crc32_table();
     let mut crc: u32 = 0;
     let mut length: u64 = 0;
     let mut buffer = [0u8; 8192];
     loop {
-        let bytes_read = reader.read(&mut buffer).unwrap_or(0);
+        let bytes_read = match reader.read(&mut buffer) {
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            result => result?,
+        };
         if bytes_read == 0 {
             break;
         }
@@ -96,5 +98,20 @@ fn compute_cksum<R: Read>(mut reader: R) -> (u32, u64) {
         crc = (crc << 8) ^ table[(((crc >> 24) as u8) ^ (n as u8)) as usize];
         n >>= 8;
     }
-    (!crc, length)
+    Ok((!crc, length))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    struct FailedReader;
+    impl Read for FailedReader {
+        fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::other("injected failure"))
+        }
+    }
+    #[test]
+    fn read_failure_is_not_a_checksum() {
+        assert!(compute_cksum(FailedReader).is_err());
+    }
 }
