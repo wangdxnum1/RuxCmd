@@ -1,0 +1,16 @@
+[package]
+license.workspace = true
+repository.workspace = true
+name = "watch"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows watch clone — run a command periodically, showing its output full screen"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+chrono = "0.4"
+
+[dev-dependencies]
+assert_cmd.workspace = true
+predicates.workspace = true
+tempfile.workspace = true

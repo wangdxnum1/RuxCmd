@@ -2885,6 +2885,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "traceroute"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "tracing"
 version = "0.1.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3159,6 +3167,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ef64dbcc55df09c7e5a46182d181c2cfa3e925f3da937ea764728b4bbb9dcbf"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "watch"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "chrono",
+ "clap",
+ "predicates",
+ "tempfile",
 ]
 
 [[package]]
