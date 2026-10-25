@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Round 15 新增 14 个命令：rmdir、link、unlink、mktemp、install、sha1sum、sha512sum、cksum、users、logname、nohup、watch、traceroute、vdir；当前 128 个包生成 125 个命令。ls 增加 -h，vdir 复用 ls 库并默认启用长格式。
+- 新命令补齐行为测试、125 项冒烟清单、GNU 差分矩阵、双语兼容性说明及开发文档；差分测试为修改文件的命令创建两份隔离 fixture，比较 stdout、退出码及文件内容/目录状态。SHA 检查模式实际纳入差分，MSYS 生成格式、utmp 和长列表格式差异单列豁免。
+- 收尾修复：install 单操作数误报成功、缺失 -D、目标链接别名覆盖；mktemp 改用 BCryptGenRandom，并补 -t、Windows 前缀/根路径与后缀校验；SHA 清单 stdin、精确文件名/GNU 转义/BSD tag、失败输出流及读取错误传播；cksum 隐式 stdin 不再输出文件名；nohup 使用 DETACHED_PROCESS、保留重定向流并明确警告 Job 脱离限制；traceroute 不再因连续三跳静默提前终止。
+- 经维护者确认，NUL 分隔的 -z 系列留到下一轮；本轮不声明完整 GNU coreutils 覆盖，也不包含 winget 上架。
+
 - 新增 GNU 差分测试框架 scripts/difftest.ps1:对 cat/head/tail/sort/uniq/tr/cut/paste/fold/wc/nl/grep/sed/od/seq/echo/printf 等 30+ 命令的 87 个用例矩阵,生成确定性随机输入(ASCII/CRLF/非 UTF-8/空/无尾换行/长行),与 Git 自带 GNU 工具逐字节比对 stdout 与退出码;支持种子复现、单命令筛选、已知差异豁免表与缺失工具自动跳过。
 - 差分测试首轮发现并修复 5 个 GNU 对齐缺陷:seq 缺结尾换行;cut 无分隔符行未按 GNU 透传;nl 未给无尾换行输入补终止换行;sed 未保留缺失尾换行(纠正 0.2.0 前的"恒补 \n"错误假设);md5sum/sha256sum 文本模式改用 GNU 两空格分隔。MSYS 二进制模式校验和输出差异登记为已知差异。
 - 更新 wc/sed/nl/cut/md5sum 兼容性表条目与相关测试锁定。

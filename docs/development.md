@@ -4,7 +4,7 @@
 
 ## Project structure
 
-The root virtual workspace manages `crates/*`. Currently 113 packages produce 111 commands; `ps-sys` and `ps-core` are libraries, and `ps-bin` produces `ps.exe`. Cargo metadata is the single source of truth for the build and release tool inventories; smoke policies must stay consistent with that binary set.
+The root virtual workspace manages `crates/*`. Currently 128 packages produce 125 commands; `ps-sys`, `ps-core`, and `ruxcmd-core` are library packages, `ps-bin` produces `ps.exe`, and `ls` also provides a library reused by `vdir`. Cargo metadata is the single source of truth for the build and release tool inventories; smoke policies must stay consistent with that binary set.
 
 Editions 2021/2024 and each crate's original version are preserved. The root `Cargo.lock` pins the whole suite's dependencies, with resolver 3. The ps packages keep their originally declared Rust 1.75 metadata, but the repository as a whole is only validated against the pinned 1.99.0; no suite-wide MSRV is promised.
 
@@ -12,7 +12,7 @@ Cargo commands can run with `--workspace` at the root or inside a single crate d
 
 ## Checks and tests
 
-The unified entry point is `scripts/build.ps1`; `-Task Verify` runs the same complete pipeline as CI, and parameters are documented in the [script usage](../scripts/README.md). Rust integration tests cover cat, echo, wc, grep, cp, mv, rm, true, false, and the existing ps behavior. File tests use tempfile; no test depends on the network or on killing real processes.
+The unified entry point is `scripts/build.ps1`; `-Task Verify` runs the same complete pipeline as CI, and parameters are documented in the [script usage](../scripts/README.md). Rust integration tests cover representative behavior across the suite, including all 14 Round 15 commands. File tests use tempfile; native process, hardlink and ICMP tests need a normal Windows environment (a restricted sandbox can deny these APIs). Traceroute uses loopback and bounded TEST-NET probes; multi-router network behavior is not asserted. `scripts/difftest.ps1` separately compares GNU outputs/exit codes and, for mutating commands, isolated filesystem snapshots.
 
 Release smoke checks only run help entries that were reviewed in source, plus true/false exit codes. Every process has a timeout, reads output and errors asynchronously, and on timeout terminates that process tree. Passing the help check proves the startup/argument entry point works; it does not prove all business behavior.
 

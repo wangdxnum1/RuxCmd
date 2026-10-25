@@ -2,12 +2,11 @@
 
 **English** | [简体中文](compatibility-zh.md)
 
-The current release covers 111 commands. The options in the table below are the explicit long names declared in each command's `cli.rs`, not the full syntax; the command's `--help` is authoritative. A source declaration does not mean the feature has passed tests.
+The current workspace covers 125 commands. The options in the table below are the explicit long names declared in each command's `cli.rs`, not the full syntax; the command's `--help` is authoritative. A source declaration does not mean the feature has passed tests.
 
 All commands have passed bounded release smoke checks (help entry, exit codes for true/false). Only commands marked "Smoke + behavior tests" have run representative behavior assertions; the remaining business behavior is not automatically verified. Full GNU/POSIX compatibility is not claimed.
 
 | Command | Explicit long options (from source) | Verification status | Windows differences / limitations |
-| --- | --- | --- | --- |
 | --- | --- | --- | --- |
 | awk | --assign, --field-separator, --file, --version | Smoke + behavior tests | Conditions, else/next and multi-argument print work; NR runs across files and BEGIN/END run once; for loops error out. Matching uses substrings (not regex); no arrays, built-in functions, or redirection. |
 | base64 | --decode, --version, --wrap | Smoke + behavior tests | Decoding is strict like GNU: input without padding that is not a multiple of 4 produces decoded bytes but reports invalid input and exits 1. |
@@ -17,6 +16,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | cat | --number, --number-nonblank, --show-all, --show-ends, --show-nonprinting, --show-tabs, --unbuffered | Smoke + behavior tests | Byte-transparent by default (CRLF, binary, and non-ASCII data pass through unchanged); -v uses byte-level ^/M- notation; -E does not mark an unterminated last line. Line numbering and empty-line compression state reset per file. |
 | chmod | --recursive, --verbose, --version | Smoke + behavior tests | Symbolic modes (u/g/o/a with +-=rwx) map onto the read-only bit; -R no longer follows junctions. Windows permission semantics are not equivalent to Unix modes. |
 | chown | --user, --group, --recursive, --verbose, --version | Smoke + behavior tests | --user sets the owner and --group the group (GROUP_SECURITY_INFORMATION), both may be given; any file failure exits 1. Changing the owner to another account usually requires privileges. Unix UID/GID semantics are not equivalent. |
+| cksum | --algorithm, --version | Smoke + behavior tests | POSIX CRC32 only (`-a crc`); hashes raw bytes and propagates read failures. Implicit stdin omits the filename; explicit `-` prints `-`. Other digest algorithms and GNU modern options are unsupported. |
 | clear | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | cmp | --silent, --verbose, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | column | --output-separator, --separator, --table, --table-header-repeat, --table-right, --version | Smoke + behavior tests | In -t mode without -s, runs of whitespace collapse into a single separator; an explicit -s splits per character without collapsing. The default fill mode is unimplemented. |
@@ -48,19 +48,24 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | hostname | --fqdn, --ip-address, --version | Smoke + behavior tests | Failures print an error and exit 1 instead of staying silent. Full GNU behavior unverified. |
 | iconv | --from-code, --list, --output, --to-code, --version | Smoke + behavior tests | Decoding follows -f strictly (no BOM sniffing); --list covers the full encoding table. |
 | id | --group, --groups, --name, --user, --version | Smoke + behavior tests | uid/gid/groups derive from the process token SID RIDs; -u/-g/-G/-n follow GNU; group names are locale-dependent and fall back to the RID. |
+| install | --directory, --mode, --verbose | Smoke + behavior tests | Copies files, `-d` creates directories and `-D` creates destination parents. Octal modes map write bits to Windows readonly; no Unix owner/group or executable bits. Existing file entries are replaced without overwriting hardlink aliases; source/destination identity is rejected. Symbolic modes and other GNU install options are unsupported. |
 | iostat | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | join | --field1, --field2, --separator, --version | Smoke + behavior tests | Output is key + remaining fields of both inputs; without -t fields split on whitespace runs (output joined with a space). Field numbers below 1 error with exit 1. |
 | kill | --list, --signal, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| link | (none beyond automatic help/version) | Smoke + behavior tests | Creates one filesystem hardlink; both paths must be on a volume supporting hardlinks. No symbolic links or directory links. |
 | ln | --force, --symbolic, --verbose, --version | Smoke + behavior tests | Targets are stored as written (no verbatim \\?\ prefix); -v prints the created link. Windows symbolic links may require privileges or Developer Mode. |
+| logname | --version | Smoke + behavior tests | Uses GetUserNameW for the current process account, with USERNAME fallback; this can differ from a Unix login identity after changing credentials. |
 | ls | --all, --almost-all, --author, --block-size, --classify, --color | Smoke + behavior tests | Long-format extra columns (-i/-s and symlink targets) are rendered by position index and are not lost when coloring is active. Full GNU behavior unverified. |
 | md5sum | --check, --quiet, --status, --tag, --version | Smoke + behavior tests | Text-mode output uses GNU's two-space separator. Check mode handles * markers and \-escaped names, aggregates failures, and exits 1 if any failed. |
 | mkdir | --mode, --parents, --verbose | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | mkfifo | --mode, --version | Smoke only; behavior unverified | Windows pipe semantics are not equivalent to POSIX FIFOs. |
+| mktemp | --directory, --quiet, --suffix, --tmpdir | Smoke + behavior tests | Replaces a run of at least three Xs with system-RNG characters; exclusive creation avoids clobbering. Supports `-d`, `-p DIR`, `-t`, and suffixes. Default directory follows Windows temporary-directory rules; Unix mode 0600/0700 is replaced by inherited Windows ACLs. Optional-value `--tmpdir` and dry-run mode are unsupported. |
 | mpstat | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | mv | --force, --interactive, --no-clobber, --verbose | Smoke + behavior tests | Refuses to overwrite a directory with a non-directory (never deletes the target tree); falls back to copy+delete across volumes; src/. merges into an existing directory. |
 | netstat | --all, --numeric, --protocol, --version, --own-pid | Smoke + behavior tests | -a controls whether LISTENING/unbound entries are shown; -o adds the owning PID column (GetExtendedTcp/UdpTable); table errors exit 1. |
 | nice | --adjustment, --version | Smoke + behavior tests | Spawns the command directly (no wmic) and applies a priority class: adjustment <=-15 High, -14..-5 Above normal, -4..4 Normal, 5..14 Below normal, >=15 Idle; the child exit code is passed through. |
 | nl | --body-numbering, --number-width, --separator, --version | Smoke + behavior tests | Reads UTF-8 lines without corruption; -b accepts t (default, non-blank lines), n (none), and a (all lines); every output line is terminated, like GNU. |
+| nohup | (none beyond automatic help/version) | Smoke + behavior tests | DETACHED_PROCESS detaches the console; job breakaway is attempted. If a job denies breakaway, a warning states that the child remains subject to job lifetime. Waits and returns child status. Terminal stdin becomes null; terminal stdout appends to nohup.out (TEMP fallback), redirected streams stay separate. Tests cover detached execution and redirected streams; physically closing a terminal is not automated. |
 | nslookup | --type, --version | Smoke + behavior tests | Types A/AAAA/CNAME/MX/TXT resolve for real (getaddrinfo / DnsQuery_W); type names are case-insensitive; unsupported types error with exit 1. The SERVER positional argument was removed. |
 | numfmt | --delimiter, --field, --from, --from-unit, --grouping, --header, --padding, --round, --suffix, --to, --to-unit | Smoke + behavior tests | An explicit -d is preserved in output and does not collapse runs; --from=auto reads K=1000, Ki=1024. |
 | od | --address-radix, --ascii, --decimal, --format, --hexadecimal, --octal, --read-bytes, --skip-bytes, --width | Smoke + behavior tests | -t accepts x1/d1/o1/u1/a/c/z and f4/f8 with GNU field widths and little-endian order; no ASCII column unless the format includes c. |
@@ -79,10 +84,13 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | reset | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | rev | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | rm | --dir, --force, --no-preserve-root, --one-file-system, --preserve-root, --verbose | Smoke + behavior tests | -f silences only missing paths; every other failure prints an error and exits 1, and preserve-root refusals are never suppressed. |
+| rmdir | --ignore-fail-on-non-empty, --parents, --verbose | Smoke + behavior tests | Removes empty directories only, with `-p` parent traversal. The ignore flag suppresses nonempty-directory failures only. Windows filesystem errors and ACLs apply. |
 | sar | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | sed | --expression, --quiet, --in-place, --separate, --version | Smoke + behavior tests | Supports positional SCRIPT plus p/d/q commands and line, $, /substring/ and range addresses; -i writes atomically with optional backup suffix; unknown commands error. s and addresses are literal substrings (no regex, no &/\1); line numbers restart per file; a missing trailing newline is preserved. |
 | seq | --equal-width, --format, --separator, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| sha1sum | --check, --quiet, --status, --tag, --version | Smoke + behavior tests | SHA-1 generation and verification, including stdin checklists, exact filenames, GNU escaped records, binary markers, BOM and BSD tags. Read errors fail rather than hashing partial input. Text output uses two spaces; MSYS binary-mode generation is exempted in difftest. `-b/-t`, strict mode and NUL termination are unsupported. |
 | sha256sum | --check, --quiet, --status, --tag, --version | Smoke + behavior tests | Like md5sum: * markers, BOM stripping, aggregated exit codes, and `-` for stdin. |
+| sha512sum | --check, --quiet, --status, --tag, --version | Smoke + behavior tests | SHA-512 with the same generation/checklist rules and limitations as sha1sum. |
 | shred | --force, --iterations, --remove, --verbose, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | shuf | --head-count, --input-range, --output, --random-source, --version | Smoke + behavior tests | --random-source seeds from the file's first 64 KiB (FNV): same content reproduces the same shuffle; an unreadable source errors with exit 1. |
 | sleep | --version | Smoke + behavior tests | Fractional durations (0.5) work; negative/overflowing intervals are rejected. |
@@ -101,15 +109,20 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | top | See --help | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | touch | --no-create, --version | Smoke + behavior tests | Updates atime/mtime via SetFileTime on existing files, directories, and read-only files; -a and -m select which time to update. -d/--date, -t, and -r/--reference are not implemented. |
 | tr | --complement, --delete, --squeeze, --version | Smoke + behavior tests | Escapes (\n, \t, octal) and POSIX classes ([:alpha:] etc.) work; -c applies to substitution and squeezing; -s squeezes per SET2; reversed ranges error with exit 1. Operates on chars, not bytes. |
+| traceroute | --max-hops, --nqueries, --timeout, --version | Smoke + behavior tests | IPv4 ICMP probes through IcmpSendEcho; timeout is in milliseconds. Stops on destination/unreachable status or the configured hop limit. No IPv6, UDP/TCP probes or reverse DNS; loopback and a bounded TEST-NET case are tested, multi-router network behavior is not. No `tracert` executable alias. |
 | true | --version | Smoke + behavior tests | Full GNU behavior unverified. |
 | tty | --all, --silent, --version | Smoke + behavior tests | Detects a console via IsTerminal and prints CONIN$ as the name placeholder; -a checks all three streams with CONIN$/CONOUT$ placeholders; -s is quiet. |
 | uname | --all, --kernel-name, --kernel-release, --kernel-version, --machine, --nodename, --operating-system | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | unexpand | --all, --tabs, --version | Smoke + behavior tests | At least two spaces are required before a run becomes a tab (GNU rule); -t accepts a single value only. |
 | uniq | --count, --ignore-case, --repeated, --skip-fields, --unique, --version | Smoke + behavior tests | Comparison keys and printed lines are separate: -i and -f only affect comparison, original lines print unchanged. |
+| unlink | (none beyond automatic help/version) | Smoke + behavior tests | Removes exactly one file or file symlink entry; rejects directories and preserves a symlink's target. Windows ACL and sharing restrictions apply. |
 | unzip | --directory, --list, --overwrite, --quiet, --version | Smoke + behavior tests | Streams entries instead of buffering them; -o clears a read-only target before overwrite. Unsafe entry paths (`..`, absolute, drive/UNC prefixes) are rejected with a warning and skipped; exit code 2 when any entry was rejected. Entry mtimes are not restored. |
 | uptime | See --help | Smoke + behavior tests | Reports seconds since boot via GetTickCount64; -p prints a Chinese-language duration. |
+| users | --count, --version | Smoke + behavior tests | Enumerates WTS session usernames, deduplicates in first-seen order, falls back to USERNAME (or unknown); `-q/--count` is an extension. GNU utmp ordering and duplicate-session output differ; no utmp FILE operand. |
+| vdir | Same as ls | Smoke + behavior tests | Thin alias injecting `ls -l`, including `-h`. Inherits all ls formatting, permission and ownership approximations; GNU long-listing byte comparisons are exempted. |
 | vmstat | See --help | Smoke + behavior tests | swpd/free are sampled every frame; the -h short option is help (--header-once remains the long name). Full GNU behavior unverified. |
 | w | --header, --help, --ignore-username, --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
+| watch | --chgexit, --differences, --errexit, --exec, --interval, --no-title, --version | Smoke + behavior tests | ANSI redraw with fractional intervals clamped to 0.1..2678400s; changed-line highlighting, change/error exit. Runs the executable directly; use an explicit shell for builtins/pipelines. Header assumes 80 columns; stderr is appended after stdout, UTF-8 is decoded lossily, and `-d` highlights whole lines. Ctrl+C follows Windows console behavior. |
 | wc | --bytes, --chars, --lines, --max-line-length, --version, --words | Smoke + behavior tests | -m counts UTF-8 characters (byte fallback on invalid sequences); -L excludes the newline; unreadable files report an error and exit 1. stdin prints a bare count like GNU. |
 | wget | --directory-prefix, --output-document, --quiet, --version | Smoke + behavior tests | -O - writes to stdout; URL names are decoded (trailing / becomes index.html); HTTP errors exit 8; connect timeout of 10s. HTTPS/TLS and network behavior are unverified. |
 | whereis | --version | Smoke only; behavior unverified | Keeps historical fixed search paths; a dedicated fix is pending. |
@@ -120,5 +133,8 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | yes | --version | Smoke + behavior tests | Multiple operands are joined with spaces; a closed pipe exits 0 silently. |
 | zcat | --version | Smoke only; behavior unverified | Full GNU behavior unverified. |
 | zip | --recurse, --version | Smoke + behavior tests | Wrapper around PowerShell 5.1 Compress-Archive; file and destination arguments are single-quoted with embedded quotes doubled (injection-safe). Other GNU zip flags unsupported. |
+
+
+Round 15 also adds `ls -h` as the short form of `--human-readable`; help remains `--help`. NUL-delimited `-z` additions are deferred to a separate round.
 
 See the [ps README](ps/README.md) for detailed ps option documentation. This table was established by the first source survey and must be kept in sync when commands are added or changed.

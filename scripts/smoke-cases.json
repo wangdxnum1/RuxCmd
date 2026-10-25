@@ -56,6 +56,13 @@
     "exitCode": 0
   },
   {
+    "name": "cksum",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
     "name": "clear",
     "arguments": [
       "--help"
@@ -271,6 +278,13 @@
     "exitCode": 0
   },
   {
+    "name": "install",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
     "name": "iostat",
     "arguments": [
       "--help"
@@ -292,7 +306,21 @@
     "exitCode": 0
   },
   {
+    "name": "link",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
     "name": "ln",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "logname",
     "arguments": [
       "--help"
     ],
@@ -321,6 +349,13 @@
   },
   {
     "name": "mkfifo",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "mktemp",
     "arguments": [
       "--help"
     ],
@@ -356,6 +391,13 @@
   },
   {
     "name": "nl",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "nohup",
     "arguments": [
       "--help"
     ],
@@ -488,6 +530,13 @@
     "exitCode": 0
   },
   {
+    "name": "rmdir",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
     "name": "sar",
     "arguments": [
       "--help"
@@ -509,7 +558,21 @@
     "exitCode": 0
   },
   {
+    "name": "sha1sum",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
     "name": "sha256sum",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "sha512sum",
     "arguments": [
       "--help"
     ],
@@ -642,6 +705,13 @@
     "exitCode": 0
   },
   {
+    "name": "traceroute",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
     "name": "true",
     "arguments": [],
     "exitCode": 0
@@ -675,6 +745,13 @@
     "exitCode": 0
   },
   {
+    "name": "unlink",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
     "name": "unzip",
     "arguments": [
       "--help"
@@ -689,6 +766,20 @@
     "exitCode": 0
   },
   {
+    "name": "users",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "vdir",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
     "name": "vmstat",
     "arguments": [
       "--help"
@@ -697,6 +788,13 @@
   },
   {
     "name": "w",
+    "arguments": [
+      "--help"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "watch",
     "arguments": [
       "--help"
     ],

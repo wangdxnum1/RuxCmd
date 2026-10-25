@@ -61,6 +61,16 @@ pwsh -File scripts/release.ps1 -Publish -Draft
 
 ## CI
 
+GNU 差分检查独立于 Verify 执行：
+
+```powershell
+./scripts/difftest.ps1
+./scripts/difftest.ps1 -Cases rmdir,link,unlink,mktemp,install,cksum,sha1sum,sha512sum
+./scripts/difftest.ps1 -Seed 42 -Variants 3
+```
+
+默认使用当前 release 二进制（缺失时回退 debug）和 Git for Windows 自带 GNU 工具；请先构建或显式指定 `-BinDir`。所选 RuxCmd 二进制必须存在；缺失 GNU 参照及声明的平台差异计为跳过。比较原始 stdout 和退出码；修改文件的命令使用两份独立 fixture，另比较文件内容与目录状态。仅 mktemp 随机名作规范化，需要正常 Windows 硬链接支持。SHA 校验模式会实际验证清单，不受 MSYS 二进制生成格式豁免影响。不声明文件系统 stderr 文案、ACL、WTS/utmp 身份及长列表格式逐字节等价。
+
 CI workflow 调用 `build.ps1 -Task Verify` 和 `release.ps1`。Release workflow 检出已存在的版本 tag，调用相同 Verify 入口，再运行 `release.ps1 -Tag <tag> -RequireClean`；它仅上传 Actions artifact，不执行 `-Publish`。远程发布需要维护者明确运行本地发布命令。
 
 脚本测试：

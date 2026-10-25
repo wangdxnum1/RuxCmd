@@ -236,3 +236,18 @@
 计划:docs/superpowers/plans/2026-10-25-round15-gap-commands.md(14 个新命令,111 → 125)。
 
 - Task 0: complete (spec/plan 编写,2026-10-25)
+- 波 1: complete (4c9a1a5 — rmdir/link/unlink/mktemp/sha1sum/sha512sum/cksum，均有行为测试)
+- 波 2: complete (afffc6a — install/logname/users/nohup，均有行为测试)
+- 波 3: complete (87bb6a3 — watch/traceroute，均有行为测试)
+- 波 4: complete (a5076db — ls -h、ls 库目标和 vdir 薄别名，均有行为测试)
+- F: verified (接续集成：125 项冒烟清单、GNU 独立文件系统 fixture 和 SHA 校验差分、双语 compatibility/README/development 与 CHANGELOG；全量 Verify、差分和本地打包验收通过，整理提交与推送)
+- Final review: fresh reviewer 对 Round 15 全部实现审查，发现 install 链接别名覆盖、nohup 控制台/Job 脱离、SHA stdin/文件名/读取错误、mktemp Windows 路径、traceroute 三跳早停；回归修复后相关七包测试全绿。
+- Ruling: 用户明确将 -z 系列留到下一轮；本轮以已有 14 个命令为范围，不宣称完整 GNU coreutils 覆盖。
+- Ruling: 沿用已有 checkout 并新建 codex/round15-completion 分支保留未提交 difftest，避免复制或丢失前序工作；不改写 main 历史。
+- Ruling: nohup 使用 DETACHED_PROCESS；Job 禁止 breakaway 时保留重试但显式警告，不再静默降低保证。实际正常权限测试进程也被此类 Job 包含，强制失败会使常见使用环境不可用；代价是受限 Job 关闭仍可能终止子进程，双语文档明确说明。
+- Dependency record: SHA-1 使用 sha1，SHA-512 使用既有 sha2；mktemp 与 install 复用已锁定 windows-sys 的系统 RNG/文件身份 API，无新增包版本。
+- Verification notes: 首次沙箱内测试 109 过/4 失败（link 拒绝访问、traceroute 无法创建 ICMP 句柄、nohup 子进程超时）；沙箱外原样重跑全部通过。随后新增 install 单参/-D/链接保护、SHA stdin/精确文件名/转义/tag、cksum 隐式 stdin、mktemp -t/前缀/后缀、nohup 重定向流、traceroute 静默跳测试均观察到失败后修复通过；新增 SHA/CRC 读取错误注入测试通过。
+- 验收：`scripts/build.ps1 -Task Verify` 完整通过（319.4s）：853 个 Rust 测试通过、0 失败；125 项发布冒烟；8 项代表性行为；17 项打包脚本测试、18 项入口脚本测试。历史 Clippy warnings 仍按既有门禁报告，不以此宣称零警告。
+- GNU 差分：最终完整 release 矩阵 362 过 / 0 失败 / 31 跳过（seed 20261025，variants 2）；跳过仅为 GNU 缺失的 rev、MSYS 校验和生成格式、WTS/utmp 与 vdir 长格式差异。SHA 校验模式、文件创建/删除/替换与 mktemp 规范化名后的真实文件状态均实际对比。
+- 差分框架回归：直接进程调用中 .NET ArgumentList 不强制引用无空格参数，MSYS 将 `[:lower:]` 误作文件 glob。仅固定 locale 不能解决；改为无 shell、按 Windows CRT 规则逐参强制加引号，并加入字符类、字面双引号/空格/尾反斜杠 printf 用例；tr/printf 20/20 通过后全矩阵通过。
+- 本地候选 ZIP：`dist/round15-completion/ruxcmd-0.2.0-x86_64-pc-windows-msvc.zip`，125 个 exe；DLL、manifest/checksum、解压后 125 项冒烟及 8 项行为通过，dirty=True（提交前本地候选，不发布新版本）。SHA256：e5ae7ca6429158b0ed678532e3d9d89648bdfacdc866379071f342e13a1787a5。

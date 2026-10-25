@@ -48,3 +48,13 @@
 - 14 个新 crate 全部 Verify 通过;有 GNU 参照者纳入 difftest 且无失败;
 - compatibility 双语 + CHANGELOG + 台账更新;
 - 全部推送。
+
+## 6. 接续执行裁决（2026-10-25）
+
+- 用户确认：本轮完成 14 个新命令的集成验收，`-z` 系列单独下一轮；不增加 `tracert` 别名或 winget 发布任务。
+- 既有四波实现已在 4c9a1a5、afffc6a、87bb6a3、a5076db 落地；本次沿用当前 checkout 并切换到 `codex/round15-completion` 保留未提交差分脚本，避免重复开发。
+- watch 实际已实现整行 `-d` 高亮及 `-g/-e`；文档按实际行为声明。mktemp 的随机输出仅规范化随机名后比较，同时检查文件系统快照，不再整体豁免。
+- 安全修正：mktemp 复用已锁定的 windows-sys/BCryptGenRandom，替换可预测的时钟种子 PRNG；install 复用 windows-sys 获取文件身份，替换目标条目而非改写其链接指向的文件。Cargo.lock 仅登记这两个既有依赖引用；sha1 为 SHA-1 实现所需，sha2 沿用既有生态。
+- nohup：默认尝试脱离控制台及 Job；实际测试环境即使在沙箱外也有禁止 breakaway 的 Job。保留 DETACHED_PROCESS 重试，并明确警告 Job 生命周期限制；不宣称任意 Job 下均可存活。完全拒绝运行会使常见的受 Job 管理终端无法使用此命令；取舍是这类环境下作业关闭仍可能终止子进程。
+- 硬链接、ICMP 与脱离进程测试在普通 Windows 权限下验收；沙箱拒绝 API 的失败不作为通过或代码缺陷。
+- 本地验收已通过：853 Rust tests、125 smoke、8 behavior、35 脚本测试；GNU release 差分 362 pass / 0 fail / 31 skip（seed 20261025，variants 2）。本地 ZIP 经 DLL/校验和/解压验证，未发布；详见 `.superpowers/sdd/progress.md` Round 15 记录。

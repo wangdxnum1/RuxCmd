@@ -227,11 +227,49 @@ $matrix = @(
     @{ cmd='echo';   argv=@('-n','abc');      shapes=@('empty') }
     @{ cmd='echo';   argv=@('-e','a\tb');     shapes=@('empty') }
     @{ cmd='printf'; argv=@('%s-%d','x','7'); shapes=@('empty') }
+    @{ cmd='printf'; argv=@('%s','[:lower:]'); shapes=@('empty') }
+    @{ cmd='printf'; argv=@('%s','quote" & path\'); shapes=@('empty') }
     @{ cmd='basename'; argv=@('/a/b/c.txt'); shapes=@('empty') }
     @{ cmd='basename'; argv=@('a/b/');        shapes=@('empty') }
     @{ cmd='dirname';  argv=@('/a/b/c.txt'); shapes=@('empty') }
     @{ cmd='numfmt'; argv=@('--to=si','2048'); shapes=@('empty') }
     @{ cmd='numfmt'; argv=@('--from=auto','1K'); shapes=@('empty') }
+    # --- Round 15 additions --------------------------------------------------
+    @{ cmd='rmdir';  argv=@('empty');         shapes=@('empty'); fixture=$true }
+    @{ cmd='rmdir';  argv=@('-p','chain/a/b'); shapes=@('empty'); fixture=$true }
+    @{ cmd='rmdir';  argv=@('nonempty');      shapes=@('empty'); fixture=$true }
+    @{ cmd='rmdir';  argv=@('--ignore-fail-on-non-empty','nonempty'); shapes=@('empty'); fixture=$true }
+    @{ cmd='link';   argv=@('source','linked'); shapes=@('ascii','nonutf8'); fixture=$true }
+    @{ cmd='link';   argv=@('missing','linked'); shapes=@('empty'); fixture=$true }
+    @{ cmd='unlink'; argv=@('source');        shapes=@('ascii','nonutf8'); fixture=$true }
+    @{ cmd='unlink'; argv=@('nonempty');      shapes=@('empty'); fixture=$true }
+    @{ cmd='install'; argv=@('source','installed'); shapes=@('ascii','nonutf8','empty'); fixture=$true }
+    @{ cmd='install'; argv=@('source','installed'); shapes=@('ascii'); fixture=$true; hardlinkTarget=$true }
+    @{ cmd='install'; argv=@('-m','444','source','installed'); shapes=@('ascii'); fixture=$true }
+    @{ cmd='install'; argv=@('-D','source','parents/a/installed'); shapes=@('ascii'); fixture=$true }
+    @{ cmd='install'; argv=@('-d','created/a'); shapes=@('empty'); fixture=$true }
+    @{ cmd='install'; argv=@('source');       shapes=@('empty'); fixture=$true }
+    @{ cmd='mktemp'; argv=@('tmp.XXXXXX');     shapes=@('empty'); fixture=$true }
+    @{ cmd='mktemp'; argv=@('-d','tmp.XXXXXX'); shapes=@('empty'); fixture=$true }
+    @{ cmd='mktemp'; argv=@('--suffix=.txt','tmp.XXXXXX'); shapes=@('empty'); fixture=$true }
+    @{ cmd='mktemp'; argv=@('badXX');          shapes=@('empty'); fixture=$true }
+    @{ cmd='vdir';   argv=@();                shapes=@('ascii') }
+    @{ cmd='vdir';   argv=@('-h');            shapes=@('ascii') }
+    @{ cmd='cksum';  argv=@('{in}');          shapes=@('ascii','nonutf8','empty'); fileArgs=$true }
+    @{ cmd='cksum';  argv=@();               shapes=@('ascii','nonutf8','empty') }
+    @{ cmd='cksum';  argv=@('-');            shapes=@('ascii','nonutf8','empty') }
+    @{ cmd='sha1sum';  argv=@('{in}');        shapes=@('ascii','nonutf8','empty'); fileArgs=$true }
+    @{ cmd='sha512sum'; argv=@('{in}');       shapes=@('ascii','nonutf8','empty'); fileArgs=$true }
+    @{ cmd='sha1sum'; argv=@('--check','good.sum'); shapes=@('ascii','nonutf8'); fixture=$true }
+    @{ cmd='sha1sum'; argv=@('--check'); shapes=@('ascii'); fixture=$true; stdinFile='good.sum' }
+    @{ cmd='sha1sum'; argv=@('--check','-'); shapes=@('empty'); fixture=$true }
+    @{ cmd='sha1sum'; argv=@('--check','bad.sum'); shapes=@('ascii'); fixture=$true }
+    @{ cmd='sha512sum'; argv=@('--check','good.sum'); shapes=@('ascii','nonutf8'); fixture=$true }
+    @{ cmd='sha512sum'; argv=@('--check'); shapes=@('ascii'); fixture=$true; stdinFile='good.sum' }
+    @{ cmd='sha512sum'; argv=@('--check','-'); shapes=@('empty'); fixture=$true }
+    @{ cmd='sha512sum'; argv=@('--check','bad.sum'); shapes=@('ascii'); fixture=$true }
+    @{ cmd='users';  argv=@();                shapes=@('empty') }
+    @{ cmd='logname'; argv=@();               shapes=@('empty') }
 )
 
 # ---------------------------------------------------------------------------
@@ -243,25 +281,93 @@ $KnownDifferences = @{
     # mode (`hash  name`, two spaces, no escape).
     'md5sum|*'    = 'MSYS binary-mode checksum formatting; RuxCmd matches Linux text mode'
     'sha256sum|*' = 'MSYS binary-mode checksum formatting; RuxCmd matches Linux text mode'
+    'sha1sum|{in}'   = 'MSYS binary-mode checksum formatting; RuxCmd matches Linux text mode'
+    'sha512sum|{in}' = 'MSYS binary-mode checksum formatting; RuxCmd matches Linux text mode'
+    # vdir inherits the ls long-format layout (column set, nlink, date style),
+    # which differs from GNU ls -l at the P2 formatting level.
+    'vdir|*'      = 'ls long-format layout difference (columns/date), not vdir-specific'
+    # GNU users reads utmp, which does not exist in an MSYS session, so the
+    # reference tool prints nothing here. RuxCmd enumerates TS sessions.
+    'users|*'     = 'MSYS utmp unavailable; reference prints empty'
 }
 
 # ---------------------------------------------------------------------------
 # Runner.
 # ---------------------------------------------------------------------------
-function Invoke-Tool([string]$exe, [string[]]$argv, [string]$stdinPath) {
-    $out = Join-Path $script:work ('o-' + [guid]::NewGuid().ToString('N'))
-    $err = Join-Path $script:work ('e-' + [guid]::NewGuid().ToString('N'))
-    $quoted = ($argv | ForEach-Object { '"' + ($_ -replace '"', '\"') + '"' }) -join ' '
-    $cmdLine = '"{0}" {1} < "{2}" > "{3}" 2> "{4}"' -f $exe, $quoted, $stdinPath, $out, $err
-    cmd /c $cmdLine | Out-Null
-    $code = $LASTEXITCODE
-    return @{
-        Code   = $code
-        Bytes  = [System.IO.File]::ReadAllBytes($out)
-        ErrLen = (Get-Item $err -ErrorAction SilentlyContinue).Length
-        Err    = $err
-        Out    = $out
+function Invoke-Tool([string]$exe, [string[]]$argv, [string]$stdinPath, [string]$workingDirectory) {
+    $info = [Diagnostics.ProcessStartInfo]::new()
+    $info.FileName = [IO.Path]::GetFullPath($exe)
+    $info.UseShellExecute = $false
+    $info.CreateNoWindow = $true
+    $info.RedirectStandardInput = $true
+    $info.RedirectStandardOutput = $true
+    $info.RedirectStandardError = $true
+    # Keep byte-oriented fixtures independent of the host locale.
+    $info.Environment['LC_ALL'] = 'C'
+    if ($workingDirectory) { $info.WorkingDirectory = $workingDirectory }
+    # MSYS expands unquoted wildcard arguments even without a shell. Quote
+    # every argument, escaping backslashes before quotes and at the end by
+    # Windows CRT rules; ArgumentList only quotes arguments when necessary.
+    $info.Arguments = (@($argv | ForEach-Object {
+        $argument = [regex]::Replace($_, '(\\*)"', '$1$1\"')
+        $argument = [regex]::Replace($argument, '(\\+)$', '$1$1')
+        '"' + $argument + '"'
+    }) -join ' ')
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $info
+    $output = [IO.MemoryStream]::new()
+    $inputFile = [IO.File]::OpenRead($stdinPath)
+    $started = $false
+    try {
+        $started = $process.Start()
+        $outputTask = $process.StandardOutput.BaseStream.CopyToAsync($output)
+        $errorTask = $process.StandardError.ReadToEndAsync()
+        $inputTask = $inputFile.CopyToAsync($process.StandardInput.BaseStream)
+        try {
+            if (-not $inputTask.Wait(10000)) { throw "stdin timed out: $exe" }
+        } catch {
+            # A command may exit without consuming stdin (e.g. true/false).
+            if (-not $process.HasExited) { throw }
+        } finally { $process.StandardInput.Close() }
+        if (-not $process.WaitForExit(10000)) { throw "command timed out: $exe" }
+        if (-not $outputTask.Wait(10000) -or -not $errorTask.Wait(10000)) { throw "output timed out: $exe" }
+        return @{ Code = $process.ExitCode; Bytes = $output.ToArray(); Error = $errorTask.Result }
+    } finally {
+        if ($started -and -not $process.HasExited) { $process.Kill($true); $process.WaitForExit() }
+        $inputFile.Dispose()
+        $output.Dispose()
+        $process.Dispose()
     }
+}
+
+function New-CaseFixture([string]$directory, [string]$inputPath, [string]$command, [bool]$hardlinkTarget) {
+    foreach ($path in @('', 'empty', 'chain/a/b', 'nonempty')) {
+        [IO.Directory]::CreateDirectory((Join-Path $directory $path)) | Out-Null
+    }
+    [IO.File]::Copy($inputPath, (Join-Path $directory 'source'))
+    [IO.File]::WriteAllText((Join-Path $directory 'nonempty/keep'), 'keep')
+    if ($hardlinkTarget) {
+        [IO.File]::WriteAllText((Join-Path $directory 'other'), 'keep other')
+        New-Item -ItemType HardLink -Path (Join-Path $directory 'installed') -Target (Join-Path $directory 'other') | Out-Null
+    }
+    if ($command -in @('sha1sum','sha512sum')) {
+        $algorithm = if ($command -eq 'sha1sum') { [Security.Cryptography.SHA1]::Create() } else { [Security.Cryptography.SHA512]::Create() }
+        try { $digest = [Convert]::ToHexString($algorithm.ComputeHash([IO.File]::ReadAllBytes($inputPath))).ToLowerInvariant() }
+        finally { $algorithm.Dispose() }
+        [IO.File]::WriteAllText((Join-Path $directory 'good.sum'), "$digest  source`n")
+        $bad = ('0' * $digest.Length)
+        [IO.File]::WriteAllText((Join-Path $directory 'bad.sum'), "$bad  source`n")
+    }
+}
+
+function Get-FixtureState([string]$directory) {
+    $records = foreach ($entry in Get-ChildItem -LiteralPath $directory -Recurse -Force) {
+        $name = [IO.Path]::GetRelativePath($directory, $entry.FullName).Replace('\','/')
+        $name = $name -creplace '^tmp\.[a-zA-Z0-9]{6}(\.txt)?$', 'tmp.RANDOM$1'
+        if ($entry.PSIsContainer) { "dir:$name" }
+        else { "file:${name}:$((Get-FileHash -LiteralPath $entry.FullName -Algorithm SHA256).Hash)" }
+    }
+    return (@($records | Sort-Object) -join "`n")
 }
 
 function Show-Bytes([byte[]]$bytes, [int]$max = 120) {
@@ -278,6 +384,7 @@ $selected = if ($Cases) { $matrix | Where-Object { $_.cmd -cin $Cases } } else {
 Write-Host ("inputs=" + $inputs.Count + " cases=" + $selected.Count)
 foreach ($case in $selected) {
     $key = $case.cmd + '|' + ($case.argv -join ' ')
+    if (-not (Test-Path (Join-Path $BinDir ($case.cmd + '.exe')))) { throw "Missing RuxCmd executable: $($case.cmd)" }
     # Skip the whole case when the GNU reference tool is not installed
     # (Git for Windows ships only a subset of coreutils, e.g. no rev).
     if (-not (Test-Path (Join-Path $GnuBin ($case.cmd + '.exe')))) {
@@ -324,8 +431,29 @@ foreach ($case in $selected) {
                 $argvGnu = $argvRux
             }
 
-            $rux = Invoke-Tool (Join-Path $BinDir ($case.cmd + '.exe')) $argvRux $stdinRux
-            $gnu = Invoke-Tool (Join-Path $GnuBin ($case.cmd + '.exe')) $argvGnu $stdinGnu
+            $ruxDirectory = $null
+            $gnuDirectory = $null
+            if ($case.fixture) {
+                $fixtureRoot = Join-Path $work ([guid]::NewGuid().ToString('N'))
+                $ruxDirectory = Join-Path $fixtureRoot 'rux'
+                $gnuDirectory = Join-Path $fixtureRoot 'gnu'
+                New-CaseFixture $ruxDirectory $inPath $case.cmd ([bool]$case.hardlinkTarget)
+                New-CaseFixture $gnuDirectory $inPath $case.cmd ([bool]$case.hardlinkTarget)
+                $stdinRux = $inputs['empty0']; $stdinGnu = $inputs['empty0']
+                if ($case.stdinFile) {
+                    $stdinRux = Join-Path $ruxDirectory $case.stdinFile
+                    $stdinGnu = Join-Path $gnuDirectory $case.stdinFile
+                }
+            }
+            $rux = Invoke-Tool (Join-Path $BinDir ($case.cmd + '.exe')) $argvRux $stdinRux $ruxDirectory
+            $gnu = Invoke-Tool (Join-Path $GnuBin ($case.cmd + '.exe')) $argvGnu $stdinGnu $gnuDirectory
+            if ($case.cmd -eq 'mktemp' -and $rux.Code -eq 0 -and $gnu.Code -eq 0) {
+                foreach ($result in @($rux,$gnu)) {
+                    $name = [Text.Encoding]::UTF8.GetString($result.Bytes)
+                    $result.Bytes = [Text.Encoding]::UTF8.GetBytes(($name -creplace 'tmp\.[a-zA-Z0-9]{6}', 'tmp.RANDOM'))
+                }
+            }
+            $stateEqual = -not $case.fixture -or (Get-FixtureState $ruxDirectory) -ceq (Get-FixtureState $gnuDirectory)
 
             $bytesEqual = ($rux.Bytes.Length -eq $gnu.Bytes.Length) -and
                 (-not (Compare-Object $rux.Bytes $gnu.Bytes -SyncWindow 0 -ErrorAction SilentlyContinue))
@@ -337,7 +465,7 @@ foreach ($case in $selected) {
             }
             $codeEqual = $rux.Code -eq $gnu.Code
 
-            if ($bytesEqual -and $codeEqual) {
+            if ($bytesEqual -and $codeEqual -and $stateEqual) {
                 $stats.Pass++
                 if ($ShowAll) { Write-Host "PASS  $label" }
             } else {
@@ -345,9 +473,12 @@ foreach ($case in $selected) {
                 $why = @()
                 if (-not $bytesEqual) { $why += 'stdout' }
                 if (-not $codeEqual) { $why += "exit($($rux.Code) vs $($gnu.Code))" }
+                if (-not $stateEqual) { $why += 'filesystem state' }
                 $failures.Add(("FAIL  {0}  diff: {1}" -f $label, ($why -join ' ')))
                 $failures.Add(("      rux : " + (Show-Bytes $rux.Bytes)))
                 $failures.Add(("      gnu : " + (Show-Bytes $gnu.Bytes)))
+                if ($rux.Error) { $failures.Add("      rux stderr: $($rux.Error.Trim())") }
+                if ($gnu.Error) { $failures.Add("      gnu stderr: $($gnu.Error.Trim())") }
             }
         }
     }
@@ -365,5 +496,8 @@ if ($failures.Count -gt 0) {
 }
 
 # Cleanup, then exit with the verdict.
-Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
+$workRoot = [IO.Path]::GetFullPath($work)
+$tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
+if (-not $workRoot.StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCase)) { throw "Unexpected cleanup path: $workRoot" }
+Remove-Item -LiteralPath $workRoot -Recurse -Force -ErrorAction SilentlyContinue
 if ($stats.Fail -gt 0) { exit 1 } else { exit 0 }

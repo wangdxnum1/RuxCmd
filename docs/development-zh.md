@@ -4,7 +4,7 @@
 
 ## 工程结构
 
-根 virtual workspace 管理 `crates/*`。目前 113 个 package 产出 111 个命令；`ps-sys`、`ps-core` 是库，`ps-bin` 产出 `ps.exe`。Cargo metadata 是构建及发布工具清单的唯一来源，冒烟策略必须与其二进制集合一致。
+根 virtual workspace 管理 `crates/*`。目前 128 个 package 产出 125 个命令；`ps-sys`、`ps-core`、`ruxcmd-core` 是库包，`ps-bin` 产出 `ps.exe`，`ls` 同时提供供 `vdir` 复用的库。Cargo metadata 是构建及发布工具清单的唯一来源，冒烟策略必须与其二进制集合一致。
 
 Edition 2021/2024 和各 crate 原版本保留。根 Cargo.lock 固定整个套件的依赖，resolver 为 3。ps 保留原来声明的 Rust 1.75 元数据，但整个仓库当前只用固定的 1.99.0 验证，不承诺整体 MSRV。
 
@@ -12,7 +12,7 @@ Cargo 命令可在根使用 `--workspace`，也可在单个 crate 目录运行�
 
 ## 检查与测试
 
-统一入口为 `scripts/build.ps1`；`-Task Verify` 执行与 CI 相同的完整流程，参数见 [脚本说明](../scripts/README-zh.md)。Rust 集成测试覆盖 cat、echo、wc、grep、cp、mv、rm、true、false 和现有 ps 行为。文件测试使用 tempfile；没有测试依赖联网或终止真实进程。
+统一入口为 `scripts/build.ps1`；`-Task Verify` 执行与 CI 相同的完整流程，参数见 [脚本说明](../scripts/README-zh.md)。Rust 集成测试覆盖全套件的代表性行为，包括 Round 15 全部 14 个新命令。文件测试使用 tempfile；原生进程、硬链接和 ICMP 测试需要正常 Windows 环境，受限沙箱可能拒绝相关 API。traceroute 使用环回及有界 TEST-NET 探测，不断言多路由器网络行为。`scripts/difftest.ps1` 单独比较 GNU 输出和退出码；会修改文件的命令另比较独立文件系统快照。
 
 发布冒烟只运行经过源码检查的帮助入口，以及 true/false 的退出码。每个进程有超时，异步读取输出和错误，超时终止本次进程树。帮助通过说明启动/参数入口能工作，不证明全部业务行为正确。
 

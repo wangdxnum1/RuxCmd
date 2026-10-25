@@ -61,6 +61,16 @@ The scripts finish local verification and packaging before pushing the tag and u
 
 ## CI
 
+GNU differential checks run separately from Verify:
+
+```powershell
+./scripts/difftest.ps1
+./scripts/difftest.ps1 -Cases rmdir,link,unlink,mktemp,install,cksum,sha1sum,sha512sum
+./scripts/difftest.ps1 -Seed 42 -Variants 3
+```
+
+The default uses current release binaries (debug fallback) and Git for Windows GNU tools. Build first, or pass `-BinDir` explicitly. Each selected RuxCmd binary must exist; missing GNU tools and declared platform differences are reported as skips. Comparisons cover raw stdout bytes and exit codes; mutating commands use separate fixtures and compare file contents/directory state. Only mktemp's random name is normalized. Native Windows hardlink support is required. SHA check mode runs against real manifests even though MSYS binary-mode generation is exempted. Filesystem stderr wording, ACL equivalence, WTS/utmp identities and long-list formatting are not bytewise compatibility claims.
+
 The CI workflow calls `build.ps1 -Task Verify` and `release.ps1`. The Release workflow checks out an existing version tag, runs the same Verify entry point, then `release.ps1 -Tag <tag> -RequireClean`; it only uploads Actions artifacts and does not perform `-Publish`. Remote publishing requires the maintainer to explicitly run the local publish command.
 
 Script tests:
