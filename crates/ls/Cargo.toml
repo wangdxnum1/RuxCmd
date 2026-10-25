@@ -7,6 +7,10 @@ edition = "2024"
 description = "A Windows ls clone — list directory contents, Linux-style"
 authors = ["Tim"]
 
+# Library entry point shared by the `ls` and `vdir` binaries.
+[lib]
+path = "src/lib.rs"
+
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 chrono = "0.4"

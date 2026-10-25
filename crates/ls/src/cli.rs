@@ -3,8 +3,12 @@ use std::path::PathBuf;
 
 /// List directory contents — a Windows port of the Linux ls command.
 #[derive(Parser, Debug)]
-#[command(name = "ls", version, about)]
+#[command(name = "ls", version, about, disable_help_flag = true)]
+/// Help stays a long-only flag: -h keeps its GNU meaning in this command.
 pub struct Args {
+    #[arg(long = "help", action = clap::ArgAction::Help)]
+    pub help: (),
+
     // ── Selection / filtering ──────────────────────────────────────
     /// Do not ignore entries starting with .
     #[arg(short = 'a', long = "all")]
@@ -111,7 +115,7 @@ pub struct Args {
     pub numeric_uid_gid: bool,
 
     /// Human-readable sizes (e.g., 1K, 234M, 2G)
-    #[arg(long = "human-readable")]
+    #[arg(short = 'h', long = "human-readable")]
     pub human_readable: bool,
 
     /// Use 1024-byte blocks for file system usage; used only with -s
