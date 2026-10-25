@@ -21,13 +21,21 @@ use std::io::{self, BufRead};
 pub struct ByteLines<R: BufRead> {
     reader: R,
     done: bool,
+    separator: u8,
 }
 
 impl<R: BufRead> ByteLines<R> {
     pub fn new(reader: R) -> Self {
+        Self::with_separator(reader, b'\n')
+    }
+
+    /// Read records separated by `separator`. NUL mode preserves all CR/LF
+    /// bytes inside records; LF mode retains the historical CRLF handling.
+    pub fn with_separator(reader: R, separator: u8) -> Self {
         ByteLines {
             reader,
             done: false,
+            separator,
         }
     }
 
@@ -38,14 +46,14 @@ impl<R: BufRead> ByteLines<R> {
             return Ok(None);
         }
         let mut buf = Vec::new();
-        let read = self.reader.read_until(b'\n', &mut buf)?;
+        let read = self.reader.read_until(self.separator, &mut buf)?;
         if read == 0 {
             self.done = true;
             return Ok(None);
         }
-        if buf.last() == Some(&b'\n') {
+        if buf.last() == Some(&self.separator) {
             buf.pop();
-            if buf.last() == Some(&b'\r') {
+            if self.separator == b'\n' && buf.last() == Some(&b'\r') {
                 buf.pop();
             }
         }
@@ -77,7 +85,7 @@ pub fn ended_with_newline(buf: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::BufReader;
+    use std::io::{BufReader, Read};
 
     fn collect(input: &[u8]) -> Vec<Vec<u8>> {
         ByteLines::new(BufReader::new(input))
@@ -116,5 +124,43 @@ mod tests {
     #[test]
     fn blank_lines_are_empty_not_skipped() {
         assert_eq!(collect(b"\n\n"), vec![Vec::new(), Vec::new()]);
+    }
+
+    #[test]
+    fn nul_records_keep_newlines_carriage_returns_and_invalid_bytes() {
+        let records: Vec<_> =
+            ByteLines::with_separator(BufReader::new(b"a\r\nb\0\xff\r\0last".as_slice()), 0)
+                .map(Result::unwrap)
+                .collect();
+        assert_eq!(
+            records,
+            vec![b"a\r\nb".to_vec(), b"\xff\r".to_vec(), b"last".to_vec()]
+        );
+    }
+
+    #[test]
+    fn nul_empty_records_and_empty_input_are_distinct() {
+        let records: Vec<_> = ByteLines::with_separator(BufReader::new(b"\0\0".as_slice()), 0)
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(records, vec![Vec::<u8>::new(), Vec::new()]);
+        assert!(ByteLines::with_separator(BufReader::new(b"".as_slice()), 0)
+            .next()
+            .is_none());
+    }
+
+    #[test]
+    fn a_failed_partial_record_is_not_reported_as_success() {
+        struct FailingReader;
+        impl Read for FailingReader {
+            fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+                Err(io::Error::other("injected failure"))
+            }
+        }
+        let input = std::io::Cursor::new(b"ok\0partial").chain(FailingReader);
+        let mut records = ByteLines::with_separator(BufReader::new(input), 0);
+        assert_eq!(records.next().unwrap().unwrap(), b"ok");
+        assert!(records.next().unwrap().is_err());
+        assert!(records.next().is_none());
     }
 }
