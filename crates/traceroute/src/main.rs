@@ -13,10 +13,6 @@ use windows_sys::Win32::NetworkManagement::IpHelper::{
 /// Payload bytes carried by each probe, matching tracert.exe's default.
 const PROBE_SIZE: usize = 32;
 
-/// Number of consecutive hops where every probe times out before the trace
-/// gives up early instead of walking all -m hops.
-const MAX_SILENT_HOPS: usize = 3;
-
 /// Outcome of a single probe.
 enum Probe {
     /// A reply arrived: `addr` is the responder (a router on TTL expiry, or
@@ -43,8 +39,6 @@ struct Hop {
     addr: Option<String>,
     /// The target answered; the trace is complete.
     arrived: bool,
-    /// Every probe timed out; feeds the silent-hop early exit.
-    all_timed_out: bool,
     /// The destination reported itself unreachable; tracing ends.
     dest_unreachable: bool,
 }
@@ -96,23 +90,11 @@ fn main() {
         std::process::exit(1);
     }
 
-    let mut consecutive_silent = 0usize;
-    for ttl in 1..=args.max_hops {
-        let hop = probe_hop(icmp_handle, target_net, ttl, args.nqueries, timeout);
-        print_hop(ttl, &hop);
-
-        if hop.arrived || hop.dest_unreachable {
-            break;
-        }
-        if hop.all_timed_out {
-            consecutive_silent += 1;
-            if consecutive_silent >= MAX_SILENT_HOPS {
-                break;
-            }
-        } else {
-            consecutive_silent = 0;
-        }
-    }
+    walk_hops(
+        args.max_hops,
+        |ttl| probe_hop(icmp_handle, target_net, ttl, args.nqueries, timeout),
+        print_hop,
+    );
 
     unsafe {
         IcmpCloseHandle(icmp_handle);
@@ -120,6 +102,36 @@ fn main() {
 
     println!();
     println!("Trace complete.");
+}
+
+fn walk_hops(max_hops: u32, mut probe: impl FnMut(u32) -> Hop, mut visit: impl FnMut(u32, &Hop)) {
+    for ttl in 1..=max_hops {
+        let hop = probe(ttl);
+        visit(ttl, &hop);
+        if hop.arrived || hop.dest_unreachable {
+            break;
+        }
+    }
+}
+
+#[cfg(test)]
+mod silent_hop_tests {
+    use super::*;
+    #[test]
+    fn silent_routers_do_not_hide_a_later_destination() {
+        let mut visited = Vec::new();
+        walk_hops(
+            5,
+            |ttl| Hop {
+                probes: vec![],
+                addr: None,
+                arrived: ttl == 4,
+                dest_unreachable: false,
+            },
+            |ttl, _| visited.push(ttl),
+        );
+        assert_eq!(visited, vec![1, 2, 3, 4]);
+    }
 }
 
 /// Resolve a host to IPv4, preferring A records when a name has several
@@ -246,7 +258,6 @@ fn probe_hop(
     let mut addr: Option<u32> = None;
     let mut arrived = false;
     let mut dest_unreachable = false;
-    let mut all_timed_out = true;
 
     for _ in 0..nqueries {
         match send_probe(icmp_handle, target_net, ttl, timeout) {
@@ -255,7 +266,6 @@ fn probe_hop(
                 rtt_ms,
                 arrived: is_target,
             } => {
-                all_timed_out = false;
                 if addr.is_none() {
                     addr = Some(from);
                 }
@@ -266,12 +276,10 @@ fn probe_hop(
             }
             Probe::TimedOut => probes.push("*".to_string()),
             Probe::DestUnreachable(label) => {
-                all_timed_out = false;
                 dest_unreachable = true;
                 probes.push(label.to_string());
             }
             Probe::Failed(label) => {
-                all_timed_out = false;
                 probes.push(label.to_string());
             }
         }
@@ -283,7 +291,6 @@ fn probe_hop(
         // target_net, so the same to_be() round trip restores the octets.
         addr: addr.map(|a| Ipv4Addr::from(a.to_be()).to_string()),
         arrived,
-        all_timed_out,
         dest_unreachable,
     }
 }

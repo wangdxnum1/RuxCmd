@@ -65,10 +65,9 @@ fn loopback_reaches_target_at_first_hop() {
 
 #[test]
 fn unreachable_testnet_target_terminates_without_hanging() {
-    // 203.0.113.1 is TEST-NET-3 (RFC 5737): unroutable, guaranteed no reply.
-    // With -w 200 the worst case is bounded well under 30s either through
-    // the 3-consecutive-timeout early exit or fast unreachable replies.
-    let (out, elapsed) = run_timed(&["-w", "200", "203.0.113.1"]);
+    // Bound the number of probes explicitly; silent routers do not imply
+    // that subsequent hops are unreachable.
+    let (out, elapsed) = run_timed(&["-m", "3", "-w", "200", "203.0.113.1"]);
     assert_eq!(
         out.status.code(),
         Some(0),
