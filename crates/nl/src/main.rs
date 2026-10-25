@@ -125,9 +125,9 @@ fn nl_reader<R: BufRead, W: Write>(
             write!(out, "{}", " ".repeat(number_width + separator.len()))?;
         }
         out.write_all(line.as_bytes())?;
-        if terminated {
-            out.write_all(b"\n")?;
-        }
+        // GNU nl terminates every output line, even when the input's final
+        // line had no trailing newline.
+        out.write_all(b"\n")?;
     }
 
     Ok(())

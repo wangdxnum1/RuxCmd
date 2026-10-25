@@ -83,7 +83,9 @@ fn format_sequence(sequence: &[f64], args: &cli::Args) -> String {
         sequence.iter().map(|n| format_number_default(n)).collect()
     };
 
-    formatted.join(&args.separator)
+    // GNU seq terminates every output with a newline, even with a custom
+    // separator (the separator joins the values, the newline ends the line).
+    format!("{}{}", formatted.join(&args.separator), if formatted.is_empty() { "" } else { "\n" })
 }
 
 fn format_number(n: &f64, format: &str) -> String {

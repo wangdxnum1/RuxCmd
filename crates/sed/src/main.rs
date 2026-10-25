@@ -361,7 +361,11 @@ fn run_stream(
                 }
                 CmdKind::Print => {
                     out.write_all(&pattern_space)?;
-                    out.write_all(b"\n")?;
+                    // GNU sed preserves a missing trailing newline on the
+                    // input's final line.
+                    if !(is_last && !data.ends_with(b"\n")) {
+                        out.write_all(b"\n")?;
+                    }
                 }
                 CmdKind::Delete => {
                     deleted = true;
@@ -379,7 +383,11 @@ fn run_stream(
         }
         if !quiet {
             out.write_all(&pattern_space)?;
-            out.write_all(b"\n")?;
+            // GNU sed preserves a missing trailing newline on the input's
+            // final line.
+            if !(is_last && !data.ends_with(b"\n")) {
+                out.write_all(b"\n")?;
+            }
         }
         if quit {
             break;

@@ -23,7 +23,7 @@
 | cp | --force, --interactive, --preserve, --recursive, --symbolic-link, --verbose | 冒烟 + 行为测试 | -f 覆盖前清除目标的只读属性。以 `.`/`..` 结尾的源将内容并入已存在的目标目录（目标不存在时报错）；多源时目标必须是已存在目录。 |
 | csplit | --digits, --elide-empty-files, --keep-files, --prefix, --quiet | 冒烟 + 行为测试 | 行号须 >0、升序且不超过文件末尾，否则退出 1。模式仅支持子串与行号；/re/+N、{N} 等 GNU 语法报错退出 1；模式不匹配退出 1（无 -k 时删除输出文件）。--suffix-format 已移除。 |
 | curl | --data, --header, --output, --request, --silent, --version, --include, --head, --fail, --location | 冒烟 + 行为测试 | 默认仅输出 body（-i 加响应头）；-d 隐含 POST；重定向默认关闭（-L 手动跟随，最多 10 次）；-f 对 HTTP >= 400 退出 22。HTTPS/TLS 与联网行为尚未验证。 |
-| cut | --bytes, --characters, --delimiter, --fields, --only-delimited, --output-delimiter | 冒烟 + 行为测试 | 字节安全：非 UTF-8 行透传，-b 选择原始字节（不支持 -n）；仅剥行尾 \r。完整 GNU 行为未验证。 |
+| cut | --bytes, --characters, --delimiter, --fields, --only-delimited, --output-delimiter | 冒烟 + 行为测试 | 字节安全：非 UTF-8 行透传，-b 选择原始字节（不支持 -n）；不含分隔符的行原样透传（GNU 默认）；仅剥行尾 \r。 |
 | date | --date, --nanoseconds, --seconds, --set, --utc, --version | 冒烟 + 行为测试 | -d/--date 与位置参数接受 @EPOCH、YYYY-MM-DD、YYYY-MM-DDTHH:MM[:SS]（空串=now，其他格式报错退出 1）；-s/--set 经 SetLocalTime 设置本地时钟。--seconds 作用于解析出的时刻；%N 恒为 0。 |
 | df | --human-readable, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | diff | --unified, --ignore-case, --ignore-whitespace, --ignore-blank-lines, --version | 冒烟 + 行为测试 | 退出码遵循 GNU（0/1/2）。普通格式输出未合并的 d/a 命令，行号锚点与 GNU 一致；c 合并与区间折叠未实现。 |
@@ -52,14 +52,14 @@
 | kill | --list, --signal, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | ln | --force, --symbolic, --verbose, --version | 冒烟 + 行为测试 | 链接目标按书写形式存储（无 \\?\ 前缀）；-v 打印创建结果。Windows 符号链接可能需要权限或开发者模式。 |
 | ls | --all, --almost-all, --author, --block-size, --classify, --color | 冒烟 + 行为测试 | 长格式附加列（-i/-s 与符号链接目标）按位置索引渲染，着色时不丢失。完整 GNU 行为未验证。 |
-| md5sum | --check, --quiet, --status, --tag, --version | 冒烟 + 行为测试 | check 模式处理 * 标记与 \ 转义名，聚合失败并在任一失败时退出 1。 |
+| md5sum | --check, --quiet, --status, --tag, --version | 冒烟 + 行为测试 | 文本模式输出使用 GNU 的两空格分隔。check 模式处理 * 标记与 \ 转义名，聚合失败并在任一失败时退出 1。 |
 | mkdir | --mode, --parents, --verbose | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | mkfifo | --mode, --version | 仅冒烟；业务待验证 | Windows 管道语义与 POSIX FIFO 不等价。 |
 | mpstat | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | mv | --force, --interactive, --no-clobber, --verbose | 冒烟 + 行为测试 | 拒绝以非目录覆盖目录（绝不删除目标树）；跨卷回退为 copy+delete；src/. 并入已存在目录。 |
 | netstat | --all, --numeric, --protocol, --version, --own-pid | 冒烟 + 行为测试 | -a 控制是否显示 LISTENING/未绑定条目；-o 增加所属 PID 列（GetExtendedTcp/UdpTable）；表查询错误退出 1。 |
 | nice | --adjustment, --version | 冒烟 + 行为测试 | 直接 spawn 命令（不依赖 wmic）并应用优先级：adjustment <=-15 High、-14..-5 Above normal、-4..4 Normal、5..14 Below normal、>=15 Idle；透传子进程退出码。 |
-| nl | --body-numbering, --number-width, --separator, --version | 冒烟 + 行为测试 | 按 UTF-8 行读取不乱码；-b 接受 t（默认，仅非空行）、n（不编号）、a（全部行）。 |
+| nl | --body-numbering, --number-width, --separator, --version | 冒烟 + 行为测试 | 按 UTF-8 行读取不乱码；-b 接受 t（默认，仅非空行）、n（不编号）、a（全部行）；每行输出均以换行结束，与 GNU 一致。 |
 | nslookup | --type, --version | 冒烟 + 行为测试 | A/AAAA/CNAME/MX/TXT 经真实查询解析（getaddrinfo / DnsQuery_W）；类型名大小写不敏感；不支持的类型报错退出 1。SERVER 位置参数已移除。 |
 | numfmt | --delimiter, --field, --from, --from-unit, --grouping, --header, --padding, --round, --suffix, --to, --to-unit | 冒烟 + 行为测试 | 显式 -d 在输出中保留且不折叠连续分隔符；--from=auto 读取 K=1000、Ki=1024。 |
 | od | --address-radix, --ascii, --decimal, --format, --hexadecimal, --octal, --read-bytes, --skip-bytes, --width | 冒烟 + 行为测试 | -t 支持 x1/d1/o1/u1/a/c/z 与 f4/f8（GNU 字段宽度、小端序）；仅格式含 c 时输出 ASCII 列。 |
@@ -79,7 +79,7 @@
 | rev | --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | rm | --dir, --force, --no-preserve-root, --one-file-system, --preserve-root, --verbose | 冒烟 + 行为测试 | -f 仅静默不存在的路径；其余失败均打印错误并退出 1，preserve-root 拒绝信息不被压制。 |
 | sar | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| sed | --expression, --quiet, --in-place, --separate, --version | 冒烟 + 行为测试 | 支持位置参数脚本、p/d/q 命令与行号、$、/子串/ 及范围地址；-i 原子写并支持备份后缀；未知命令报错。s 与地址为字面子串（无正则、无 &/\1）；行号按文件重置。 |
+| sed | --expression, --quiet, --in-place, --separate, --version | 冒烟 + 行为测试 | 支持位置参数脚本、p/d/q 命令与行号、$、/子串/ 及范围地址；-i 原子写并支持备份后缀；未知命令报错。s 与地址为字面子串（无正则、无 &/\1）；行号按文件重置；缺失的尾换行被保留。 |
 | seq | --equal-width, --format, --separator, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | sha256sum | --check, --quiet, --status, --tag, --version | 冒烟 + 行为测试 | 同 md5sum：* 标记、BOM 剥离、聚合退出码，并支持 `-` 读 stdin。 |
 | shred | --force, --iterations, --remove, --verbose, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
@@ -109,7 +109,7 @@
 | uptime | 见 --help | 冒烟 + 行为测试 | 经 GetTickCount64 报告开机以来的秒数；-p 输出中文时长。 |
 | vmstat | 见 --help | 冒烟 + 行为测试 | swpd/free 逐帧采样；-h 短名为 help（长名 --header-once 保留）。完整 GNU 行为未验证。 |
 | w | --header, --help, --ignore-username, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| wc | --bytes, --chars, --lines, --max-line-length, --version, --words | 冒烟 + 行为测试 | -m 按 UTF-8 字符计数（无效序列回退字节计数）；-L 不含换行符；打不开的文件报错并退出 1。stdin 输出附带 <stdin> 标签；不是 GNU 的无标签输出。 |
+| wc | --bytes, --chars, --lines, --max-line-length, --version, --words | 冒烟 + 行为测试 | -m 按 UTF-8 字符计数（无效序列回退字节计数）；-L 不含换行符；打不开的文件报错并退出 1。stdin 输出裸计数，与 GNU 一致。 |
 | wget | --directory-prefix, --output-document, --quiet, --version | 冒烟 + 行为测试 | -O - 输出到 stdout；URL 文件名解码（尾 / 取 index.html）；HTTP 错误退出 8；连接超时 10s。HTTPS/TLS 与联网行为尚未验证。 |
 | whereis | --version | 仅冒烟；业务待验证 | 保留历史固定搜索路径，待专项修正。 |
 | which | --all, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |

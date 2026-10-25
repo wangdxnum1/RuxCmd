@@ -101,6 +101,11 @@ fn process_lines<R: BufRead>(
 }
 
 fn cut_fields(line: &str, spec: &str, delimiter: char, output_delimiter: &str) -> String {
+    // GNU cut passes lines without any delimiter through untouched (unless
+    // -s was given, which is handled by the caller).
+    if !line.contains(delimiter) {
+        return line.to_string();
+    }
     let fields: Vec<&str> = line.split(delimiter).collect();
     let indices = parse_spec(spec, fields.len());
 

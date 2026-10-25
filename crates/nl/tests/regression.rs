@@ -120,12 +120,13 @@ fn crlf_blank_line_is_unnumbered() {
 
 // --- guards -------------------------------------------------------------------
 
-/// Input without a final newline: GNU nl does not add one.
+/// Input without a final newline: GNU nl terminates the output line anyway
+/// (Round 13 difftest finding).
 #[test]
-fn missing_final_newline_is_not_invented() {
+fn missing_final_newline_is_terminated_like_gnu() {
     nl_args(&[], "a\nb")
         .success()
-        .stdout("     1\ta\n     2\tb");
+        .stdout("     1\ta\n     2\tb\n");
 }
 
 /// Empty input produces empty output.

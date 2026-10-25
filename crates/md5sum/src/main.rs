@@ -86,7 +86,7 @@ fn print_hash(name: &str, hash: &str, tag: bool) {
     if tag {
         println!("MD5 ({name}) = {hash}");
     } else {
-        println!("{hash} {name}");
+        println!("{hash}  {name}");
     }
 }
 

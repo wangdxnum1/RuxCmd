@@ -47,7 +47,7 @@ fn two_arguments_print_sequence() {
         .args(["1", "3"])
         .assert()
         .success()
-        .stdout("1\n2\n3");
+        .stdout("1\n2\n3\n");
 }
 
 #[test]
@@ -56,5 +56,5 @@ fn three_arguments_print_sequence() {
         .args(["1", "2", "5"])
         .assert()
         .success()
-        .stdout("1\n3\n5");
+        .stdout("1\n3\n5\n");
 }

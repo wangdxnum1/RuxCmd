@@ -11,7 +11,7 @@ fn counts_stdin_lines() {
         .get_output()
         .stdout
         .clone();
-    assert_eq!(String::from_utf8(output).unwrap().trim(), "2 <stdin>");
+    assert_eq!(String::from_utf8(output).unwrap().trim(), "2");
 }
 
 #[test]

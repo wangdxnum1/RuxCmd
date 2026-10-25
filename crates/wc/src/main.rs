@@ -39,7 +39,7 @@ fn main() {
         match wc_reader(stdin.lock(), show_chars) {
             Ok(counts) => print_counts(
                 &counts,
-                "<stdin>",
+                "",
                 show_lines,
                 show_words,
                 show_bytes,
@@ -288,6 +288,12 @@ fn print_counts(
     }
 
     if !output.is_empty() {
-        println!("{} {}", output.join(" "), name);
+        // GNU wc prints a bare count for stdin; a name suffix only appears
+        // when files were named on the command line.
+        if name.is_empty() {
+            println!("{}", output.join(" "));
+        } else {
+            println!("{} {}", output.join(" "), name);
+        }
     }
 }

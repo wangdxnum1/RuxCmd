@@ -379,14 +379,16 @@ fn in_place_preserves_crlf_line_endings() {
 }
 
 #[test]
-fn stdout_output_always_ends_with_newline_like_gnu() {
+fn stdout_preserves_missing_trailing_newline_like_gnu() {
+    // Round 13 difftest: GNU sed preserves the input's missing trailing
+    // newline; the earlier "always ends with newline" assumption was wrong.
     let dir = temp_dir("tail-nl");
     let file = dir.join("data.txt");
     write_bytes(&file, b"one\ntwo"); // no trailing newline
 
     let out = sed(&["s/two/TWO/", file.to_str().unwrap()], b"");
     assert_eq!(out.status.code(), Some(0));
-    assert_eq!(out.stdout, b"one\nTWO\n");
+    assert_eq!(out.stdout, b"one\nTWO");
 }
 
 // --- P1: non-UTF-8 lines are matched lossily and passed through byte-exact ---

@@ -81,7 +81,7 @@ fn print_hash(name: &str, hash: &str, tag: bool) {
     if tag {
         println!("SHA256 ({name}) = {hash}");
     } else {
-        println!("{hash} {name}");
+        println!("{hash}  {name}");
     }
 }
 
