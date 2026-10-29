@@ -8,8 +8,50 @@ use std::io::{BufReader, Read, Write};
 /// printable sequences (and their start offsets) survive chunk boundaries.
 const CHUNK: usize = 64 * 1024;
 
+fn parse_encoding(raw: &str) -> Option<cli::Encoding> {
+    match raw {
+        "s" => Some(cli::Encoding::SevenBit),
+        "S" => Some(cli::Encoding::EightBit),
+        "b" => Some(cli::Encoding::Utf16BE),
+        "l" => Some(cli::Encoding::Utf16LE),
+        "B" => Some(cli::Encoding::Utf32BE),
+        "L" => Some(cli::Encoding::Utf32LE),
+        _ => None,
+    }
+}
+
+fn parse_radix(raw: &str) -> Option<cli::Radix> {
+    match raw {
+        "o" => Some(cli::Radix::Octal),
+        "d" => Some(cli::Radix::Decimal),
+        "x" => Some(cli::Radix::Hexadecimal),
+        _ => None,
+    }
+}
+
 fn main() {
     let args = cli::Args::parse();
+
+    let encoding = match &args.encoding {
+        Some(raw) => match parse_encoding(raw) {
+            Some(e) => Some(e),
+            None => {
+                eprintln!("strings: invalid encoding '{}'", raw);
+                std::process::exit(2);
+            }
+        },
+        None => None,
+    };
+    let radix = match &args.radix {
+        Some(raw) => match parse_radix(raw) {
+            Some(r) => Some(r),
+            None => {
+                eprintln!("strings: invalid radix '{}'", raw);
+                std::process::exit(2);
+            }
+        },
+        None => None,
+    };
 
     if args.version {
         println!("strings 0.1.0");
@@ -17,10 +59,8 @@ fn main() {
     }
 
     let min_length = args.min_length;
-    let encoding = args.encoding;
     let files = args.files;
     let print_file_name = args.print_file_name;
-    let radix = args.radix;
 
     let mut exit_code = 0i32;
 
@@ -44,10 +84,7 @@ fn main() {
     } else {
         for path in &files {
             let path_str = path.to_string_lossy();
-            let file_name = path
-                .file_name()
-                .and_then(|s| s.to_str())
-                .unwrap_or("(stdin)");
+            let file_name = path_str.clone();
             if path_str == "-" {
                 let stdin = std::io::stdin();
                 if let Err(e) = strings_reader(
@@ -71,7 +108,7 @@ fn main() {
                             &mut out,
                             min_length,
                             encoding,
-                            Some(file_name),
+                            Some(&file_name),
                             print_file_name,
                             radix,
                         ) {
@@ -93,19 +130,20 @@ fn main() {
 }
 
 fn format_offset(offset: usize, radix: &cli::Radix) -> String {
+    // binutils prints offsets space-padded to width 7 (%7lo/%7ld/%7lx).
     match radix {
-        cli::Radix::Octal => format!("{:07o}", offset),
-        cli::Radix::Hexadecimal => format!("{:06x}", offset),
-        cli::Radix::Decimal => format!("{:08}", offset),
+        cli::Radix::Octal => format!("{:7o}", offset),
+        cli::Radix::Hexadecimal => format!("{:7x}", offset),
+        cli::Radix::Decimal => format!("{:7}", offset),
     }
 }
 
 fn is_printable_seven_bit(byte: u8) -> bool {
-    byte >= 0x20 && byte <= 0x7E
+    (0x20..=0x7E).contains(&byte) || byte == b'\t'
 }
 
 fn is_printable_eight_bit(byte: u8) -> bool {
-    byte >= 0x20 && byte <= 0xFE
+    byte >= 0x20 || byte == b'\t'
 }
 
 fn strings_reader<R: Read, W: Write>(
@@ -209,7 +247,7 @@ fn scan_bytes<R: Read, W: Write>(
                             print_file_name,
                             radix,
                             start_offset,
-                            &String::from_utf8_lossy(&current_string),
+                            &current_string,
                         )?;
                     }
                     current_string.clear();
@@ -226,7 +264,7 @@ fn scan_bytes<R: Read, W: Write>(
                     print_file_name,
                     radix,
                     start_offset,
-                    &String::from_utf8_lossy(&current_string),
+                    &current_string,
                 )?;
                 current_string.clear();
             } else {
@@ -243,7 +281,7 @@ fn scan_bytes<R: Read, W: Write>(
             print_file_name,
             radix,
             start_offset,
-            &String::from_utf8_lossy(&current_string),
+            &current_string,
         )?;
     }
     Ok(())
@@ -294,7 +332,7 @@ fn scan_utf16<R: Read, W: Write>(
                         print_file_name,
                         radix,
                         start_offset,
-                        &String::from_utf16_lossy(&current_string),
+                        String::from_utf16_lossy(&current_string).into_bytes(),
                     )?;
                 }
                 current_string.clear();
@@ -310,7 +348,7 @@ fn scan_utf16<R: Read, W: Write>(
                     print_file_name,
                     radix,
                     start_offset,
-                    &String::from_utf16_lossy(&current_string),
+                    String::from_utf16_lossy(&current_string).into_bytes(),
                 )?;
                 current_string.clear();
             } else {
@@ -331,7 +369,7 @@ fn scan_utf16<R: Read, W: Write>(
             print_file_name,
             radix,
             start_offset,
-            &String::from_utf16_lossy(&current_string),
+            String::from_utf16_lossy(&current_string).into_bytes(),
         )?;
     }
     Ok(())
@@ -457,7 +495,7 @@ fn is_printable_unicode(ch: u32) -> bool {
     c.is_alphanumeric()
         || c.is_ascii_punctuation()
         || c.is_whitespace()
-        || (ch >= 0x20 && ch <= 0x7E)
+        || (0x20..=0x7E).contains(&ch)
 }
 
 fn print_result<W: Write>(
@@ -466,15 +504,19 @@ fn print_result<W: Write>(
     print_file_name: bool,
     radix: Option<cli::Radix>,
     offset: usize,
-    s: &str,
+    s: impl AsRef<[u8]>,
 ) -> Result<(), std::io::Error> {
-    if print_file_name && file_name.is_some() {
-        write!(out, "{}:", file_name.unwrap())?;
+    if print_file_name
+        && let Some(name) = file_name
+    {
+        write!(out, "{}: ", name)?;
     }
     if let Some(r) = radix {
         write!(out, "{} ", format_offset(offset, &r))?;
     }
-    writeln!(out, "{}", s)?;
+    out.write_all(s.as_ref())?;
+    out.write_all(b"
+")?;
     Ok(())
 }
 
@@ -535,18 +577,27 @@ mod tests {
                 4,
                 Some(cli::Radix::Decimal)
             ),
-            "00000002 wxyz\n"
+            "      2 wxyz\n"
         );
     }
 
     #[test]
     fn eight_bit_scan_passes_high_bytes() {
-        // 0x80..0x83 are printable in the 8-bit (S) mode and render as U+FFFD
-        // through the lossy conversion, exactly like the buffered version.
-        assert_eq!(
-            scan(b"\x80\x81\x82\x83\x00", cli::Encoding::EightBit, 4, None),
-            format!("{}\n", "\u{FFFD}".repeat(4))
-        );
+        // 0x80..0x83 are printable in the 8-bit (S) mode and pass through
+        // as raw bytes, exactly like the buffered version. The raw output
+        // is not valid UTF-8, so this check bypasses the scan() helper.
+        let mut out = Vec::new();
+        strings_reader(
+            OneByteAtATime(Cursor::new(b"\x80\x81\x82\x83\x00".to_vec())),
+            &mut out,
+            4,
+            Some(cli::Encoding::EightBit),
+            None,
+            false,
+            None,
+        )
+        .unwrap();
+        assert_eq!(out, b"\x80\x81\x82\x83\n");
     }
 
     #[test]

@@ -1,29 +1,22 @@
-use clap::{Parser, ValueEnum};
+use clap::Parser;
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+/// Character encodings; GNU strings names are case-sensitive, so the
+/// CLI carries the raw string and `main` maps it explicitly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Encoding {
-    #[clap(name = "s")]
     SevenBit,
-    #[clap(name = "S")]
     EightBit,
-    #[clap(name = "b")]
     Utf16BE,
-    #[clap(name = "l")]
     Utf16LE,
-    #[clap(name = "B")]
     Utf32BE,
-    #[clap(name = "L")]
     Utf32LE,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Radix {
-    #[clap(name = "o")]
     Octal,
-    #[clap(name = "x")]
     Hexadecimal,
-    #[clap(name = "d")]
     Decimal,
 }
 
@@ -49,7 +42,7 @@ pub struct Args {
         long = "encoding",
         help = "Select character encoding (s=7-bit, S=8-bit, b=16-bit BE, l=16-bit LE, B=32-bit BE, L=32-bit LE)"
     )]
-    pub encoding: Option<Encoding>,
+    pub encoding: Option<String>,
 
     #[arg(short = 'f', long = "print-file-name", action = clap::ArgAction::SetTrue, help = "Print the filename before each string")]
     pub print_file_name: bool,
@@ -59,7 +52,7 @@ pub struct Args {
         long = "radix",
         help = "Print the offset before each string (o=octal, x=hexadecimal, d=decimal)"
     )]
-    pub radix: Option<Radix>,
+    pub radix: Option<String>,
 
     #[arg(value_name = "FILE", help = "Files to scan for strings")]
     pub files: Vec<PathBuf>,
