@@ -51,11 +51,9 @@ fn factor_one(raw: &str) -> Result<(), String> {
     let n: u64 = raw
         .parse()
         .map_err(|_| format!("'{}' is not a valid positive integer", raw))?;
-    if n == 0 {
-        return Err("'0' is not a valid positive integer".to_string());
-    }
-    if n == 1 {
-        println!("1:");
+    if n <= 1 {
+        // GNU factor prints a bare label for 0 and 1.
+        println!("{}:", n);
         return Ok(());
     }
     let mut factors: Vec<u64> = Vec::new();

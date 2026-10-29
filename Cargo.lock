@@ -685,8 +685,11 @@ dependencies = [
 name = "factor"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
+ "tempfile",
 ]
 
 [[package]]
