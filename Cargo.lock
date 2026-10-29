@@ -1553,8 +1553,11 @@ dependencies = [
 name = "mkdir"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
+ "tempfile",
 ]
 
 [[package]]
@@ -2533,8 +2536,11 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 name = "shred"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
+ "tempfile",
 ]
 
 [[package]]
@@ -3147,8 +3153,11 @@ checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 name = "uname"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
+ "tempfile",
 ]
 
 [[package]]
@@ -3505,8 +3514,11 @@ dependencies = [
 name = "whoami"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
+ "tempfile",
 ]
 
 [[package]]
