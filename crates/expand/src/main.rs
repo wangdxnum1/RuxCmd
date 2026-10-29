@@ -60,11 +60,10 @@ enum Stops {
 
 fn parse_tabs(s: &str) -> Result<Stops, String> {
     if !s.contains(',') && !s.chars().any(|c: char| c.is_whitespace()) {
-        if let Ok(n) = s.parse::<usize>() {
-            if n == 0 {
-                return Err("tab size cannot be 0".to_string());
-            }
-            return Ok(Stops::Periodic(n));
+        match s.parse::<usize>() {
+            Ok(0) => return Err("tab size cannot be 0".to_string()),
+            Ok(n) => return Ok(Stops::Periodic(n)),
+            Err(_) => {}
         }
     }
     let mut v: Vec<usize> = Vec::new();
