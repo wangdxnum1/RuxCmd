@@ -48,7 +48,8 @@ fn missing_arguments_become_empty_or_zero() {
 
     let (out, _, code) = run(&["[%s][%d][%x][%f]"]);
     assert_eq!(code, Some(0));
-    assert_eq!(out, b"[][0][0][0]");
+    // GNU coreutils formats the missing float as a default-precision zero.
+    assert_eq!(out, b"[][0][0][0.000000]");
 }
 
 #[test]
