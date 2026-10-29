@@ -12,7 +12,7 @@ pub struct Args {
     #[arg(short = 'f', long = "format")]
     pub format: Option<String>,
 
-    #[arg(value_name = "NUMBER")]
+    #[arg(value_name = "NUMBER", allow_negative_numbers = true)]
     pub numbers: Vec<String>,
 
     #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]

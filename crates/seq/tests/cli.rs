@@ -58,3 +58,23 @@ fn three_arguments_print_sequence() {
         .success()
         .stdout("1\n3\n5\n");
 }
+
+#[test]
+fn negative_operands_after_flags_are_accepted() {
+    // Regression: `seq -w -3 0` used to be rejected by clap treating -3 as
+    // an unknown option; GNU accepts negative operands anywhere.
+    cargo_bin_cmd!("seq")
+        .args(["-w", "-3", "0"])
+        .assert()
+        .success()
+        .stdout("-3\n-2\n-1\n00\n");
+}
+
+#[test]
+fn negative_first_operand_without_flags() {
+    cargo_bin_cmd!("seq")
+        .args(["-3", "0"])
+        .assert()
+        .success()
+        .stdout("-3\n-2\n-1\n0\n");
+}
