@@ -3926,9 +3926,12 @@ dependencies = [
 name = "zcat"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
  "flate2",
+ "predicates",
  "ruxcmd-build",
+ "tempfile",
 ]
 
 [[package]]
