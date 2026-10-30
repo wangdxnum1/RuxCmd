@@ -29,7 +29,7 @@ Packages contain a source/build manifest, per-file SHA256 checksums, and documen
 Get-FileHash .\ruxcmd-0.3.2-x86_64-pc-windows-msvc.zip -Algorithm SHA256
 ```
 
-CI artifacts are retained for 7 days; tagged Release workflow artifacts for 30 days. The workflows currently generate artifacts without publishing a GitHub Release.
+CI artifacts are retained for 7 days; tagged Release workflow artifacts for 30 days. A successful Release run publishes the ZIP and checksum as a GitHub Release at the tag (prerelease for pre-release tags); existing releases are never overwritten. The local `release.ps1 -Publish` path remains available.
 
 ## Build locally
 
@@ -127,7 +127,7 @@ To start CI manually, open **Actions → CI → Run workflow**, select a branch,
 
 3. Open **Actions → Release → Run workflow** on `main`, enter `v0.3.2` in the `tag` input, and start it. Pushing a tag alone does not trigger Release.
 4. The workflow checks out the tag, installs Rust, runs `scripts/build.ps1 -Task Verify`, and packages with `scripts/release.ps1 -RequireClean -Tag <tag>`.
-5. Download `ruxcmd-v0.3.2-windows-x64` after success (30-day retention). Publishing these files as a GitHub Release is a separate maintainer action.
+5. Download `ruxcmd-v0.3.2-windows-x64` after success (30-day retention). The workflow also publishes a GitHub Release at the tag with both files attached; publishing is skipped when a release with that tag already exists.
 
 The tag must match the suite version and point to the checked-out commit. Formal packaging rejects a dirty checkout. To package locally with the same checks, check out the tag in a clean clone and run:
 
