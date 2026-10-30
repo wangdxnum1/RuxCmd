@@ -12,6 +12,7 @@ authors = ["Tim"]
 clap = { version = "4", features = ["derive"] }
 
 [dev-dependencies]
+predicates.workspace = true
 assert_cmd.workspace = true
 
 [build-dependencies]

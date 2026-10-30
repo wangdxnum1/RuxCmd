@@ -8,6 +8,11 @@ edition = "2024"
 description = "A Windows mkfifo clone — create named pipes, Linux-style"
 authors = ["Tim"]
 
+[dev-dependencies]
+assert_cmd.workspace = true
+predicates.workspace = true
+tempfile.workspace = true
+
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 winapi = { version = "0.3", features = ["winbase", "handleapi", "errhandlingapi"] }
