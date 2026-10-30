@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Round 21 awk 解释器升级(方向 3 第二片,2026-10-31)
+
+- awk 模式升级为 ERE(regex crate,编译期报错);求值器改为可变求值并新增内建函数:length(含裸形式)、substr(gawk 裁剪语义)、index、sprintf、toupper、tolower、sub/gsub(& 写回变量或 $0,字段重切分);printf 语句复用 printf crate 的完整 GNU 格式化器(crate 拆分为 lib+bin 共享)。
+- 修复升级过程中暴露的三处执行缺陷:expr_end 将函数调用括号误判为相邻值拼接、sub/gsub 裸语句被跳过、Regex 字面量参数在求值中丢失。
+- 已知差异更新:awk 仍不支持数组与 split、用户函数、重定向、相邻值拼接(双语兼容性表同步)。
+
 ### Round 20 差分收口与最后两个命令(2026-10-30)
 
 - 新增 chgrp(LookupAccountNameW + SetNamedSecurityInfoW,复用 chown --group 语义,带 -R/-v/-f)与 b2sum(BLAKE2b,sha1sum 家族的 --tag/校验规则,-l 支持 8-512 位);命令总数 134 → 136(139 个包)。
