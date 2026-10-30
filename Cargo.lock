@@ -704,6 +704,7 @@ dependencies = [
  "predicates",
  "regex",
  "ruxcmd-build",
+ "ruxcmd-core",
  "tempfile",
 ]
 
@@ -2411,6 +2412,7 @@ dependencies = [
 name = "ruxcmd-core"
 version = "0.1.0"
 dependencies = [
+ "regex",
  "windows-sys 0.61.2",
 ]
 
@@ -2466,8 +2468,13 @@ dependencies = [
 name = "sed"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
+ "regex",
  "ruxcmd-build",
+ "ruxcmd-core",
+ "tempfile",
 ]
 
 [[package]]

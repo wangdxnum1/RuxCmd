@@ -9,6 +9,7 @@ description = "A Windows expr clone - evaluate expressions"
 authors = ["Tim"]
 
 [dependencies]
+ruxcmd-core = { path = "../ruxcmd-core" }
 clap = { version = "4", features = ["derive"] }
 regex = "1"
 

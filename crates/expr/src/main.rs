@@ -259,8 +259,10 @@ fn compare(left: &str, right: &str, op: &str) -> String {
 /// GNU anchored match: `EXPR : BRE` and `match EXPR BRE` return the first
 /// group when the pattern has one, otherwise the match length in characters.
 fn anchored_match(subject: &str, pattern: &str) -> Result<String, String> {
-    let rust_pattern = bre_to_regex(pattern)?;
-    let re = Regex::new(&rust_pattern)
+    // Core translates the BRE; expr anchors it at the head like GNU.
+    let rust_pattern =
+        ruxcmd_core::bre::to_regex(pattern).map_err(|e| format!("syntax error: {}", e))?;
+    let re = Regex::new(&format!("^{}", rust_pattern))
         .map_err(|_| "syntax error: invalid regular expression".to_string())?;
     match re.captures(subject) {
         None => Ok(String::new()),
@@ -275,83 +277,4 @@ fn anchored_match(subject: &str, pattern: &str) -> Result<String, String> {
                 .to_string()),
         },
     }
-}
-
-/// Translate a POSIX basic regular expression into Rust regex syntax.
-/// Backrefs \(1..9\) are unsupported and become a syntax error.
-fn bre_to_regex(pattern: &str) -> Result<String, String> {
-    let mut out = String::from("^");
-    let mut chars = pattern.chars().peekable();
-    let mut group_depth = 0usize;
-    while let Some(c) = chars.next() {
-        match c {
-            '\\' => match chars.next() {
-                Some('(') => {
-                    group_depth += 1;
-                    out.push('(');
-                }
-                Some(')') => {
-                    if group_depth == 0 {
-                        return Err("syntax error: unmatched closing group".to_string());
-                    }
-                    group_depth -= 1;
-                    out.push(')');
-                }
-                Some('{') => out.push('{'),
-                Some('}') => out.push('}'),
-                Some(d @ '1'..='9') => {
-                    let _ = d;
-                    return Err("syntax error: back references are unsupported".to_string());
-                }
-                Some(other) => {
-                    // An escaped metacharacter is literal; escape it for Rust.
-                    if "\\.^$*+?()[]{}|".contains(other) {
-                        out.push('\\');
-                    }
-                    out.push(other);
-                }
-                None => {
-                    out.push('\\');
-                }
-            },
-            '*' => out.push('*'),
-            '.' => out.push('.'),
-            '[' => {
-                out.push('[');
-                for rc in chars.by_ref() {
-                    out.push(rc);
-                    if rc == ']' {
-                        break;
-                    }
-                }
-            }
-            '^' => {
-                // Anchored at the head already; a leading ^ would double up.
-                if !out.is_empty() && out != "^" {
-                    out.push('\\');
-                }
-                out.push('^');
-            }
-            '$' => {
-                // BRE: literal anywhere except at the very end, where it is
-                // an anchor that Rust regex also treats as end-of-string.
-                if chars.peek().is_none() {
-                    out.push('$');
-                } else {
-                    out.push('\\');
-                    out.push('$');
-                }
-            }
-            other => {
-                if "|+?(){}".contains(other) {
-                    out.push('\\');
-                }
-                out.push(other);
-            }
-        }
-    }
-    if group_depth != 0 {
-        return Err("syntax error: unmatched group".to_string());
-    }
-    Ok(out)
 }

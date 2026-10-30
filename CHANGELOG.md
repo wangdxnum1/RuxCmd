@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Round 19 sed 正则(方向 3 第一片,2026-10-30)
+
+- sed 的地址与 s 命令升级为 POSIX BRE(含 GNU 扩展 \+、\?、\{m,n\}):替换端支持 & 与 \1-\9 分组引用、\n/\t/\r、g/N/p/i 标志;BRE 反向引用明确报错(记录为差异)。
+- BRE 转换器提升为 ruxcmd-core 共享模块(此前在 expr 内部),expr 改为复用并锚定;regex 依赖移入 core。字节安全保持:非 UTF-8 数据按原始字节匹配与透传。
+- 新增 15 个正则行为测试并用 GNU sed 做抽样差分(分组、&、g/N/p/i、区间、锚定地址、转义分隔符);sed 行为测试总数 50。
+- 兼容性表双语 sed 行改写。
+
 ### Round 18 命令补齐(9 个新命令,2026-10-29)
 
 - 新增 9 个命令,命令总数 125 → 134(137 个包):nproc、printenv、truncate、base32、sum、tsort、pathchk、hostid、expr。

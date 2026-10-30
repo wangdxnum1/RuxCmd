@@ -8,6 +8,7 @@
 //! - [`cpu`]: GetSystemTimes sampling and percentage deltas
 //! - [`fsutil`]: clearing the read-only attribute before overwrites
 
+pub mod bre;
 pub mod cpu;
 pub mod fsutil;
 pub mod lines;
