@@ -147,6 +147,13 @@
   "exitCode": 0
  },
  {
+  "name": "dd",
+  "arguments": [
+   "--help"
+  ],
+  "exitCode": 0
+ },
+ {
   "name": "df",
   "arguments": [
    "--help"

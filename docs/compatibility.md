@@ -2,7 +2,7 @@
 
 **English** | [简体中文](compatibility-zh.md)
 
-The current workspace covers 136 commands. The options in the table below are the explicit long names declared in each command's `cli.rs`, not the full syntax; the command's `--help` is authoritative. A source declaration does not mean the feature has passed tests.
+The current workspace covers 137 commands. The options in the table below are the explicit long names declared in each command's `cli.rs`, not the full syntax; the command's `--help` is authoritative. A source declaration does not mean the feature has passed tests.
 
 All commands have passed bounded release smoke checks (help entry, exit codes for true/false). Only commands marked "Smoke + behavior tests" have run representative behavior assertions; the remaining business behavior is not automatically verified. Full GNU/POSIX compatibility is not claimed.
 
@@ -29,6 +29,7 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | curl | --data, --header, --output, --request, --silent, --version, --include, --head, --fail, --location | Smoke + behavior tests | Prints only the body by default (-i adds headers); -d implies POST; redirects are off unless -L (max 10); -f exits 22 on HTTP >= 400. HTTPS/TLS and network behavior are unverified. |
 | cut | --bytes, --characters, --delimiter, --fields, --only-delimited, --output-delimiter, --zero-terminated | Smoke + behavior tests | Supports NUL records with -z. Byte and field selection preserve raw data; -c selects characters for valid UTF-8 records and falls back to bytes on invalid input. NUL mode preserves CR/LF within records; LF mode retains CRLF stripping. Lines without the field delimiter pass through unless -s. Existing -s also affects -b/-c, unlike GNU; no -n or --complement. |
 | date | --date, --nanoseconds, --seconds, --set, --utc, --version | Smoke + behavior tests | -d/--date and the positional operand accept @EPOCH, YYYY-MM-DD, and YYYY-MM-DDTHH:MM[:SS] (empty = now, other formats error with exit 1); -s/--set sets the local clock via SetLocalTime. --seconds applies to the parsed instant; %N is always 0. |
+| dd | conv=notrunc, status=none/noxfer | Smoke + behavior tests | Core subset: if/of/bs/ibs/obs/count/skip/seek with GNU size suffixes (c/w/b/K/KB/M/G and 1000-based forms); conv supports notrunc and rejects others; seek on stdout errors. GNU records/copy statistics go to stderr. Full conv/flag surface (sync, fullblock, iflag) is unsupported. |
 | df | --human-readable, --version | Smoke + behavior tests | Full GNU behavior unverified. |
 | diff | --unified, --ignore-case, --ignore-whitespace, --ignore-blank-lines, --version | Smoke + behavior tests | Exit codes follow GNU (0/1/2). Normal format emits unmerged d/a commands with GNU-correct line anchors; c-merging and range folding are not implemented. |
 | dirname | --version, --zero | Smoke + behavior tests | -z/--zero changes output termination only; operands are still command-line paths. Paths use forward slashes, root-only / or // prints /, and a bare drive prefix prints a single dot (.). Windows path parsing and UNC approximations remain unchanged. |
@@ -146,6 +147,6 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | zip | --recurse, --version | Smoke + behavior tests | Wrapper around PowerShell 5.1 Compress-Archive; file and destination arguments are single-quoted with embedded quotes doubled (injection-safe). Other GNU zip flags unsupported. |
 
 
-Round 15 also adds `ls -h` as the short form of `--human-readable`; help remains `--help`. Round 16 adds the NUL modes documented above to 15 existing commands; the workspace still produces 125 commands. Round 18 adds nine commands (base32/expr/hostid/nproc/pathchk/printenv/sum/truncate/tsort) and Round 20 adds b2sum and chgrp, for 136 total; iostat, mpstat, sar and w remain smoke-only.
+Round 15 also adds `ls -h` as the short form of `--human-readable`; help remains `--help`. Round 16 adds the NUL modes documented above to 15 existing commands; the workspace still produces 125 commands. Round 18 adds nine commands (base32/expr/hostid/nproc/pathchk/printenv/sum/truncate/tsort), Round 20 adds b2sum and chgrp, and Round 22 adds dd, for 137 total; iostat, mpstat, sar and w remain smoke-only.
 
 See the [ps README](ps/README.md) for detailed ps option documentation. This table was established by the first source survey and must be kept in sync when commands are added or changed.
