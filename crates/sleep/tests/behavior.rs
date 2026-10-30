@@ -39,11 +39,7 @@ fn uppercase_suffix_is_rejected_like_gnu() {
 
 #[test]
 fn negative_operand_is_rejected() {
-    cargo_bin_cmd!("sleep")
-        .arg("-1")
-        .assert()
-        .failure()
-        .code(1);
+    cargo_bin_cmd!("sleep").arg("-1").assert().failure().code(1);
 }
 
 #[test]

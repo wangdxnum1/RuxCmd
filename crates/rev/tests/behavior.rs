@@ -3,10 +3,7 @@ use std::fs;
 use tempfile::TempDir;
 
 fn run_stdin(bytes: &[u8]) -> (Vec<u8>, String, Option<i32>) {
-    let out = cargo_bin_cmd!("rev")
-        .write_stdin(bytes)
-        .output()
-        .unwrap();
+    let out = cargo_bin_cmd!("rev").write_stdin(bytes).output().unwrap();
     (
         out.stdout,
         String::from_utf8_lossy(&out.stderr).into_owned(),
@@ -68,10 +65,7 @@ fn file_operand_reverses_and_dash_reads_stdin() {
     let f = dir.path().join("in.txt");
     fs::write(&f, b"file line\n").unwrap();
     let path = f.to_string_lossy().into_owned();
-    let out = cargo_bin_cmd!("rev")
-        .arg(&path)
-        .output()
-        .unwrap();
+    let out = cargo_bin_cmd!("rev").arg(&path).output().unwrap();
     assert_eq!(out.status.code(), Some(0));
     assert_eq!(out.stdout, b"enil elif\n");
 

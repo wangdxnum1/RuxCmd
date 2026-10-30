@@ -1,37 +1,35 @@
 use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::prelude::*;
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-/// Spawn a long-lived child (ping loop) and return its PID.
-fn spawn_child() -> u32 {
-    let child = Command::new("cmd")
+/// Spawn a long-lived child (ping loop) that the test owns directly, so
+/// termination is observable via try_wait without external process listing.
+fn spawn_child() -> Child {
+    Command::new("cmd")
         .args(["/c", "ping", "-n", "30", "127.0.0.1", ">nul"])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .expect("spawn child");
-    child.id()
+        .expect("spawn child")
 }
 
-/// Kill the child unconditionally (test cleanup), ignoring errors.
-fn cleanup(pid: u32) {
-    let _ = Command::new("taskkill")
-        .args(["/F", "/PID", &pid.to_string()])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
+/// Wait until the child has exited (any status); returns true when it did
+/// within the deadline.
+fn wait_exited(child: &mut Child, secs: u64) -> bool {
+    let deadline = Instant::now() + Duration::from_secs(secs);
+    while Instant::now() < deadline {
+        if child.try_wait().map(|s| s.is_some()).unwrap_or(false) {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(150));
+    }
+    false
 }
 
-fn pid_alive(pid: u32) -> bool {
-    // taskkill /PID with no /F on a dead PID errors; probing via `tasklist`
-    // keeps this check dependency-free.
-    let out = Command::new("tasklist")
-        .args(["/FI", &format!("PID eq {}", pid), "/NH"])
-        .output()
-        .expect("tasklist");
-    let text = String::from_utf8_lossy(&out.stdout);
-    text.contains(&pid.to_string())
+fn cleanup(child: &mut Child) {
+    let _ = child.kill();
+    let _ = child.wait();
 }
 
 #[test]
@@ -45,14 +43,12 @@ fn list_signals_prints_table() {
 
 #[test]
 fn terminates_spawned_child() {
-    let pid = spawn_child();
-    assert!(pid_alive(pid), "child must start alive");
+    let mut child = spawn_child();
 
     let out = cargo_bin_cmd!("kill")
-        .args(["-9", &pid.to_string()])
+        .args(["-9", &child.id().to_string()])
         .output()
         .unwrap();
-    cleanup(pid);
 
     assert_eq!(
         out.status.code(),
@@ -60,23 +56,14 @@ fn terminates_spawned_child() {
         "stderr: {}",
         String::from_utf8_lossy(&out.stderr)
     );
-    // Poll briefly for the process to disappear.
-    let deadline = Instant::now() + Duration::from_secs(5);
-    let mut gone = false;
-    while Instant::now() < deadline {
-        if !pid_alive(pid) {
-            gone = true;
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(100));
-    }
-    assert!(gone, "child should terminate after kill");
+    assert!(
+        wait_exited(&mut child, 15),
+        "child should terminate after kill -9"
+    );
 }
 
 #[test]
 fn nonexistent_pid_fails_with_exit_one() {
-    // PID 4 is the System process and cannot be terminated by users; use an
-    // unused high PID instead.
     cargo_bin_cmd!("kill")
         .args(["-9", "4000000"])
         .assert()
@@ -87,9 +74,16 @@ fn nonexistent_pid_fails_with_exit_one() {
 
 #[test]
 fn invalid_signal_name_fails() {
+    let mut child = spawn_child();
+    let pid = child.id().to_string();
     cargo_bin_cmd!("kill")
-        .args(["-s", "NOSUCH", "4000000"])
+        .args(["-s", "NOSUCH", &pid])
         .assert()
         .failure()
         .stderr(predicates::str::contains("invalid signal"));
+    assert!(
+        child.try_wait().map(|s| s.is_none()).unwrap_or(true),
+        "an invalid signal must not terminate the child"
+    );
+    cleanup(&mut child);
 }

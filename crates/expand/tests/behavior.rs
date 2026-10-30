@@ -82,14 +82,22 @@ fn initial_only_expands_leading_blank_run() {
 fn zero_tab_size_is_rejected_like_gnu() {
     let (_out, err, code) = run(&["-t", "0"], b"");
     assert_eq!(code, Some(1));
-    assert!(err.contains("expand: tab size cannot be 0"), "stderr: {}", err);
+    assert!(
+        err.contains("expand: tab size cannot be 0"),
+        "stderr: {}",
+        err
+    );
 }
 
 #[test]
 fn non_ascending_tab_list_is_rejected_like_gnu() {
     let (_out, err, code) = run(&["-t", "5,3"], b"");
     assert_eq!(code, Some(1));
-    assert!(err.contains("expand: tab sizes must be ascending"), "stderr: {}", err);
+    assert!(
+        err.contains("expand: tab sizes must be ascending"),
+        "stderr: {}",
+        err
+    );
 }
 
 #[test]

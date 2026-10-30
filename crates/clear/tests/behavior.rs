@@ -15,4 +15,3 @@ fn version_flag_exits_zero() {
         .success()
         .stdout(predicates::str::contains("clear"));
 }
-

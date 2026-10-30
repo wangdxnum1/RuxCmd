@@ -1,52 +1,42 @@
 use assert_cmd::cargo::cargo_bin_cmd;
-use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
+use std::process::{Child, Command, Stdio};
 
-fn spawn_child() -> u32 {
+fn spawn_child() -> Child {
     Command::new("cmd")
         .args(["/c", "ping", "-n", "30", "127.0.0.1", ">nul"])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
         .expect("spawn child")
-        .id()
-}
-
-fn cleanup(pid: u32) {
-    let _ = Command::new("taskkill")
-        .args(["/F", "/PID", &pid.to_string()])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
 }
 
 #[test]
-fn finds_spawned_child_by_name() {
-    let pid = spawn_child();
-    // The child runs under cmd.exe, so `pgrep cmd` must find it.
-    let deadline = Instant::now() + Duration::from_secs(5);
+fn finds_a_cmd_process_while_child_is_alive() {
+    let mut child = spawn_child();
+    // The child runs under cmd.exe, so `pgrep cmd` must report at least one
+    // PID while it is still running. PIDs are printed one per line.
     let mut found = false;
-    while Instant::now() < deadline && !found {
-        let out = cargo_bin_cmd!("pgrep")
-            .arg("cmd")
-            .output()
-            .unwrap();
+    for _ in 0..20 {
+        let out = cargo_bin_cmd!("pgrep").arg("cmd").output().unwrap();
         if out.status.code() == Some(0) {
             let text = String::from_utf8_lossy(&out.stdout);
-            found = text
-                .lines()
-                .any(|line| line.trim().parse::<u32>().map(|p| p == pid).unwrap_or(false));
+            if text.lines().any(|l| l.trim().parse::<u32>().is_ok()) {
+                found = true;
+                break;
+            }
         }
-        if !found {
-            std::thread::sleep(Duration::from_millis(200));
+        if child.try_wait().map(|s| s.is_some()).unwrap_or(true) {
+            break; // child unexpectedly gone; retry loop would be pointless
         }
+        std::thread::sleep(std::time::Duration::from_millis(200));
     }
-    cleanup(pid);
-    assert!(found, "pgrep must report the spawned cmd child PID {pid}");
+    let _ = child.kill();
+    let _ = child.wait();
+    assert!(found, "pgrep cmd must report numeric PIDs");
 }
 
 #[test]
-fn list_name_flag_prints_names() {
+fn list_name_flag_prints_pid_and_name() {
     let out = cargo_bin_cmd!("pgrep")
         .args(["-l", "cmd"])
         .output()

@@ -103,7 +103,10 @@ fn main() {
                 if empty {
                     eprintln!("cmp: EOF on '{}' which is empty", name);
                 } else if last_was_newline {
-                    eprintln!("cmp: EOF on '{}' after byte {}, line {}", name, pos, newlines);
+                    eprintln!(
+                        "cmp: EOF on '{}' after byte {}, line {}",
+                        name, pos, newlines
+                    );
                 } else {
                     eprintln!(
                         "cmp: EOF on '{}' after byte {}, in line {}",

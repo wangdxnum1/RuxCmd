@@ -30,7 +30,10 @@ fn default_overwrite_zeroes_final_pass_and_keeps_file() {
     let (_o, _e, code) = run(&dir, &[&p]);
     assert_eq!(code, Some(0));
     let mut content = Vec::new();
-    fs::File::open(&p).unwrap().read_to_end(&mut content).unwrap();
+    fs::File::open(&p)
+        .unwrap()
+        .read_to_end(&mut content)
+        .unwrap();
     assert_eq!(content.len(), 512);
     assert!(content.iter().all(|&b| b == 0), "final pass must be zeros");
 }

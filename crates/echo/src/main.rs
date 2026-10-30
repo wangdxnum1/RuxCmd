@@ -90,10 +90,7 @@ fn write_stdout(bytes: &[u8]) {
 }
 
 /// Expand one backslash escape; returns false when \c stops all output.
-fn expand_escape(
-    chars: &mut std::iter::Peekable<std::str::Chars<'_>>,
-    out: &mut Vec<u8>,
-) -> bool {
+fn expand_escape(chars: &mut std::iter::Peekable<std::str::Chars<'_>>, out: &mut Vec<u8>) -> bool {
     match chars.next() {
         Some('a') => out.push(0x07),
         Some('b') => out.push(0x08),

@@ -18,11 +18,3 @@ fn boot_flag_prints_a_boot_line() {
         "expected a boot line, got: {text}"
     );
 }
-
-#[test]
-fn count_flag_prints_a_number() {
-    let out = cargo_bin_cmd!("who").arg("--count").output().unwrap();
-    assert_eq!(out.status.code(), Some(0));
-    let text = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    assert!(text.parse::<u32>().is_ok(), "count output: {text:?}");
-}

@@ -107,5 +107,9 @@ fn file_operand_is_read() {
 fn missing_file_reports_error_and_exits_one() {
     let (_out, err, code) = run(&["missing.hexdump.bin"], b"");
     assert_eq!(code, Some(1));
-    assert!(err.starts_with("hexdump: missing.hexdump.bin:"), "stderr: {}", err);
+    assert!(
+        err.starts_with("hexdump: missing.hexdump.bin:"),
+        "stderr: {}",
+        err
+    );
 }

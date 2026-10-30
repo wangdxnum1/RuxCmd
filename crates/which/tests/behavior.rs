@@ -18,11 +18,7 @@ fn run(dir: &TempDir, pathext: Option<&str>, args: &[&str]) -> (String, Option<i
     if let Some(px) = pathext {
         cmd.env("PATHEXT", px);
     }
-    let out = cmd
-        .env("PATH", dir.path())
-        .args(args)
-        .output()
-        .unwrap();
+    let out = cmd.env("PATH", dir.path()).args(args).output().unwrap();
     (
         String::from_utf8_lossy(&out.stdout).into_owned(),
         out.status.code(),
@@ -35,7 +31,10 @@ fn finds_executable_in_path_directory() {
     fs::write(dir.path().join("foo.exe"), b"MZ").unwrap();
     let (out, code) = run(&dir, None, &["foo"]);
     assert_eq!(code, Some(0));
-    assert_eq!(out, format!("{}\n", to_display_form(&dir.path().join("foo.exe"))));
+    assert_eq!(
+        out,
+        format!("{}\n", to_display_form(&dir.path().join("foo.exe")))
+    );
 }
 
 #[test]
@@ -45,7 +44,10 @@ fn exact_name_is_tried_before_extensions() {
     fs::write(dir.path().join("plain.exe"), b"MZ").unwrap();
     let (out, code) = run(&dir, None, &["plain"]);
     assert_eq!(code, Some(0));
-    assert_eq!(out, format!("{}\n", to_display_form(&dir.path().join("plain"))));
+    assert_eq!(
+        out,
+        format!("{}\n", to_display_form(&dir.path().join("plain")))
+    );
 }
 
 #[test]

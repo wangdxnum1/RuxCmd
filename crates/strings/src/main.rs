@@ -506,17 +506,17 @@ fn print_result<W: Write>(
     offset: usize,
     s: impl AsRef<[u8]>,
 ) -> Result<(), std::io::Error> {
-    if print_file_name
-        && let Some(name) = file_name
-    {
+    if print_file_name && let Some(name) = file_name {
         write!(out, "{}: ", name)?;
     }
     if let Some(r) = radix {
         write!(out, "{} ", format_offset(offset, &r))?;
     }
     out.write_all(s.as_ref())?;
-    out.write_all(b"
-")?;
+    out.write_all(
+        b"
+",
+    )?;
     Ok(())
 }
 

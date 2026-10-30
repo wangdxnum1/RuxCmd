@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Round 17 质量收口（行为测试覆盖 + P2 清偿，2026-10-29）
+
+- 为 27 个"仅冒烟"命令补齐行为测试：clear/cmp/df/expand/factor/free/hexdump/kill/mkdir/mkfifo/readlink/realpath/reset/rev/seq/shred/strings/time/uname/who/whoami/zcat/printf/sleep/echo/which/whereis；iostat、mpstat、sar、w 仍为仅冒烟并在兼容性表声明。
+- cmp 对齐 GNU：differ 消息改走 stdout（char N、line M），退出码 0/1/2，EOF 消息带引号与字节/行上下文（末字节为换行时省略 in），-l 八进制清单，单操作数与 stdin 比较，-l/-s 互斥拒绝；修复行号误用字节位置与打开失败退出码。
+- printf 全量重写：宽度/精度/标志（- 0 + 空格 #）、d/i/u/o/x/X（base-0 解析、%u 回绕）、f/e/E/g/G（指数两位带符号、%g 去尾零）、%b（\c 截断）、%q、跨参数格式复用、无转换指令多余参数警告、未知指令报错退出 1、\a\b\e\f\v\'\? 转义与 coreutils 八位八进制规则；缺参 %f 输出 0.000000（GNU 一致）。
+- echo 改为手工前导选项扫描（弃用 clap）：未知选项簇按操作数输出（`echo -x`、`echo --`），-e 补齐 \a\b\c（截断且无换行）\e\f\v\0NNN\xHH 全集。
+- sleep 支持多操作数求和与小写 s/m/h/d 后缀；拒绝大写后缀与负数（GNU 语义），移除非 GNU 的 -v。
+- which 改用 PATHEXT 探测（精确名优先、标准扩展后接自定义项、大小写不敏感去重），输出改为 PATH 书写形式不解析符号链接。
+- whereis 移除硬编码 D:\develop\rust-tools 搜索路径，输出对齐 GNU（`cmd: path...`/裸 `cmd:`），新增 -b/-m/-s 与命中退出码。
+- 其他修复：expand 字节安全化（CRLF/非 UTF-8/未终止末行透传）与 GNU tab 诊断（0 尺寸、升序）；factor 0 输出 `0:`；rev 按 util-linux 字符语义反转并对非法 UTF-8 字节回退；strings 对齐 binutils（TAB 可打印、-t 偏移 7 宽空格填充、8 位模式 raw 输出、-f 按书写路径）；shred 失败传播退出码 1；seq 接受选项后的负数操作数（`seq -w -3 0`）。
+- 兼容性表双语逐条更新（验证状态与差异说明）；维持 125 个命令。
+
 ## 0.3.2 — Windows 文件属性与 ps 结构收敛（2026-10-25）
 
 - 收敛 ps 结构：将仅供 ps 使用的 ps-core 合入 ps-bin，保留 ps/pgrep/pkill 共用的 ps-sys；以静态列描述表及四组格式化函数替代 40 个列类型和动态工厂，清理未使用的过滤/采样框架及内部字段。42 个列名/别名、格式、排序和树形输出保持原行为；当前 128 个包生成 125 个命令。

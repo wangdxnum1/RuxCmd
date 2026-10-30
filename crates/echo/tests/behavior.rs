@@ -40,14 +40,17 @@ fn options_stop_at_first_non_option() {
 #[test]
 fn e_enables_full_escape_set() {
     let out = cargo_bin_cmd!("echo")
-        .args(["-e", "a\\ab\\be\\ec\\ff\\n1\\r2\\t3\\v4\\x41\\101\\'\\?\\\\"])
+        .args([
+            "-e",
+            "a\\ab\\be\\ec\\ff\\n1\\r2\\t3\\v4\\x41\\101\\'\\?\\\\",
+        ])
         .output()
         .unwrap();
     assert_eq!(
         out.stdout,
         vec![
-            b'a', 0x07, b'b', 0x08, b'e', 0x1B, b'c', 0x0C, b'f', b'\n', b'1', b'\r', b'2',
-            b'\t', b'3', 0x0B, b'4', b'A', b'A', b'\'', b'?', b'\\', b'\n'
+            b'a', 0x07, b'b', 0x08, b'e', 0x1B, b'c', 0x0C, b'f', b'\n', b'1', b'\r', b'2', b'\t',
+            b'3', 0x0B, b'4', b'A', b'A', b'\'', b'?', b'\\', b'\n'
         ]
     );
 }
@@ -56,11 +59,17 @@ fn e_enables_full_escape_set() {
 fn stop_character_suppresses_output_and_newline() {
     // GNU: \c ends output entirely; nothing after it is printed and no
     // trailing newline is added even without -n.
-    let out = cargo_bin_cmd!("echo").args(["-e", "c\\cd"]).output().unwrap();
+    let out = cargo_bin_cmd!("echo")
+        .args(["-e", "c\\cd"])
+        .output()
+        .unwrap();
     assert_eq!(out.status.code(), Some(0));
     assert_eq!(out.stdout, b"c");
 
-    let out = cargo_bin_cmd!("echo").args(["-e", "x\\cy"]).output().unwrap();
+    let out = cargo_bin_cmd!("echo")
+        .args(["-e", "x\\cy"])
+        .output()
+        .unwrap();
     assert_eq!(out.stdout, b"x");
 }
 
