@@ -1431,9 +1431,12 @@ dependencies = [
 name = "iostat"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
  "ruxcmd-core",
+ "tempfile",
 ]
 
 [[package]]
@@ -1669,9 +1672,12 @@ dependencies = [
 name = "mpstat"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
  "ruxcmd-core",
+ "tempfile",
 ]
 
 [[package]]
@@ -2465,9 +2471,12 @@ checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 name = "sar"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
  "ruxcmd-core",
+ "tempfile",
  "windows-sys 0.61.2",
 ]
 
