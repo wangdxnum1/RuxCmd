@@ -69,12 +69,17 @@ fn sum_stream(
     name: Option<&str>,
     out: &mut impl std::io::Write,
 ) -> Result<(), std::io::Error> {
-    use std::io::Write;
     let mut checksum: u16 = 0;
     let mut blocks: u64 = 0;
     let mut buffer = [0u8; 65536];
     let block = if sysv { 512u64 } else { 1024 };
     let mut carried: u64 = 0;
+    // SysV: a 16-bit one's-complement accumulator per 512-byte block
+    // (end-around carry per byte), and block results combine with the same
+    // end-around addition. This is NOT equivalent to folding the plain sum.
+    let mut block_acc: u32 = 0;
+    let mut bytes_in_block: u32 = 0;
+    let mut total_acc: u32 = 0;
 
     loop {
         let n = reader.read(&mut buffer)?;
@@ -83,7 +88,19 @@ fn sum_stream(
         }
         for &byte in &buffer[..n] {
             if sysv {
-                checksum = checksum.wrapping_add(u16::from(byte));
+                block_acc += u32::from(byte);
+                if block_acc > 0xFFFF {
+                    block_acc -= 0xFFFF;
+                }
+                bytes_in_block += 1;
+                if bytes_in_block == 512 {
+                    total_acc += block_acc;
+                    if total_acc > 0xFFFF {
+                        total_acc -= 0xFFFF;
+                    }
+                    block_acc = 0;
+                    bytes_in_block = 0;
+                }
             } else {
                 let rotate = (checksum >> 1) | ((checksum & 1) << 15);
                 checksum = rotate.wrapping_add(u16::from(byte));
@@ -92,6 +109,15 @@ fn sum_stream(
         carried += n as u64;
         blocks += carried / block;
         carried %= block;
+    }
+    if sysv {
+        if bytes_in_block > 0 {
+            total_acc += block_acc;
+            if total_acc > 0xFFFF {
+                total_acc -= 0xFFFF;
+            }
+        }
+        checksum = total_acc as u16;
     }
     // A final partial block still counts as one block, like GNU sum.
     if carried > 0 {

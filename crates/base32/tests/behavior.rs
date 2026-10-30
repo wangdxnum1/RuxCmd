@@ -24,12 +24,13 @@ fn decodes_back_to_original() {
 
 #[test]
 fn wrap_zero_emits_single_line() {
+    // GNU -w 0 emits no trailing newline.
     cargo_bin_cmd!("base32")
         .args(["-w", "0"])
-        .write_stdin(b"abc")
+        .write_stdin(b"abcdefgh")
         .assert()
         .success()
-        .stdout("MFRGG===\n");
+        .stdout("MFRGGZDFMZTWQ===");
 }
 
 #[test]

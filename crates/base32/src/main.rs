@@ -112,9 +112,9 @@ fn encode(data: &[u8], wrap: usize, out: &mut impl Write) -> Result<(), String> 
             }
         }
     }
-    // GNU ends the stream with exactly one newline; wrapped output that
-    // just wrapped already has one.
-    if wrap == 0 || column != 0 {
+    // GNU -w 0 emits no trailing newline; wrapped output that just wrapped
+    // already has one.
+    if wrap > 0 && column != 0 {
         out.write_all(b"\n").map_err(|e| e.to_string())?;
     }
     Ok(())
@@ -124,6 +124,13 @@ fn decode(data: &[u8], ignore_garbage: bool, out: &mut impl Write) -> Result<(),
     let mut buffer: Vec<u8> = Vec::new();
     for &byte in data {
         if byte.is_ascii_alphanumeric() || byte == b'=' {
+            // Digits 0, 1, 8, 9 are not in the base32 alphabet.
+            if byte.is_ascii_digit() && !matches!(byte, b'2'..=b'7') {
+                if !ignore_garbage {
+                    return Err("invalid input".to_string());
+                }
+                continue;
+            }
             buffer.push(byte);
         } else if byte == b'\n' || byte == b'\r' {
             // Newlines are the encoder's line wrapping; always tolerated.
