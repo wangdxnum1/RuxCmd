@@ -1,5 +1,7 @@
 mod cli;
 
+use regex::bytes::Regex;
+use ruxcmd_core::bre;
 use std::fs;
 use std::io::{self, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
@@ -7,14 +9,13 @@ use std::process::ExitCode;
 
 // ---------- script model ----------
 
-/// One address: a line number, `$` (last line), or a literal substring
-/// between slashes. Substring addresses are matched literally — this port
-/// does not use regular expressions.
+/// One address: a line number, `$` (last line), or a basic regular
+/// expression between slashes (compiled at parse time).
 #[derive(Debug, Clone)]
 enum Address {
     Line(u64),
     LastLine,
-    Substring(String),
+    Regex(Regex),
 }
 
 impl Address {
@@ -22,7 +23,7 @@ impl Address {
         match self {
             Address::Line(n) => line_num == *n,
             Address::LastLine => is_last,
-            Address::Substring(s) => bytes_contain(pattern_space, s.as_bytes()),
+            Address::Regex(re) => re.is_match(pattern_space),
         }
     }
 }
@@ -30,9 +31,11 @@ impl Address {
 #[derive(Debug, Clone)]
 enum CmdKind {
     Substitute {
-        pattern: Vec<u8>,
+        re: Regex,
         replacement: Vec<u8>,
         global: bool,
+        print: bool,
+        nth: u32,
     },
     Print,
     Delete,
@@ -88,6 +91,47 @@ impl<'a> ExprParser<'a> {
         }
     }
 
+    /// Read a `/regex/` address. Only `\/` collapses to a literal slash; any
+    /// other backslash sequence passes through to the BRE engine.
+    fn read_address_regex(&mut self) -> Result<Regex, String> {
+        let mut pattern = Vec::new();
+        loop {
+            match self.peek() {
+                None => {
+                    return Err(self.error(self.pos, "unterminated address regular expression"));
+                }
+                Some(b'\\') => {
+                    self.pos += 1;
+                    match self.peek() {
+                        None => {
+                            return Err(
+                                self.error(self.pos, "unterminated address regular expression")
+                            );
+                        }
+                        Some(b'/') => {
+                            pattern.push(b'/');
+                            self.pos += 1;
+                        }
+                        Some(escaped) => {
+                            pattern.push(b'\\');
+                            pattern.push(escaped);
+                            self.pos += 1;
+                        }
+                    }
+                }
+                Some(b'/') => {
+                    self.pos += 1;
+                    break;
+                }
+                Some(byte) => {
+                    pattern.push(byte);
+                    self.pos += 1;
+                }
+            }
+        }
+        compile_bre(&pattern, self.expr_no)
+    }
+
     fn parse_address(&mut self) -> Result<Option<Address>, String> {
         match self.peek() {
             Some(b'$') => {
@@ -104,42 +148,7 @@ impl<'a> ExprParser<'a> {
             }
             Some(b'/') => {
                 self.pos += 1;
-                let mut pattern = Vec::new();
-                loop {
-                    match self.peek() {
-                        None => {
-                            return Err(
-                                self.error(self.pos, "unterminated address regular expression")
-                            );
-                        }
-                        Some(b'\\') => {
-                            self.pos += 1;
-                            match self.peek() {
-                                None => {
-                                    return Err(self.error(
-                                        self.pos,
-                                        "unterminated address regular expression",
-                                    ));
-                                }
-                                Some(escaped) => {
-                                    pattern.push(escaped);
-                                    self.pos += 1;
-                                }
-                            }
-                        }
-                        Some(b'/') => {
-                            self.pos += 1;
-                            break;
-                        }
-                        Some(byte) => {
-                            pattern.push(byte);
-                            self.pos += 1;
-                        }
-                    }
-                }
-                Ok(Some(Address::Substring(
-                    String::from_utf8_lossy(&pattern).into_owned(),
-                )))
+                Ok(Some(Address::Regex(self.read_address_regex()?)))
             }
             _ => Ok(None),
         }
@@ -157,24 +166,59 @@ impl<'a> ExprParser<'a> {
         let replacement = self.read_delimited(delimiter)?;
 
         let mut global = false;
+        let mut print = false;
+        let mut case_insensitive = false;
+        let mut nth: Option<u32> = None;
         loop {
             match self.peek() {
                 Some(b'g') => {
                     global = true;
                     self.pos += 1;
                 }
+                Some(b'p') => {
+                    print = true;
+                    self.pos += 1;
+                }
+                Some(b'i' | b'I') => {
+                    case_insensitive = true;
+                    self.pos += 1;
+                }
+                Some(c) if c.is_ascii_digit() => {
+                    let start = self.pos;
+                    while matches!(self.peek(), Some(c) if c.is_ascii_digit()) {
+                        self.pos += 1;
+                    }
+                    let digits =
+                        std::str::from_utf8(&self.src[start..self.pos]).unwrap_or_default();
+                    nth = digits.parse().ok();
+                    if nth.is_none() {
+                        return Err(self.error(start, "invalid occurrence number"));
+                    }
+                }
                 Some(c) if c.is_ascii_whitespace() || c == b';' => break,
                 Some(_) => return Err(self.error(self.pos, "unknown option to `s'")),
                 None => break,
             }
         }
+
+        // Translate the BRE first; prepending (?i) before translation would
+        // escape the inline flag into a literal.
+        let translated = bre::to_regex(&String::from_utf8_lossy(&pattern))
+            .map_err(|e| format!("sed: -e expression #{}: {}", self.expr_no, e))?;
+        let re = compile_bre_flags(&translated, case_insensitive, self.expr_no)?;
+
         Ok(CmdKind::Substitute {
-            pattern,
+            re,
             replacement,
             global,
+            print,
+            nth: nth.unwrap_or(1),
         })
     }
 
+    /// Read a `delim...delim` section of the `s` command. Only `\delim`
+    /// collapses to a literal delimiter; every other backslash sequence is
+    /// preserved (the BRE engine and the replacement expander own them).
     fn read_delimited(&mut self, delimiter: u8) -> Result<Vec<u8>, String> {
         let mut out = Vec::new();
         loop {
@@ -184,7 +228,12 @@ impl<'a> ExprParser<'a> {
                     self.pos += 1;
                     match self.peek() {
                         None => return Err(self.error(self.pos, "unterminated `s' command")),
+                        Some(d) if d == delimiter => {
+                            out.push(d);
+                            self.pos += 1;
+                        }
                         Some(escaped) => {
+                            out.push(b'\\');
                             out.push(escaped);
                             self.pos += 1;
                         }
@@ -202,6 +251,26 @@ impl<'a> ExprParser<'a> {
         }
         Ok(out)
     }
+}
+
+fn compile_bre_flags(
+    translated: &str,
+    case_insensitive: bool,
+    expr_no: usize,
+) -> Result<Regex, String> {
+    let source = if case_insensitive {
+        format!("(?i){translated}")
+    } else {
+        translated.to_string()
+    };
+    Regex::new(&source).map_err(|e| format!("sed: -e expression #{expr_no}: invalid BRE: {e}"))
+}
+
+fn compile_bre(pattern: &[u8], expr_no: usize) -> Result<Regex, String> {
+    let source = String::from_utf8_lossy(pattern).into_owned();
+    let translated =
+        bre::to_regex(&source).map_err(|e| format!("sed: -e expression #{expr_no}: {e}"))?;
+    compile_bre_flags(&translated, false, expr_no)
 }
 
 /// Parse one script expression (a single -e argument or the first positional
@@ -247,40 +316,93 @@ fn parse_expression(src: &str, expr_no: usize) -> Result<Vec<Command>, String> {
     Ok(commands)
 }
 
-// ---------- byte-level matching helpers ----------
+// ---------- substitution ----------
 
-fn bytes_contain(haystack: &[u8], needle: &[u8]) -> bool {
-    !needle.is_empty()
-        && haystack
-            .windows(needle.len())
-            .any(|window| window == needle)
-}
-
-fn replace_substring(
+/// Apply one `s` command: replace the first `nth`-th or every match, expand
+/// `&` and `\1`-`\9` in the replacement, and report whether anything
+/// changed (for the `p` flag).
+fn apply_substitute(
     pattern_space: &[u8],
-    pattern: &[u8],
+    re: &Regex,
     replacement: &[u8],
     global: bool,
-) -> Vec<u8> {
-    if pattern.is_empty() {
-        return pattern_space.to_vec();
+    nth: u32,
+) -> (Vec<u8>, bool) {
+    let mut out: Vec<u8> = Vec::with_capacity(pattern_space.len());
+    let mut last_end = 0usize;
+    let mut count = 0u32;
+    let mut changed = false;
+
+    for captures in re.captures_iter(pattern_space) {
+        count += 1;
+        let whole = captures.get(0).unwrap();
+        if !global && count != nth {
+            continue;
+        }
+        out.extend_from_slice(&pattern_space[last_end..whole.start()]);
+        expand_replacement(&captures, replacement, &mut out);
+        last_end = whole.end();
+        changed = true;
     }
-    let mut out = Vec::with_capacity(pattern_space.len());
+    out.extend_from_slice(&pattern_space[last_end..]);
+    (out, changed)
+}
+
+/// Expand the replacement text: `&` inserts the whole match, `\1`-`\9`
+/// insert groups, `\\` and `\&` escape themselves, `\n`/`\t`/`\r` emit
+/// control characters like GNU sed, and any other `\x` yields `x`.
+fn expand_replacement(captures: &regex::bytes::Captures, replacement: &[u8], out: &mut Vec<u8>) {
     let mut i = 0;
-    while i < pattern_space.len() {
-        if pattern_space[i..].starts_with(pattern) {
-            out.extend_from_slice(replacement);
-            i += pattern.len();
-            if !global {
-                out.extend_from_slice(&pattern_space[i..]);
-                return out;
+    while i < replacement.len() {
+        match replacement[i] {
+            b'&' => {
+                out.extend_from_slice(captures.get(0).unwrap().as_bytes());
+                i += 1;
             }
-        } else {
-            out.push(pattern_space[i]);
-            i += 1;
+            b'\\' => {
+                i += 1;
+                match replacement.get(i) {
+                    Some(b'&') => {
+                        out.push(b'&');
+                        i += 1;
+                    }
+                    Some(b'\\') => {
+                        out.push(b'\\');
+                        i += 1;
+                    }
+                    Some(b'n') => {
+                        out.push(b'\n');
+                        i += 1;
+                    }
+                    Some(b't') => {
+                        out.push(b'\t');
+                        i += 1;
+                    }
+                    Some(b'r') => {
+                        out.push(b'\r');
+                        i += 1;
+                    }
+                    Some(n @ b'1'..=b'9') => {
+                        if let Some(group) = captures.get((n - b'0') as usize) {
+                            out.extend_from_slice(group.as_bytes());
+                        }
+                        i += 1;
+                    }
+                    Some(other) => {
+                        out.push(*other);
+                        i += 1;
+                    }
+                    None => {
+                        out.push(b'\\');
+                    }
+                }
+            }
+            other => {
+                out.push(other);
+                i += 1;
+            }
         }
     }
-    out
 }
 
 /// Split input into lines the way `read_until(b'\n')` would: the trailing
@@ -305,7 +427,7 @@ fn split_lines(data: &[u8]) -> Vec<&[u8]> {
 
 /// Apply the command list to one whole input stream (a file or stdin).
 /// Output lines always end with `\n`, matching GNU sed; invalid UTF-8 is
-/// matched lossily and echoed back as the original bytes.
+/// matched as raw bytes and echoed back unchanged.
 fn run_stream(
     commands: &[Command],
     data: &[u8],
@@ -317,12 +439,16 @@ fn run_stream(
     // Open/closed state per command for two-address ranges.
     let mut range_open = vec![false; commands.len()];
 
+    // GNU sed preserves a missing trailing newline on the input's final line.
+    let final_line_unterminated = !data.ends_with(b"\n");
+
     for (index, raw) in lines.iter().enumerate() {
         let line_num = index as u64 + 1;
         let is_last = line_num == total;
         let mut pattern_space = raw.to_vec();
         let mut deleted = false;
         let mut quit = false;
+        let skip_final_newline = is_last && final_line_unterminated;
 
         for (cmd_index, command) in commands.iter().enumerate() {
             let selected = match (&command.addr1, &command.addr2) {
@@ -352,18 +478,25 @@ fn run_stream(
             }
             match &command.kind {
                 CmdKind::Substitute {
-                    pattern,
+                    re,
                     replacement,
                     global,
+                    print,
+                    nth,
                 } => {
-                    pattern_space =
-                        replace_substring(&pattern_space, pattern, replacement, *global);
+                    let (next, changed) =
+                        apply_substitute(&pattern_space, re, replacement, *global, *nth);
+                    pattern_space = next;
+                    if *print && changed {
+                        out.write_all(&pattern_space)?;
+                        if !skip_final_newline {
+                            out.write_all(b"\n")?;
+                        }
+                    }
                 }
                 CmdKind::Print => {
                     out.write_all(&pattern_space)?;
-                    // GNU sed preserves a missing trailing newline on the
-                    // input's final line.
-                    if !(is_last && !data.ends_with(b"\n")) {
+                    if !skip_final_newline {
                         out.write_all(b"\n")?;
                     }
                 }
@@ -383,9 +516,7 @@ fn run_stream(
         }
         if !quiet {
             out.write_all(&pattern_space)?;
-            // GNU sed preserves a missing trailing newline on the input's
-            // final line.
-            if !(is_last && !data.ends_with(b"\n")) {
+            if !skip_final_newline {
                 out.write_all(b"\n")?;
             }
         }
