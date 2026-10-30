@@ -1270,6 +1270,8 @@ Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
 
 ## Round 19 sed regex (2026-10-30)
 - Scope: addresses + s command on POSIX BRE with GNU extensions (\+, \?, intervals); replacement & / -\9 / 
-	; flags g/N/p/i; back references rejected at startup (documented difference).
+	
+; flags g/N/p/i; back references rejected at startup (documented difference).
 - Shared: BRE translator promoted to ruxcmd-core::bre (expr delegates and anchors); regex dependency lives in core now.
+- Final Verify passed: 238.5s (fmt amended the stale bre unit expectation first). Merged locally to main; not pushed.
 - Verification: 50 sed tests green (29 prior behavior + 15 new regex + 6 cli); sampled differential vs GNU sed 8.32 passed (groups, &, g/2, intervals, anchored addresses, escaped delimiter); non-UTF-8 passthrough kept.
