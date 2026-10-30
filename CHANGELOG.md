@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Round 18 命令补齐(9 个新命令,2026-10-29)
+
+- 新增 9 个命令,命令总数 125 → 134(137 个包):nproc、printenv、truncate、base32、sum、tsort、pathchk、hostid、expr。
+- 全部参照本机 GNU coreutils 8.32 实测语义实现并附行为测试:expr 支持 i64 四则/比较/|&/锚定 BRE 匹配/substr/index/length 与 GNU 退出码(BRE 反向引用除外);sum 实现 BSD 与 SysV 两种算法(实测向量 36979/542);base32 按 RFC 4648 含 GNU 换行语义;truncate 支持 +/- 与 1024/1000 进制后缀;tsort 按 GNU 措辞报环与奇数 token;printenv 支持 -0 与任一缺失退出 1;pathchk 检查组件/路径长度与便携字符集;hostid 输出机器名散列。
+- expr 引入 regex 依赖(BRE 转换);其余命令零新增依赖;冒烟清单 134 项,双语兼容性表与 README 计数同步。
+- 明确不做并记录:chgrp(复用 chown 组逻辑,单独一轮)、dd、b2sum(需 BLAKE2 依赖)。
+
 ### Round 17 质量收口（行为测试覆盖 + P2 清偿，2026-10-29）
 
 - 为 27 个"仅冒烟"命令补齐行为测试：clear/cmp/df/expand/factor/free/hexdump/kill/mkdir/mkfifo/readlink/realpath/reset/rev/seq/shred/strings/time/uname/who/whoami/zcat/printf/sleep/echo/which/whereis；iostat、mpstat、sar、w 仍为仅冒烟并在兼容性表声明。

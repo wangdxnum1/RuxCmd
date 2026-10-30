@@ -4,7 +4,7 @@
 
 ## 工程结构
 
-根 virtual workspace 管理 `crates/*`。目前 128 个 package 产出 125 个命令；`ps-sys`、`ruxcmd-core` 是运行时库包，`ruxcmd-build` 是仅构建时使用的库包，`ps-bin` 产出 `ps.exe`，`ls` 同时提供供 `vdir` 复用的库。Cargo metadata 是构建及发布工具清单的唯一来源，冒烟策略必须与其二进制集合一致。
+根 virtual workspace 管理 `crates/*`。目前 137 个 package 产出 134 个命令；`ps-sys`、`ruxcmd-core` 是运行时库包，`ruxcmd-build` 是仅构建时使用的库包，`ps-bin` 产出 `ps.exe`，`ls` 同时提供供 `vdir` 复用的库。Cargo metadata 是构建及发布工具清单的唯一来源，冒烟策略必须与其二进制集合一致。
 
 Edition 2021/2024 和各 crate 原版本保留。根 Cargo.lock 固定整个套件的依赖，resolver 为 3。ps 保留原来声明的 Rust 1.75 元数据，但整个仓库当前只用固定的 1.99.0 验证，不承诺整体 MSRV。
 
@@ -44,7 +44,7 @@ Cargo 命令可在根使用 `--workspace`，也可在单个 crate 目录运行�
 
 ## Windows 可执行文件属性
 
-全部 125 个命令在普通 Cargo Debug/Release 编译时嵌入 VERSIONINFO，需要 Windows SDK 的 RC 编译器；资源编译失败会中止构建。共享入口为 `build/windows-version.rs`，由仅构建时使用的 `ruxcmd-build` 库实现。资源只链接到指定二进制目标，因此 `ps-bin` 正确生成 `ps.exe`，`vdir` 不会继承依赖库 `ls` 的文件身份。
+全部 134 个命令在普通 Cargo Debug/Release 编译时嵌入 VERSIONINFO，需要 Windows SDK 的 RC 编译器；资源编译失败会中止构建。共享入口为 `build/windows-version.rs`，由仅构建时使用的 `ruxcmd-build` 库实现。资源只链接到指定二进制目标，因此 `ps-bin` 正确生成 `ps.exe`，`vdir` 不会继承依赖库 `ls` 的文件身份。
 
 根 `workspace.metadata.ruxcmd.version` 提供产品版本；文件版本及两组固定数字版本使用 major.minor.patch.0。产品名称、公司名称及版权来自 `workspace.metadata.ruxcmd.windows`；文件说明来自各包 description，内部名称与原始文件名使用可执行目标名称。Debug 和预发布标记随构建设置；根或包清单变化会重新生成资源，不嵌入编译时间或本机源码路径。
 

@@ -4,7 +4,7 @@
 
 ## Project structure
 
-The root virtual workspace manages `crates/*`. Currently 128 packages produce 125 commands; `ps-sys` and `ruxcmd-core` are runtime library packages and `ruxcmd-build` is build-only, `ps-bin` produces `ps.exe`, and `ls` also provides a library reused by `vdir`. Cargo metadata is the single source of truth for the build and release tool inventories; smoke policies must stay consistent with that binary set.
+The root virtual workspace manages `crates/*`. Currently 137 packages produce 134 commands; `ps-sys` and `ruxcmd-core` are runtime library packages and `ruxcmd-build` is build-only, `ps-bin` produces `ps.exe`, and `ls` also provides a library reused by `vdir`. Cargo metadata is the single source of truth for the build and release tool inventories; smoke policies must stay consistent with that binary set.
 
 Editions 2021/2024 and each crate's original version are preserved. The root `Cargo.lock` pins the whole suite's dependencies, with resolver 3. The ps packages keep their originally declared Rust 1.75 metadata, but the repository as a whole is only validated against the pinned 1.99.0; no suite-wide MSRV is promised.
 
@@ -44,7 +44,7 @@ Existing packages of the same version are never overwritten. By default the scri
 
 ## Windows executable properties
 
-All 125 commands embed VERSIONINFO during ordinary Cargo debug and release builds. Windows SDK RC is required; resource compilation failures stop the build. The shared build entry is `build/windows-version.rs`, backed by the build-only `ruxcmd-build` library. Resources link only to the named binary target, so `ps-bin` yields `ps.exe` and `vdir` does not inherit the identity of its `ls` library dependency.
+All 134 commands embed VERSIONINFO during ordinary Cargo debug and release builds. Windows SDK RC is required; resource compilation failures stop the build. The shared build entry is `build/windows-version.rs`, backed by the build-only `ruxcmd-build` library. Resources link only to the named binary target, so `ps-bin` yields `ps.exe` and `vdir` does not inherit the identity of its `ls` library dependency.
 
 The root `workspace.metadata.ruxcmd.version` supplies ProductVersion; FileVersion and both fixed numeric versions use major.minor.patch.0. ProductName, CompanyName, and copyright come from `workspace.metadata.ruxcmd.windows`; FileDescription comes from each package description, while InternalName/OriginalFilename use the executable target. Pre-release and debug flags reflect the build. Changes to the root or package manifest trigger resource regeneration; no timestamp or local source path is embedded.
 

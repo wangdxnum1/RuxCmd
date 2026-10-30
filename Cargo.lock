@@ -123,6 +123,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "base32"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "clap",
+ "predicates",
+ "ruxcmd-build",
+ "tempfile",
+]
+
+[[package]]
 name = "base64"
 version = "0.1.0"
 dependencies = [
@@ -685,6 +696,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "expr"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "clap",
+ "predicates",
+ "regex",
+ "ruxcmd-build",
+ "tempfile",
+]
+
+[[package]]
 name = "factor"
 version = "0.1.0"
 dependencies = [
@@ -1007,6 +1030,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
 dependencies = [
  "digest",
+]
+
+[[package]]
+name = "hostid"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "clap",
+ "predicates",
+ "ruxcmd-build",
+ "tempfile",
 ]
 
 [[package]]
@@ -1679,6 +1713,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "61807f77802ff30975e01f4f071c8ba10c022052f98b3294119f3e615d13e5be"
 
 [[package]]
+name = "nproc"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "clap",
+ "predicates",
+ "ruxcmd-build",
+ "tempfile",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
 name = "nslookup"
 version = "0.1.0"
 dependencies = [
@@ -1834,6 +1880,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "pathchk"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "clap",
+ "predicates",
+ "ruxcmd-build",
+ "tempfile",
+]
+
+[[package]]
 name = "pbkdf2"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1950,6 +2007,17 @@ checksum = "d0de1b847b39c8131db0467e9df1ff60e6d0562ab8e9a16e568ad0fdb372e2f2"
 dependencies = [
  "predicates-core",
  "termtree",
+]
+
+[[package]]
+name = "printenv"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "clap",
+ "predicates",
+ "ruxcmd-build",
+ "tempfile",
 ]
 
 [[package]]
@@ -2674,6 +2742,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
+name = "sum"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "clap",
+ "predicates",
+ "ruxcmd-build",
+ "tempfile",
+]
+
+[[package]]
 name = "syn"
 version = "2.0.119"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3149,10 +3228,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "truncate"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "clap",
+ "predicates",
+ "ruxcmd-build",
+ "tempfile",
+]
+
+[[package]]
 name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
+
+[[package]]
+name = "tsort"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "clap",
+ "predicates",
+ "ruxcmd-build",
+ "tempfile",
+]
 
 [[package]]
 name = "tty"
