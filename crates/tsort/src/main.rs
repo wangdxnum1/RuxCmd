@@ -55,19 +55,22 @@ fn main() {
         std::process::exit(1);
     }
 
-    match toposort(&tokens) {
-        Ok(order) => {
-            let stdout = std::io::stdout();
-            let mut out = stdout.lock();
-            use std::io::Write;
-            for node in order {
-                let _ = writeln!(out, "{}", node);
-            }
+    let stdout = std::io::stdout();
+    let mut out = stdout.lock();
+    use std::io::Write;
+    // GNU reports loops on stderr, still emits the loop members on stdout,
+    // and exits 1 after the order.
+    let (order, loops) = toposort(&tokens);
+    for node in &order {
+        let _ = writeln!(out, "{}", node);
+    }
+    if !loops.is_empty() {
+        eprintln!("tsort: {}: input contains a loop:", input_name);
+        for node in &loops {
+            eprintln!("tsort: {}", node);
+            let _ = writeln!(out, "{}", node);
         }
-        Err(message) => {
-            eprintln!("tsort: {}", message);
-            std::process::exit(1);
-        }
+        std::process::exit(1);
     }
 }
 
@@ -83,8 +86,10 @@ fn read_tokens(reader: &mut impl BufRead, tokens: &mut Vec<String>) -> std::io::
     }
 }
 
-/// Kahn's algorithm with GNU's tie-breaking of first-seen order.
-fn toposort(tokens: &[String]) -> Result<Vec<String>, String> {
+/// Kahn's algorithm with GNU's tie-breaking of first-seen order. Returns
+/// the emitted order plus the nodes of the first remaining loop (empty when
+/// the graph is acyclic).
+fn toposort(tokens: &[String]) -> (Vec<String>, Vec<String>) {
     let mut successors: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     let mut indegree: BTreeMap<String, usize> = BTreeMap::new();
     let mut seen: Vec<String> = Vec::new();
@@ -136,8 +141,31 @@ fn toposort(tokens: &[String]) -> Result<Vec<String>, String> {
         ready.sort_by_key(|n| first_seen[n.as_str()]);
     }
 
-    if order.len() != indegree.len() {
-        return Err("input contains a cycle".to_string());
+    if order.len() == indegree.len() {
+        return (order, Vec::new());
     }
-    Ok(order)
+
+    // Walk the successor chain of the first unemitted node until it
+    // revisits; that cycle is reported the way GNU does.
+    let emitted: BTreeSet<&String> = order.iter().collect();
+    let start = indegree
+        .keys()
+        .find(|node| !emitted.contains(node))
+        .cloned()
+        .unwrap_or_default();
+    let mut loop_nodes: Vec<String> = Vec::new();
+    let mut current = start;
+    loop {
+        loop_nodes.push(current.clone());
+        let next = successors
+            .get(&current)
+            .and_then(|targets| targets.iter().next())
+            .cloned()
+            .unwrap_or_default();
+        if next.is_empty() || loop_nodes.contains(&next) {
+            break;
+        }
+        current = next;
+    }
+    (order, loop_nodes)
 }

@@ -2,7 +2,7 @@
 
 **English** | [简体中文](compatibility-zh.md)
 
-The current workspace covers 134 commands. The options in the table below are the explicit long names declared in each command's `cli.rs`, not the full syntax; the command's `--help` is authoritative. A source declaration does not mean the feature has passed tests.
+The current workspace covers 136 commands. The options in the table below are the explicit long names declared in each command's `cli.rs`, not the full syntax; the command's `--help` is authoritative. A source declaration does not mean the feature has passed tests.
 
 All commands have passed bounded release smoke checks (help entry, exit codes for true/false). Only commands marked "Smoke + behavior tests" have run representative behavior assertions; the remaining business behavior is not automatically verified. Full GNU/POSIX compatibility is not claimed.
 
@@ -11,11 +11,13 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | awk | --assign, --field-separator, --file, --version | Smoke + behavior tests | Conditions, else/next and multi-argument print work; NR runs across files and BEGIN/END run once; for loops error out. Matching uses substrings (not regex); no arrays, built-in functions, or redirection. |
 | base64 | --decode, --version, --wrap | Smoke + behavior tests | Decoding is strict like GNU: input without padding that is not a multiple of 4 produces decoded bytes but reports invalid input and exits 1. |
 | base32 | -d, --decode, --ignore-garbage, --wrap | Smoke + behavior tests | Encode/decode RFC 4648 base32 with GNU wrap semantics (default 76, 0 = unwrapped); decoding always tolerates line breaks, and -i skips other non-alphabet bytes; padding ends each group. |
+| | b2sum | --check, --length, --quiet, --status, --tag | Smoke + behavior tests | BLAKE2b with the sha1sum-family output, --tag and check-mode rules; --length takes any multiple of 8 up to 512. No -b/-t/-z markers; GNU (MSYS) prints a binary marker for stdin which this port never emits. |
 | basename | --multiple, --suffix, --version, --zero | Smoke + behavior tests | -z/--zero changes output termination only, not input parsing. Supports NAME SUFFIX and -a/-s; embedded LF in operands is preserved. Windows path parsing remains: trailing ./.. components print ./.., // prints /, and a drive root prints C:. |
 | bc | --version | Smoke + behavior tests | Integer arithmetic on i128 with truncating / and % (GNU scale=0 default); supports + - * / % ^ ( ), variable assignment, ; separators, # comments, and quit. No arbitrary precision, scale, ibase/obase, or functions - unsupported constructs print a notice and the line is skipped. Banner is bc 0.1.0 (RuxCmd). |
 | cal | --version | Smoke + behavior tests | A single argument 1-12 is a month, 100-9999 a year; 13-99 is rejected. Full GNU behavior unverified. |
 | cat | --number, --number-nonblank, --show-all, --show-ends, --show-nonprinting, --show-tabs, --unbuffered | Smoke + behavior tests | Byte-transparent by default (CRLF, binary, and non-ASCII data pass through unchanged); -v uses byte-level ^/M- notation; -E does not mark an unterminated last line. Line numbering and empty-line compression state reset per file. |
 | chmod | --recursive, --verbose, --version | Smoke + behavior tests | Symbolic modes (u/g/o/a with +-=rwx) map onto the read-only bit; -R no longer follows junctions. Windows permission semantics are not equivalent to Unix modes. |
+| | chgrp | --recursive, --silent, --verbose | Smoke + behavior tests | GROUP resolves through LookupAccountNameW (machine accounts; numeric GIDs are not special-cased); applied via SetNamedSecurityInfoW. Changing groups usually requires the target group to be a member of the token; -R follows junctions (same limitation as chown). |
 | chown | --user, --group, --recursive, --verbose, --version | Smoke + behavior tests | --user sets the owner and --group the group (GROUP_SECURITY_INFORMATION), both may be given; any file failure exits 1. Changing the owner to another account usually requires privileges. Unix UID/GID semantics are not equivalent. |
 | cksum | --algorithm, --version, --zero | Smoke + behavior tests | POSIX CRC32 only (-a crc). -z/--zero terminates output with NUL; implicit stdin omits the filename, explicit - prints -. Read errors fail. Local GNU cksum 8.32 lacks --zero, so only that differential case is skipped; NUL CRC output has known-vector behavior tests. Other algorithms/check mode are unsupported. |
 | clear | --version | Smoke + behavior tests | Full GNU behavior unverified. |
@@ -144,6 +146,6 @@ All commands have passed bounded release smoke checks (help entry, exit codes fo
 | zip | --recurse, --version | Smoke + behavior tests | Wrapper around PowerShell 5.1 Compress-Archive; file and destination arguments are single-quoted with embedded quotes doubled (injection-safe). Other GNU zip flags unsupported. |
 
 
-Round 15 also adds `ls -h` as the short form of `--human-readable`; help remains `--help`. Round 16 adds the NUL modes documented above to 15 existing commands; the workspace still produces 125 commands. Round 18 adds nine commands (base32/expr/hostid/nproc/pathchk/printenv/sum/truncate/tsort) for 134 total; iostat, mpstat, sar and w remain smoke-only.
+Round 15 also adds `ls -h` as the short form of `--human-readable`; help remains `--help`. Round 16 adds the NUL modes documented above to 15 existing commands; the workspace still produces 125 commands. Round 18 adds nine commands (base32/expr/hostid/nproc/pathchk/printenv/sum/truncate/tsort) and Round 20 adds b2sum and chgrp, for 136 total; iostat, mpstat, sar and w remain smoke-only.
 
 See the [ps README](ps/README.md) for detailed ps option documentation. This table was established by the first source survey and must be kept in sync when commands are added or changed.

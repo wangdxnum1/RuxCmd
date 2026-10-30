@@ -43,13 +43,16 @@ fn odd_token_count_is_an_error() {
 }
 
 #[test]
-fn cycle_is_reported() {
-    cargo_bin_cmd!("tsort")
+fn cycle_matches_gnu_output() {
+    // GNU: loop members go to stderr AND stdout; exit 1.
+    let out = cargo_bin_cmd!("tsort")
         .write_stdin(b"a b\nb a\n")
-        .assert()
-        .failure()
-        .code(1)
-        .stderr(predicates::str::contains("cycle"));
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(1));
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "a\nb\n");
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("input contains a loop:"), "stderr: {err}");
 }
 
 #[test]

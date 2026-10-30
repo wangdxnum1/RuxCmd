@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Round 20 差分收口与最后两个命令(2026-10-30)
+
+- 新增 chgrp(LookupAccountNameW + SetNamedSecurityInfoW,复用 chown --group 语义,带 -R/-v/-f)与 b2sum(BLAKE2b,sha1sum 家族的 --tag/校验规则,-l 支持 8-512 位);命令总数 134 → 136(139 个包)。
+- b2sum 引入 blake2 依赖;摘要与 GNU b2sum 实测一致(MSYS 对 stdin 的二进制标记差异沿用既有已知差异类)。
+- 差分矩阵扩至 770 用例(echo -e 全集/printf 宽度精度复用/cmp fixture/factor/expand 列表/base32/sum/tsort/expr/sed 正则),并借差分修复三处对齐:sum -s 改为逐块 16 位一补数(此前整体折叠,实测向量 60108/65025/64515 全对齐)、base32 -w 0 不输出尾换行且 -d 拒绝非字母表数字、tsort 成环时向 stderr 报环成员并向 stdout 输出(与 GNU 一致,退出 1)。
+
 ### Round 19 sed 正则(方向 3 第一片,2026-10-30)
 
 - sed 的地址与 s 命令升级为 POSIX BRE(含 GNU 扩展 \+、\?、\{m,n\}):替换端支持 & 与 \1-\9 分组引用、\n/\t/\r、g/N/p/i 标志;BRE 反向引用明确报错(记录为差异)。

@@ -7,6 +7,13 @@
   "exitCode": 0
  },
  {
+  "name": "b2sum",
+  "arguments": [
+   "--help"
+  ],
+  "exitCode": 0
+ },
+ {
   "name": "base32",
   "arguments": [
    "--help"
@@ -43,6 +50,13 @@
  },
  {
   "name": "cat",
+  "arguments": [
+   "--help"
+  ],
+  "exitCode": 0
+ },
+ {
+  "name": "chgrp",
   "arguments": [
    "--help"
   ],

@@ -1,4 +1,4 @@
-#Requires -Version 7.0
+﻿#Requires -Version 7.0
 <#
 .SYNOPSIS
 Differential-test RuxCmd commands against the GNU tools shipped with Git.
@@ -234,6 +234,38 @@ $matrix = @(
     @{ cmd='seq';    argv=@('2','3','11');    shapes=@('empty') }
     @{ cmd='seq';    argv=@('-s',',','1','4');shapes=@('empty') }
     @{ cmd='comm';   argv=@();                shapes=@('ascii'); twoInputs=$true }
+    # --- Round 17/19 additions ------------------------------------------------
+    @{ cmd='echo';   argv=@('-e','xyz\ee'); shapes=@('empty') }
+    @{ cmd='echo';   argv=@('-e','a\cb');       shapes=@('empty') }
+    @{ cmd='echo';   argv=@('-ne','a	b
+c');  shapes=@('empty') }
+    @{ cmd='printf'; argv=@('%5d|%-6s|','42','ab'); shapes=@('empty') }
+    @{ cmd='printf'; argv=@('%05.1f|%X|%o|%e|%g','3.14159','255','8','1234.5','0.000012'); shapes=@('empty') }
+    @{ cmd='printf'; argv=@('%s
+','a','b','c'); shapes=@('empty') }
+    @{ cmd='printf'; argv=@('%b','a	b');       shapes=@('empty') }
+    @{ cmd='printf'; argv=@('%u|%5.2s|','-1','abcdef'); shapes=@('empty') }
+    @{ cmd='cmp';    argv=@('one','one');       shapes=@('ascii','notrail'); fixture=$true }
+    @{ cmd='cmp';    argv=@('one','two');       shapes=@('ascii','notrail','empty'); fixture=$true }
+    @{ cmd='cmp';    argv=@('-s','one','two');  shapes=@('ascii'); fixture=$true }
+    @{ cmd='factor'; argv=@('12');              shapes=@('empty') }
+    @{ cmd='factor'; argv=@('18446744073709551615'); shapes=@('empty') }
+    @{ cmd='factor'; argv=@();                  shapes=@('ascii') }
+    @{ cmd='expand'; argv=@('-t','3,5');        shapes=@('ascii') }
+    @{ cmd='expand'; argv=@('-i','-t','2');     shapes=@('ascii') }
+    @{ cmd='base32'; argv=@();                  shapes=@('ascii','empty','notrail') }
+    @{ cmd='base32'; argv=@('-w','0');          shapes=@('ascii') }
+    @{ cmd='base32'; argv=@('-d','{in}');       shapes=@('ascii'); fileArgs=$true }
+    @{ cmd='sum';    argv=@();                  shapes=@('ascii','empty','notrail') }
+    @{ cmd='sum';    argv=@('-s');              shapes=@('ascii') }
+    @{ cmd='tsort';  argv=@('edges');           shapes=@('empty'); fixture=$true }
+    @{ cmd='tsort';  argv=@('cyc');             shapes=@('empty'); fixture=$true }
+    @{ cmd='expr';   argv=@('1','+','2');       shapes=@('empty') }
+    @{ cmd='expr';   argv=@('2','+','3','\*','4'); shapes=@('empty') }
+    @{ cmd='expr';   argv=@('abc',':','a\(.*\)'); shapes=@('empty') }
+    @{ cmd='sed';    argv=@('s/[0-9]\+/N/');    shapes=@('ascii') }
+    @{ cmd='sed';    argv=@('s/\(a\)\(.*\)/-/'); shapes=@('ascii') }
+    @{ cmd='sed';    argv=@('/^#/d');           shapes=@('ascii') }
     @{ cmd='true';   argv=@();                shapes=@('empty') }
     @{ cmd='false';  argv=@();                shapes=@('empty') }
     @{ cmd='echo';   argv=@('-n','abc');      shapes=@('empty') }
@@ -406,6 +438,21 @@ function New-CaseFixture([string]$directory, [string]$inputPath, [string]$comman
     }
     [IO.File]::Copy($inputPath, (Join-Path $directory 'source'))
     [IO.File]::WriteAllText((Join-Path $directory 'nonempty/keep'), 'keep')
+    if ($command -eq 'tsort') {
+        [IO.File]::WriteAllText((Join-Path $directory 'edges'), "n1 n2`nn2 n3`nn3 n4`n")
+        [IO.File]::WriteAllText((Join-Path $directory 'cyc'), "a b`nb a`n")
+    }
+    if ($command -eq 'cmp') {
+        # one is a copy of the input; two differs from it when non-empty.
+        $src = [IO.File]::ReadAllBytes($inputPath)
+        if ($src.Length -gt 0) {
+            $two = [byte[]]$src.Clone()
+            $two[$two.Length - 1] = $two[$two.Length - 1] -bxor 0x20
+            [IO.File]::WriteAllBytes((Join-Path $directory 'two'), $two)
+        } else {
+            [IO.File]::WriteAllBytes((Join-Path $directory 'two'), [byte[]]@(0x78))
+        }
+    }
     if ($command -eq 'comm') {
         [IO.File]::WriteAllBytes((Join-Path $directory 'one'), [byte[]]@(0,97,10,120,0,115,104,97,114,101,100,0,255))
         [IO.File]::WriteAllBytes((Join-Path $directory 'two'), [byte[]]@(0,98,13,0,115,104,97,114,101,100,0,254,0))

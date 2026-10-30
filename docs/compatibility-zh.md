@@ -2,7 +2,7 @@
 
 [English](compatibility.md) | **简体中文**
 
-当前 workspace 范围为 134 个命令。下表参数来自各 cli.rs 中显式声明的 long 名称，不是完整语法；以该命令 --help 为准。源码声明不等于功能已经通过测试。
+当前 workspace 范围为 136 个命令。下表参数来自各 cli.rs 中显式声明的 long 名称，不是完整语法；以该命令 --help 为准。源码声明不等于功能已经通过测试。
 
 所有命令已通过有界发布冒烟检查（帮助入口，true/false 为退出码）。只有标记“行为测试”的命令运行了代表性业务断言；其余业务行为尚未自动验证。未声明完整 GNU/POSIX 兼容性。
 
@@ -11,11 +11,13 @@
 | awk | --assign, --field-separator, --file, --version | 冒烟 + 行为测试 | 条件判断、else/next 与多参数 print 可用；NR 跨文件累计、BEGIN/END 仅执行一次；for 循环解析报错。匹配使用子串（非正则）；无数组、内建函数与重定向。 |
 | base64 | --decode, --version, --wrap | 冒烟 + 行为测试 | 解码与 GNU 一致地严格：无填充且长度非 4 倍数的输入会输出已解码字节，但报 invalid input 并退出 1。 |
 | base32 | -d, --decode, --ignore-garbage, --wrap | 冒烟 + 行为测试 | 按 GNU 换行语义编解码 RFC 4648 base32（默认 76，0 为不换行）；解码始终容忍换行，-i 跳过其他非法字节；填充结束每组。 |
+| | b2sum | --check, --length, --quiet, --status, --tag | 冒烟 + 行为测试 | BLAKE2b，沿用 sha1sum 家族的输出、--tag 与校验规则；--length 接受 8 的任意倍数且不超过 512。无 -b/-t/-z 标记；GNU (MSYS) 对 stdin 输出二进制标记，本实现从不输出。 |
 | basename | --multiple, --suffix, --version, --zero | 冒烟 + 行为测试 | -z/--zero 仅改变输出终止符，不改变输入解析。支持 NAME SUFFIX 和 -a/-s，保留操作数内 LF。Windows 路径解析规则保留：末尾 ./.. 输出 ./..，// 输出 /，盘符根输出 C:。 |
 | bc | --version | 冒烟 + 行为测试 | i128 整数运算，/ 与 % 向零截断（GNU scale=0 默认语义）；支持 + - * / % ^ ( )、变量赋值、; 分隔、# 注释与 quit。无任意精度、scale、ibase/obase 与函数——遇到不支持结构时打印提示并跳过该行。banner 为 bc 0.1.0 (RuxCmd)。 |
 | cal | --version | 冒烟 + 行为测试 | 单参数 1-12 视为月份，100-9999 视为年份；13-99 被拒绝。完整 GNU 行为未验证。 |
 | cat | --number, --number-nonblank, --show-all, --show-ends, --show-nonprinting, --show-tabs, --unbuffered | 冒烟 + 行为测试 | 默认字节透明（CRLF、二进制、非 ASCII 数据原样透传）；-v 使用字节级 ^/M- 记号；-E 不给未结尾的末行补 $。行号与空行压缩状态按文件重置。 |
 | chmod | --recursive, --verbose, --version | 冒烟 + 行为测试 | 符号模式（u/g/o/a 与 +-=rwx）映射到只读位；-R 不再跟随 junction。Windows 权限语义与 Unix mode 不等价。 |
+| | chgrp | --recursive, --silent, --verbose | 冒烟 + 行为测试 | GROUP 通过 LookupAccountNameW 解析（本机账户；数字 GID 不做特殊处理），经 SetNamedSecurityInfoW 应用。改组通常要求目标组在当前令牌中；-R 会跟随 junction（与 chown 相同的限制）。 |
 | chown | --user, --group, --recursive, --verbose, --version | 冒烟 + 行为测试 | --user 设 owner、--group 设组（GROUP_SECURITY_INFORMATION），可同时给；任一文件失败退出 1。改 owner 为他人通常需要特权。Unix UID/GID 语义不等价。 |
 | cksum | --algorithm, --version, --zero | 冒烟 + 行为测试 | 仅 POSIX CRC32（-a crc）。-z/--zero 以 NUL 终止输出，隐式 stdin 不带文件名，显式 - 打印 -；读取错误报错。本机 GNU cksum 8.32 无 --zero，仅该差分用例跳过；NUL CRC 有已知向量行为测试。不支持其他算法和校验清单。 |
 | clear | --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
@@ -144,6 +146,6 @@
 | zip | --recurse, --version | 冒烟 + 行为测试 | PowerShell 5.1 Compress-Archive 外壳；文件与目标参数经单引号转义（内部引号加倍，防注入）。其余 GNU zip 参数不支持。 |
 
 
-Round 15 同时新增 `ls -h`，等价于 `--human-readable`；帮助入口保留 `--help`。Round 16 为上表 15 个已有命令增加 NUL 模式，命令总数仍为 125。 Round 18 新增 9 个命令（base32/expr/hostid/nproc/pathchk/printenv/sum/truncate/tsort），命令总数 134；iostat、mpstat、sar 与 w 仍为仅冒烟。
+Round 15 同时新增 `ls -h`，等价于 `--human-readable`；帮助入口保留 `--help`。Round 16 为上表 15 个已有命令增加 NUL 模式，命令总数仍为 125。 Round 18 新增 9 个命令（base32/expr/hostid/nproc/pathchk/printenv/sum/truncate/tsort），Round 20 新增 b2sum 与 chgrp，命令总数 136；iostat、mpstat、sar 与 w 仍为仅冒烟。
 
 更详细的 ps 参数文档见 [ps README](ps/README-zh.md)。本表由首次源码调查建立，新增或修改命令时需同步更新。
