@@ -51,23 +51,41 @@ fn main() {
 }
 
 fn process_reader<R: BufRead>(mut reader: R) -> Result<(), std::io::Error> {
-    let mut line = String::new();
+    let stdout = std::io::stdout();
+    let mut out = stdout.lock();
+    let mut line = Vec::new();
     loop {
-        let bytes_read = reader.read_line(&mut line)?;
+        line.clear();
+        let bytes_read = reader.read_until(b'\n', &mut line)?;
         if bytes_read == 0 {
             break;
         }
+        reverse_line(&line, &mut out)?;
+    }
+    Ok(())
+}
 
-        let mut reversed = line.chars().rev().collect::<String>();
-
-        let has_newline = line.ends_with('\n');
-        if has_newline {
-            reversed = reversed.replacen('\n', "", 1);
-            reversed.push('\n');
+/// Reverse one raw line: multibyte-aware over valid UTF-8 like util-linux
+/// rev, byte-by-byte as a fallback for invalid sequences.
+fn reverse_line(line: &[u8], out: &mut impl std::io::Write) -> Result<(), std::io::Error> {
+    let content = if line.last() == Some(&b'\n') {
+        &line[..line.len() - 1]
+    } else {
+        line
+    };
+    match std::str::from_utf8(content) {
+        Ok(s) => {
+            let reversed: String = s.chars().rev().collect();
+            out.write_all(reversed.as_bytes())?;
         }
-
-        print!("{}", reversed);
-        line.clear();
+        Err(_) => {
+            for &b in content.iter().rev() {
+                out.write_all(&[b])?;
+            }
+        }
+    }
+    if line.last() == Some(&b'\n') {
+        out.write_all(b"\n")?;
     }
     Ok(())
 }

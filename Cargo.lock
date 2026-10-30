@@ -370,16 +370,22 @@ checksum = "0e78417baa3b3114dc0e95e7357389a249c4da97c3c2b540700079db6171bfd7"
 name = "clear"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
+ "tempfile",
 ]
 
 [[package]]
 name = "cmp"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
+ "tempfile",
 ]
 
 [[package]]
@@ -671,16 +677,22 @@ dependencies = [
 name = "expand"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
+ "tempfile",
 ]
 
 [[package]]
 name = "factor"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
+ "tempfile",
 ]
 
 [[package]]
@@ -810,6 +822,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
 ]
 
@@ -1403,8 +1416,11 @@ dependencies = [
 name = "kill"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
+ "tempfile",
  "windows-sys 0.61.2",
 ]
 
@@ -1544,16 +1560,22 @@ dependencies = [
 name = "mkdir"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
+ "tempfile",
 ]
 
 [[package]]
 name = "mkfifo"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
+ "tempfile",
  "winapi",
 ]
 
@@ -1934,8 +1956,11 @@ dependencies = [
 name = "printf"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
+ "tempfile",
 ]
 
 [[package]]
@@ -2181,8 +2206,11 @@ dependencies = [
 name = "reset"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
+ "tempfile",
  "winapi",
 ]
 
@@ -2190,8 +2218,11 @@ dependencies = [
 name = "rev"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
+ "tempfile",
 ]
 
 [[package]]
@@ -2521,8 +2552,11 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 name = "shred"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
+ "tempfile",
 ]
 
 [[package]]
@@ -2553,8 +2587,11 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 name = "sleep"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
+ "tempfile",
 ]
 
 [[package]]
@@ -2842,6 +2879,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
  "windows-sys 0.61.2",
 ]
@@ -3135,8 +3173,11 @@ checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 name = "uname"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
+ "tempfile",
 ]
 
 [[package]]
@@ -3464,8 +3505,12 @@ dependencies = [
 name = "whereis"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
+ "ruxcmd-core",
+ "tempfile",
 ]
 
 [[package]]
@@ -3483,9 +3528,12 @@ dependencies = [
 name = "who"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "chrono",
  "clap",
+ "predicates",
  "ruxcmd-build",
+ "tempfile",
  "windows",
 ]
 
@@ -3493,8 +3541,11 @@ dependencies = [
 name = "whoami"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
+ "predicates",
  "ruxcmd-build",
+ "tempfile",
 ]
 
 [[package]]
@@ -3914,9 +3965,12 @@ dependencies = [
 name = "zcat"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
  "flate2",
+ "predicates",
  "ruxcmd-build",
+ "tempfile",
 ]
 
 [[package]]

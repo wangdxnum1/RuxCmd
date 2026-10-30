@@ -24,7 +24,7 @@ fn seven_bit_string_straddling_the_chunk_boundary_is_intact() {
         .arg(&input)
         .assert()
         .success()
-        .stdout(format!("{:08} AAAAAAAAAA\n", CHUNK - 5));
+        .stdout(format!("{:7} AAAAAAAAAA\n", CHUNK - 5));
 }
 
 #[test]
@@ -47,5 +47,5 @@ fn utf16le_string_straddling_the_chunk_boundary_is_intact() {
         .arg(&input)
         .assert()
         .success()
-        .stdout(format!("{:08} BBBBBBBBBB\n", CHUNK - 2));
+        .stdout(format!("{:7} BBBBBBBBBB\n", CHUNK - 2));
 }

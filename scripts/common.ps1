@@ -1,4 +1,4 @@
-# Shared process, Cargo and archive validation helpers. Requires PowerShell 7.
+﻿# Shared process, Cargo and archive validation helpers. Requires PowerShell 7.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $script:RepositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -26,6 +26,10 @@ function Invoke-ToolProcess {
     $info.RedirectStandardOutput = $true
     $info.RedirectStandardError = $true
     $info.RedirectStandardInput = $true
+    # Cargo and the tools emit UTF-8; without this the .NET defaults decode
+    # with the console codepage (e.g. GBK), corrupting non-ASCII descriptions.
+    $info.StandardOutputEncoding = [Text.Encoding]::UTF8
+    $info.StandardErrorEncoding = [Text.Encoding]::UTF8
     foreach ($argument in $Arguments) { $info.ArgumentList.Add($argument) }
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = $info

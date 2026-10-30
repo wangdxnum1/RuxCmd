@@ -2,8 +2,7 @@ mod cli;
 
 use clap::Parser;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Write};
-use std::path::PathBuf;
+use std::io::{Read, Write};
 
 fn main() {
     let args = cli::Args::parse();
@@ -13,18 +12,19 @@ fn main() {
         return;
     }
 
-    let stops = parse_tabs(&args.tabs);
-    if stops.is_err() {
-        eprintln!("expand: invalid tabs value '{}'", args.tabs);
-        std::process::exit(1);
-    }
-    let stops = stops.unwrap();
+    let stops = match parse_tabs(&args.tabs) {
+        Ok(s) => s,
+        Err(msg) => {
+            eprintln!("expand: {}", msg);
+            std::process::exit(1);
+        }
+    };
 
     let mut exit_code = 0i32;
 
     if args.files.is_empty() {
         let stdin = std::io::stdin();
-        if let Err(e) = process(BufReader::new(stdin.lock()), &stops, args.initial) {
+        if let Err(e) = process(&mut stdin.lock(), &stops, args.initial) {
             eprintln!("expand: error reading stdin: {}", e);
             exit_code = 1;
         }
@@ -32,10 +32,10 @@ fn main() {
         for p in &args.files {
             let r: Result<(), std::io::Error> = if p.to_string_lossy() == "-" {
                 let stdin = std::io::stdin();
-                process(BufReader::new(stdin.lock()), &stops, args.initial)
+                process(&mut stdin.lock(), &stops, args.initial)
             } else {
                 match File::open(p) {
-                    Ok(f) => process(BufReader::new(f), &stops, args.initial),
+                    Ok(mut f) => process(&mut f, &stops, args.initial),
                     Err(e) => {
                         eprintln!("expand: {}: {}", p.display(), e);
                         exit_code = 1;
@@ -58,10 +58,12 @@ enum Stops {
     Explicit(Vec<usize>),
 }
 
-fn parse_tabs(s: &str) -> Result<Stops, ()> {
-    if let Ok(n) = s.parse::<usize>() {
-        if n > 0 {
-            return Ok(Stops::Periodic(n));
+fn parse_tabs(s: &str) -> Result<Stops, String> {
+    if !s.contains(',') && !s.chars().any(|c: char| c.is_whitespace()) {
+        match s.parse::<usize>() {
+            Ok(0) => return Err("tab size cannot be 0".to_string()),
+            Ok(n) => return Ok(Stops::Periodic(n)),
+            Err(_) => {}
         }
     }
     let mut v: Vec<usize> = Vec::new();
@@ -70,15 +72,21 @@ fn parse_tabs(s: &str) -> Result<Stops, ()> {
             continue;
         }
         match part.parse::<usize>() {
-            Ok(x) if x > 0 => v.push(x),
-            _ => return Err(()),
+            Ok(0) => return Err("tab size cannot be 0".to_string()),
+            Ok(x) => {
+                if let Some(&last) = v.last()
+                    && x <= last
+                {
+                    return Err("tab sizes must be ascending".to_string());
+                }
+                v.push(x);
+            }
+            Err(_) => return Err(format!("invalid tabs value '{}'", s)),
         }
     }
     if v.is_empty() {
-        Err(())
+        Err(format!("invalid tabs value '{}'", s))
     } else {
-        v.sort();
-        v.dedup();
         Ok(Stops::Explicit(v))
     }
 }
@@ -103,35 +111,99 @@ fn next_stop(stops: &Stops, col: usize) -> usize {
     }
 }
 
-fn process<R: BufRead>(reader: R, stops: &Stops, initial: bool) -> Result<(), std::io::Error> {
+/// Expand tabs over raw bytes: CR bytes and invalid UTF-8 pass through
+/// untouched, and an unterminated final line stays unterminated.
+/// Columns count one per character (or per stray byte).
+fn process<R: Read>(reader: &mut R, stops: &Stops, initial: bool) -> Result<(), std::io::Error> {
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
-    for line in reader.lines() {
-        let line = line?;
-        let mut col = 0usize;
-        let mut past_init = false;
-        for ch in line.chars() {
-            match ch {
-                '\t' if !past_init || !initial => {
+    let mut buf = [0u8; 16384];
+    let mut carry: Vec<u8> = Vec::new();
+    loop {
+        let n = reader.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        carry.extend_from_slice(&buf[..n]);
+        let mut start = 0;
+        while let Some(pos) = carry[start..].iter().position(|&b| b == b'\n') {
+            let end = start + pos + 1;
+            expand_line(&carry[start..end], stops, initial, &mut out)?;
+            start = end;
+        }
+        carry.drain(..start);
+    }
+    if !carry.is_empty() {
+        expand_line(&carry, stops, initial, &mut out)?;
+    }
+    Ok(())
+}
+
+fn expand_line(
+    line: &[u8],
+    stops: &Stops,
+    initial: bool,
+    out: &mut impl Write,
+) -> Result<(), std::io::Error> {
+    let content = if line.last() == Some(&b'\n') {
+        &line[..line.len() - 1]
+    } else {
+        line
+    };
+    let mut col = 0usize;
+    let mut past_init = false;
+    let mut i = 0usize;
+    while i < content.len() {
+        match content[i] {
+            b'\t' => {
+                if !past_init || !initial {
                     let ns = next_stop(stops, col);
                     let n = if ns > col { ns - col } else { 1 };
                     for _ in 0..n {
                         out.write_all(b" ")?;
                     }
                     col = ns;
-                }
-                c => {
-                    if c != ' ' && c != '\t' {
-                        past_init = true;
-                    }
-                    let mut b = [0u8; 4];
-                    let s = c.encode_utf8(&mut b);
-                    out.write_all(s.as_bytes())?;
+                } else {
+                    out.write_all(b"\t")?;
                     col += 1;
                 }
+                i += 1;
+            }
+            b' ' => {
+                out.write_all(b" ")?;
+                col += 1;
+                i += 1;
+            }
+            first => {
+                let len = utf8_char_len(first);
+                if len > 1
+                    && i + len <= content.len()
+                    && let Ok(s) = std::str::from_utf8(&content[i..i + len])
+                {
+                    out.write_all(s.as_bytes())?;
+                    col += 1;
+                    i += len;
+                } else {
+                    out.write_all(&content[i..i + 1])?;
+                    col += 1;
+                    i += 1;
+                }
+                past_init = true;
             }
         }
+    }
+    if line.last() == Some(&b'\n') {
         out.write_all(b"\n")?;
     }
     Ok(())
+}
+
+fn utf8_char_len(first: u8) -> usize {
+    match first {
+        0x00..=0x7F => 1,
+        0xC0..=0xDF => 2,
+        0xE0..=0xEF => 3,
+        0xF0..=0xF7 => 4,
+        _ => 1,
+    }
 }

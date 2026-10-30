@@ -3,22 +3,28 @@ mod cli;
 use clap::Parser;
 use cli::Args;
 use std::fs::{self, File};
-use std::io::{self, Seek, SeekFrom, Write};
+use std::io::{self, Seek, Write};
 
 fn main() {
     let args = Args::parse();
 
+    let mut failed = false;
     for path in &args.files {
-        shred_file(path, args.iterations, args.verbose, args.remove);
+        if !shred_file(path, args.iterations, args.verbose, args.remove) {
+            failed = true;
+        }
+    }
+    if failed {
+        std::process::exit(1)
     }
 }
 
-fn shred_file(path: &std::path::Path, iterations: usize, verbose: bool, remove: bool) {
+fn shred_file(path: &std::path::Path, iterations: usize, verbose: bool, remove: bool) -> bool {
     let metadata = match fs::metadata(path) {
         Ok(m) => m,
         Err(e) => {
             eprintln!("shred: cannot open '{}': {}", path.display(), e);
-            return;
+            return false;
         }
     };
 
@@ -28,16 +34,16 @@ fn shred_file(path: &std::path::Path, iterations: usize, verbose: bool, remove: 
             println!("shred: {} is empty", path.display());
         }
         if remove {
-            fs::remove_file(path).unwrap_or_default();
+            remove_file_quiet(path);
         }
-        return;
+        return true;
     }
 
     let mut file = match File::options().write(true).open(path) {
         Ok(f) => f,
         Err(e) => {
             eprintln!("shred: cannot open '{}' for writing: {}", path.display(), e);
-            return;
+            return false;
         }
     };
 
@@ -61,9 +67,14 @@ fn shred_file(path: &std::path::Path, iterations: usize, verbose: bool, remove: 
     }
 
     if remove {
-        fs::remove_file(path).unwrap_or_default();
+        remove_file_quiet(path);
         if verbose {
             println!("shred: {} removed", path.display());
         }
     }
+    true
+}
+
+fn remove_file_quiet(path: &std::path::Path) {
+    let _ = fs::remove_file(path);
 }
