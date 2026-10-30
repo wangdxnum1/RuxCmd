@@ -8,7 +8,7 @@
 
 | 命令 | 显式长参数示例（源码） | 当前验证 | Windows 差异 / 限制 |
 | --- | --- | --- | --- |
-| awk | --assign, --field-separator, --file, --version | 冒烟 + 行为测试 | 条件判断、else/next 与多参数 print 可用；NR 跨文件累计、BEGIN/END 仅执行一次；for 循环解析报错。匹配使用子串（非正则）；无数组、内建函数与重定向。 |
+| awk | --assign, --field-separator, --file, --version | 冒烟 + 行为测试 | 条件、else/next 与多参数 print 可用；NR 跨文件累计，BEGIN/END 各运行一次；for/while 循环可执行。模式与 `~` 使用 ERE（regex crate）。内建：length（含裸形式）、substr（gawk 裁剪语义）、index、sprintf（共享 GNU 格式化器）、toupper、tolower、sub/gsub（& 写回变量或 $0，字段重切分）。printf 支持完整指示符集。仍不支持：数组与 split、用户函数、重定向、相邻值字符串拼接。 |
 | base64 | --decode, --version, --wrap | 冒烟 + 行为测试 | 解码与 GNU 一致地严格：无填充且长度非 4 倍数的输入会输出已解码字节，但报 invalid input 并退出 1。 |
 | base32 | -d, --decode, --ignore-garbage, --wrap | 冒烟 + 行为测试 | 按 GNU 换行语义编解码 RFC 4648 base32（默认 76，0 为不换行）；解码始终容忍换行，-i 跳过其他非法字节；填充结束每组。 |
 | | b2sum | --check, --length, --quiet, --status, --tag | 冒烟 + 行为测试 | BLAKE2b，沿用 sha1sum 家族的输出、--tag 与校验规则；--length 接受 8 的任意倍数且不超过 512。无 -b/-t/-z 标记；GNU (MSYS) 对 stdin 输出二进制标记，本实现从不输出。 |

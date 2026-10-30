@@ -1,6 +1,7 @@
 mod cli;
 
 use clap::Parser;
+use regex::Regex;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fs::File;
@@ -186,7 +187,7 @@ fn tokenize(s: &str) -> Vec<Token> {
             '{' => {
                 let mut action = String::new();
                 let mut depth = 1;
-                while let Some(ch) = chars.next() {
+                for ch in chars.by_ref() {
                     if ch == '{' {
                         depth += 1;
                     } else if ch == '}' {
@@ -201,7 +202,7 @@ fn tokenize(s: &str) -> Vec<Token> {
             }
             '/' => {
                 let mut regex = String::new();
-                while let Some(ch) = chars.next() {
+                for ch in chars.by_ref() {
                     if ch == '/' {
                         break;
                     }
@@ -231,6 +232,11 @@ fn tokenize(s: &str) -> Vec<Token> {
                     } else {
                         break;
                     }
+                }
+                // Postfix/prefix increment and decrement.
+                if (op == "+" || op == "-") && chars.peek() == Some(&c) {
+                    chars.next();
+                    op.push(c);
                 }
                 tokens.push(Token::Op(op));
             }
@@ -315,9 +321,9 @@ fn tokenize(s: &str) -> Vec<Token> {
 #[derive(Debug, Clone)]
 enum Pattern {
     Always,
-    /// `/substring/` matches against the whole line (declared difference:
-    /// substring matching, no regex engine).
-    Regex(String),
+    /// `/ERE/` compiled once at parse time (extended regular expressions,
+    /// like gawk/mawk).
+    Regex(Regex),
     /// Expression pattern (single variable/field reference), evaluated with
     /// awk truthiness: non-zero number, or non-empty string other than "0".
     Expr(Vec<Token>),
@@ -331,10 +337,6 @@ struct ParsedProgram {
 }
 
 fn parse_program(tokens: &[Token]) -> Result<ParsedProgram, String> {
-    if contains_for(tokens) {
-        return Err("for loops are not supported".to_string());
-    }
-
     let mut parsed = ParsedProgram {
         begin_actions: Vec::new(),
         pattern_actions: Vec::new(),
@@ -361,16 +363,17 @@ fn parse_program(tokens: &[Token]) -> Result<ParsedProgram, String> {
                 }
             }
             Token::Regex(r) => {
+                let compiled = compile_ere(r)?;
                 if let Some(Token::Action(a)) = tokens.get(i + 1) {
                     parsed
                         .pattern_actions
-                        .push((Pattern::Regex(r.clone()), a.clone()));
+                        .push((Pattern::Regex(compiled), a.clone()));
                     i += 2;
                 } else {
                     // Pattern without an action defaults to `print`.
                     parsed
                         .pattern_actions
-                        .push((Pattern::Regex(r.clone()), vec![Token::Print]));
+                        .push((Pattern::Regex(compiled), vec![Token::Print]));
                     i += 1;
                 }
             }
@@ -404,18 +407,16 @@ fn parse_program(tokens: &[Token]) -> Result<ParsedProgram, String> {
     Ok(parsed)
 }
 
-fn contains_for(tokens: &[Token]) -> bool {
-    tokens.iter().any(|t| match t {
-        Token::For => true,
-        Token::Action(inner) => contains_for(inner),
-        _ => false,
-    })
+/// Compile one `/ERE/` pattern; errors surface at parse time like gawk.
+fn compile_ere(pattern: &str) -> Result<Regex, String> {
+    Regex::new(pattern)
+        .map_err(|e| format!("awk: /{}/: invalid regular expression ({})", pattern, e))
 }
 
-fn match_pattern(pattern: &Pattern, line: &str, vars: &HashMap<String, String>) -> bool {
+fn match_pattern(pattern: &Pattern, line: &str, vars: &mut HashMap<String, String>) -> bool {
     match pattern {
         Pattern::Always => true,
-        Pattern::Regex(r) => line.contains(r),
+        Pattern::Regex(re) => re.is_match(line),
         Pattern::Expr(tokens) => is_truthy(&eval_tokens(tokens, vars)),
     }
 }
@@ -491,15 +492,123 @@ fn bool_val(b: bool) -> Value {
     Value::Num(if b { 1.0 } else { 0.0 })
 }
 
-fn eval_tokens(tokens: &[Token], vars: &HashMap<String, String>) -> Value {
+fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
     let mut stack: Vec<Value> = Vec::new();
     let mut ops: Vec<String> = Vec::new();
 
-    for token in tokens {
+    let mut index = 0usize;
+    while index < tokens.len() {
+        let token = &tokens[index];
         match token {
-            Token::Number(n) => stack.push(Value::Num(*n)),
-            Token::String(s) => stack.push(Value::Str(s.clone())),
-            Token::Var(v) => stack.push(Value::Str(vars.get(v).cloned().unwrap_or_default())),
+            Token::Number(n) => {
+                stack.push(Value::Num(*n));
+                index += 1;
+            }
+            Token::String(s) => {
+                stack.push(Value::Str(s.clone()));
+                index += 1;
+            }
+            Token::Var(v) => {
+                // Builtin function call: name followed by an argument list.
+                if matches!(tokens.get(index + 1), Some(Token::LParen))
+                    && matches!(
+                        v.as_str(),
+                        "length"
+                            | "substr"
+                            | "index"
+                            | "sprintf"
+                            | "toupper"
+                            | "tolower"
+                            | "sub"
+                            | "gsub"
+                    )
+                {
+                    let Some(close) = find_matching_paren(tokens, index + 1) else {
+                        stack.push(Value::Str(String::new()));
+                        index += 1;
+                        continue;
+                    };
+                    let arg_tokens = &tokens[index + 2..close];
+                    // sub/gsub take an lvalue as their optional third
+                    // argument; record its name before values are evaluated.
+                    if matches!(v.as_str(), "sub" | "gsub") {
+                        let mut commas = 0usize;
+                        let mut depth = 0usize;
+                        let mut third_start = None;
+                        for (j, t) in arg_tokens.iter().enumerate() {
+                            match t {
+                                Token::LParen => depth += 1,
+                                Token::RParen => depth = depth.saturating_sub(1),
+                                Token::Comma if depth == 0 => {
+                                    commas += 1;
+                                    if commas == 2 {
+                                        third_start = Some(j + 1);
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                        if let Some(ts) = third_start
+                            && let Some(Token::Var(name)) = arg_tokens.get(ts)
+                        {
+                            vars.insert("\u{0}sub_target".to_string(), name.clone());
+                        }
+                    }
+                    let eval_arg =
+                        |segment: &[Token], vars: &mut HashMap<String, String>| -> Value {
+                            // A bare /regex/ argument passes its source text.
+                            if let [Token::Regex(r)] = segment {
+                                Value::Str(r.clone())
+                            } else {
+                                eval_tokens(segment, vars)
+                            }
+                        };
+                    let mut args: Vec<Value> = Vec::new();
+                    let mut start = 0usize;
+                    for (j, t) in arg_tokens.iter().enumerate() {
+                        if matches!(t, Token::Comma) {
+                            args.push(eval_arg(&arg_tokens[start..j], vars));
+                            start = j + 1;
+                        }
+                    }
+                    if start <= arg_tokens.len() {
+                        args.push(eval_arg(&arg_tokens[start..], vars));
+                    }
+                    stack.push(call_builtin(v, args, vars));
+                    index = close + 1;
+                    continue;
+                }
+                // Dynamic field reference: `$name` that is not a cached
+                // field evaluates the name as a number and reads $<n>.
+                if let Some(inner) = v.strip_prefix('$')
+                    && !inner.is_empty()
+                    && !vars.contains_key(v)
+                    && vars.contains_key(inner)
+                {
+                    let n = vars
+                        .get(inner)
+                        .and_then(|s| s.trim().parse::<f64>().ok())
+                        .unwrap_or(0.0);
+                    let key = if n.fract() == 0.0 && n >= 0.0 {
+                        format!("${}", n as u64)
+                    } else {
+                        "$0".to_string()
+                    };
+                    stack.push(Value::Str(vars.get(&key).cloned().unwrap_or_default()));
+                    index += 1;
+                    continue;
+                }
+                // Bare `length` means length($0) like POSIX awk.
+                if v == "length" {
+                    stack.push(Value::Num(
+                        vars.get("$0").map(|s| s.chars().count()).unwrap_or(0) as f64,
+                    ));
+                    index += 1;
+                    continue;
+                }
+                stack.push(Value::Str(vars.get(v).cloned().unwrap_or_default()));
+                index += 1;
+            }
             Token::Op(op) => {
                 while let Some(top) = ops.last() {
                     if precedence(top) >= precedence(op) {
@@ -510,8 +619,12 @@ fn eval_tokens(tokens: &[Token], vars: &HashMap<String, String>) -> Value {
                     }
                 }
                 ops.push(op.clone());
+                index += 1;
             }
-            Token::LParen => ops.push("(".to_string()),
+            Token::LParen => {
+                ops.push("(".to_string());
+                index += 1;
+            }
             Token::RParen => {
                 while let Some(op) = ops.pop() {
                     if op == "(" {
@@ -519,8 +632,11 @@ fn eval_tokens(tokens: &[Token], vars: &HashMap<String, String>) -> Value {
                     }
                     apply_op(&mut stack, &op);
                 }
+                index += 1;
             }
-            _ => {}
+            _ => {
+                index += 1;
+            }
         }
     }
 
@@ -529,6 +645,118 @@ fn eval_tokens(tokens: &[Token], vars: &HashMap<String, String>) -> Value {
     }
 
     stack.pop().unwrap_or(Value::Str(String::new()))
+}
+
+/// Dispatch one builtin function call. `split` requires arrays, which this
+/// port does not have yet; it evaluates to the empty string (declared
+/// difference).
+fn call_builtin(name: &str, args: Vec<Value>, vars: &mut HashMap<String, String>) -> Value {
+    let arg = |i: usize| args.get(i).map(Value::to_str).unwrap_or_default();
+    match name {
+        "length" => Value::Num(arg(0).chars().count() as f64),
+        "substr" => {
+            let text = arg(0);
+            let chars: Vec<char> = text.chars().collect();
+            let m = args.get(1).map(|v| v.to_num()).unwrap_or(1.0);
+            if m < 1.0 {
+                // gawk: positions before 1 clip to the start; the count
+                // applies from there unchanged (substr("abc", 0, 2) == "ab").
+                let n = args.get(2).map(|v| v.to_num());
+                let take = match n {
+                    Some(n) if n.is_finite() => (n.max(0.0) as usize).min(chars.len()),
+                    _ => chars.len(),
+                };
+                return Value::Str(chars[..take].iter().collect());
+            }
+            let start = ((m as usize).saturating_sub(1)).min(chars.len());
+            let take = match args.get(2).map(|v| v.to_num()) {
+                Some(n) if n.is_finite() => (n.max(0.0) as usize).min(chars.len() - start),
+                Some(_) => 0,
+                None => chars.len() - start,
+            };
+            Value::Str(chars[start..start + take].iter().collect())
+        }
+        "index" => {
+            let hay = arg(0);
+            let needle = arg(1);
+            Value::Num(match hay.find(&needle) {
+                Some(byte_pos) => hay[..byte_pos].chars().count() as f64 + 1.0,
+                None => 0.0,
+            })
+        }
+        "sprintf" => {
+            let fmt = arg(0);
+            let rest: Vec<String> = args.iter().skip(1).map(Value::to_str).collect();
+            let mut bytes = Vec::new();
+            let mut stop = false;
+            let _ = printf::run_format(&mut bytes, &fmt, &rest, &mut stop);
+            Value::Str(String::from_utf8_lossy(&bytes).into_owned())
+        }
+        "toupper" => Value::Str(arg(0).to_uppercase()),
+        "tolower" => Value::Str(arg(0).to_lowercase()),
+        "sub" | "gsub" => {
+            // The third argument names the lvalue; eval passes values only,
+            // so the caller stashes the target key beforehand.
+            let target_key = vars
+                .get("\u{0}sub_target")
+                .cloned()
+                .unwrap_or_else(|| "$0".to_string());
+            vars.remove("\u{0}sub_target");
+            let current = vars.get(&target_key).cloned().unwrap_or_default();
+            let Ok(re) = Regex::new(&arg(0)) else {
+                return Value::Num(0.0);
+            };
+            let global = name == "gsub";
+            let (new_value, count) = awk_sub(&current, &re, &arg(1), global);
+            let was_record = target_key == "$0";
+            vars.insert(target_key, new_value);
+            if was_record {
+                resplit_fields(vars);
+            }
+            Value::Num(count as f64)
+        }
+        _ => Value::Str(String::new()),
+    }
+}
+
+/// awk sub/gsub replacement: `&` inserts the whole match, `\&` is literal.
+fn awk_sub(text: &str, re: &Regex, replacement: &str, global: bool) -> (String, usize) {
+    let mut count = 0usize;
+    let mut out = String::new();
+    let mut last = 0usize;
+    for m in re.find_iter(text) {
+        count += 1;
+        out.push_str(&text[last..m.start()]);
+        for ch in replacement.chars() {
+            if ch == '&' {
+                out.push_str(m.as_str());
+            } else {
+                out.push(ch);
+            }
+        }
+        last = m.end();
+        if !global {
+            break;
+        }
+    }
+    out.push_str(&text[last..]);
+    (out, count)
+}
+
+/// Re-split $0 into $1..$NF with the current FS after an in-place edit.
+fn resplit_fields(vars: &mut HashMap<String, String>) {
+    let line = vars.get("$0").cloned().unwrap_or_default();
+    let fs = vars.get("FS").cloned().unwrap_or_else(|| " ".to_string());
+    let fields: Vec<&str> = if fs == " " {
+        line.split_whitespace().collect()
+    } else {
+        line.split(&fs).collect()
+    };
+    vars.retain(|k, _| !(k.starts_with('$') && k != "$0"));
+    vars.insert("NF".to_string(), fields.len().to_string());
+    for (j, f) in fields.iter().enumerate() {
+        vars.insert(format!("${}", j + 1), (*f).to_string());
+    }
 }
 
 fn precedence(op: &str) -> i32 {
@@ -597,13 +825,23 @@ fn execute_block(tokens: &[Token], vars: &mut HashMap<String, String>) -> Flow {
                 let paren = matches!(tokens.get(i + 1), Some(Token::LParen));
                 let (args, next) = collect_args(tokens, i + 1, paren, vars);
                 if let Some(fmt) = args.first() {
-                    let rendered = render_printf(&fmt.to_str(), &args[1..]);
-                    print!("{}", rendered);
+                    let rest: Vec<String> = args[1..].iter().map(Value::to_str).collect();
+                    let mut bytes = Vec::new();
+                    let mut stop = false;
+                    let _ = printf::run_format(&mut bytes, &fmt.to_str(), &rest, &mut stop);
+                    print!("{}", String::from_utf8_lossy(&bytes));
                 }
                 i = next;
             }
             Token::If => {
                 let (next_i, flow) = execute_if(tokens, i, vars);
+                if flow == Flow::Next {
+                    return Flow::Next;
+                }
+                i = next_i;
+            }
+            Token::For => {
+                let (next_i, flow) = execute_for(tokens, i, vars);
                 if flow == Flow::Next {
                     return Flow::Next;
                 }
@@ -617,6 +855,34 @@ fn execute_block(tokens: &[Token], vars: &mut HashMap<String, String>) -> Flow {
                     let val = eval_tokens(&tokens[i + 2..end], vars).to_str();
                     vars.insert(name, val);
                     i = end;
+                } else if matches!(tokens.get(i + 1), Some(Token::LParen))
+                    && matches!(v.as_str(), "sub" | "gsub")
+                {
+                    // A bare sub/gsub statement runs for its side effect.
+                    let end = args_extent(tokens, i + 1, true);
+                    let _ = eval_tokens(&tokens[i..end], vars);
+                    i = end;
+                } else if let Some(Token::Op(op)) = tokens.get(i + 1) {
+                    // i++ / i-- statements (and prefixes within expressions).
+                    match op.as_str() {
+                        "++" => {
+                            let n = vars
+                                .get(v)
+                                .and_then(|s| s.trim().parse::<f64>().ok())
+                                .unwrap_or(0.0);
+                            vars.insert(v.clone(), fmt_num(n + 1.0));
+                            i += 2;
+                        }
+                        "--" => {
+                            let n = vars
+                                .get(v)
+                                .and_then(|s| s.trim().parse::<f64>().ok())
+                                .unwrap_or(0.0);
+                            vars.insert(v.clone(), fmt_num(n - 1.0));
+                            i += 2;
+                        }
+                        _ => i += 1,
+                    }
                 } else {
                     i += 1;
                 }
@@ -673,6 +939,68 @@ fn execute_if(tokens: &[Token], start: usize, vars: &mut HashMap<String, String>
     (j, flow)
 }
 
+/// Executes the three-part `for (init; cond; step) body` statement.
+/// Arrays and `for (k in arr)` remain unsupported.
+fn execute_for(
+    tokens: &[Token],
+    start: usize,
+    vars: &mut HashMap<String, String>,
+) -> (usize, Flow) {
+    let Some(open) = tokens
+        .get(start + 1)
+        .filter(|t| matches!(t, Token::LParen))
+        .map(|_| start + 1)
+    else {
+        return (start + 1, Flow::Normal);
+    };
+    // Top-level semicolons inside the header.
+    let mut depth = 0usize;
+    let mut seps: Vec<usize> = Vec::new();
+    let mut close = None;
+    for (j, t) in tokens.iter().enumerate().skip(open) {
+        match t {
+            Token::LParen => depth += 1,
+            Token::RParen => {
+                if depth == 1 {
+                    close = Some(j);
+                    break;
+                }
+                depth -= 1;
+            }
+            Token::Semicolon if depth == 1 => seps.push(j),
+            _ => {}
+        }
+    }
+    let (Some(close_paren), _) = (close, ()) else {
+        return (start + 1, Flow::Normal);
+    };
+    if seps.len() < 2 {
+        return (close_paren + 1, Flow::Normal);
+    }
+    let init = &tokens[open + 1..seps[0]];
+    let cond = &tokens[seps[0] + 1..seps[1]];
+    let step = &tokens[seps[1] + 1..close_paren];
+
+    let body_start = close_paren + 1;
+    let body_end = statement_end(tokens, body_start);
+    let body = &tokens[body_start..body_end];
+
+    if !init.is_empty() {
+        execute_block(init, vars);
+    }
+    while is_truthy(&eval_tokens(cond, vars)) {
+        let flow = execute_block(body, vars);
+        if flow == Flow::Next {
+            // `next` abandons the whole rule set for this record.
+            return (body_end, Flow::Next);
+        }
+        if !step.is_empty() {
+            execute_block(step, vars);
+        }
+    }
+    (body_end, Flow::Normal)
+}
+
 /// End (exclusive) of the statement starting at `i`.
 fn statement_end(tokens: &[Token], i: usize) -> usize {
     match tokens.get(i) {
@@ -682,10 +1010,16 @@ fn statement_end(tokens: &[Token], i: usize) -> usize {
             args_extent(tokens, i + 1, paren)
         }
         Some(Token::If) => if_chain_end(tokens, i),
+        Some(Token::For) => for_end(tokens, i),
         Some(Token::Next) | Some(Token::Action(_)) => i + 1,
         Some(Token::Var(_)) => {
             if matches!(tokens.get(i + 1), Some(Token::Assign)) {
                 expr_end(tokens, i + 2)
+            } else if matches!(
+                tokens.get(i + 1),
+                Some(Token::Op(op)) if op == "++" || op == "--"
+            ) {
+                i + 2
             } else {
                 i + 1
             }
@@ -707,6 +1041,36 @@ fn if_chain_end(tokens: &[Token], start: usize) -> usize {
         j = statement_end(tokens, j + 1);
     }
     j
+}
+
+/// End (exclusive) of the whole for statement starting at `start`.
+fn for_end(tokens: &[Token], start: usize) -> usize {
+    let Some(open) = tokens
+        .get(start + 1)
+        .filter(|t| matches!(t, Token::LParen))
+        .map(|_| start + 1)
+    else {
+        return start + 1;
+    };
+    let mut depth = 0usize;
+    let mut close = None;
+    for (j, t) in tokens.iter().enumerate().skip(open) {
+        match t {
+            Token::LParen => depth += 1,
+            Token::RParen => {
+                if depth == 1 {
+                    close = Some(j);
+                    break;
+                }
+                depth -= 1;
+            }
+            _ => {}
+        }
+    }
+    let Some(close_paren) = close else {
+        return start + 1;
+    };
+    statement_end(tokens, close_paren + 1)
 }
 
 /// End (exclusive) of the comma-separated argument list starting at `start`.
@@ -733,7 +1097,7 @@ fn collect_args(
     tokens: &[Token],
     start: usize,
     paren: bool,
-    vars: &HashMap<String, String>,
+    vars: &mut HashMap<String, String>,
 ) -> (Vec<Value>, usize) {
     let end = args_extent(tokens, start, paren);
     let mut args = Vec::new();
@@ -762,7 +1126,13 @@ fn expr_end(tokens: &[Token], start: usize) -> usize {
             // of an unsupported redirection): treat the list as empty.
             break;
         }
-        if i > start && is_value_end(&tokens[i - 1]) && is_value_start(t) {
+        // A `name (` sequence is a function call, not concatenation: the
+        // LParen must be consumed with its matching close below.
+        if i > start
+            && is_value_end(&tokens[i - 1])
+            && is_value_start(t)
+            && !matches!(t, Token::LParen)
+        {
             break;
         }
         match t {
@@ -777,7 +1147,6 @@ fn expr_end(tokens: &[Token], start: usize) -> usize {
             | Token::Begin
             | Token::End
             | Token::Assign
-            | Token::Regex(_)
             | Token::Action(_) => break,
             Token::LParen => match find_matching_paren(tokens, i) {
                 Some(close) => i = close + 1,
@@ -818,56 +1187,4 @@ fn find_matching_paren(tokens: &[Token], open: usize) -> Option<usize> {
         }
     }
     None
-}
-
-fn render_printf(fmt: &str, args: &[Value]) -> String {
-    let mut result = String::new();
-    let mut arg_idx = 0usize;
-    let chars: Vec<char> = fmt.chars().collect();
-    let mut j = 0;
-    while j < chars.len() {
-        if chars[j] == '%' && j + 1 < chars.len() {
-            j += 1;
-            let spec = chars[j];
-            let arg_str = args.get(arg_idx).map(Value::to_str).unwrap_or_default();
-            let consumed = match spec {
-                's' => {
-                    result.push_str(&arg_str);
-                    true
-                }
-                'd' => {
-                    if let Ok(n) = arg_str.trim().parse::<i64>() {
-                        result.push_str(&n.to_string());
-                    } else {
-                        result.push_str(&arg_str);
-                    }
-                    true
-                }
-                'f' => {
-                    if let Ok(n) = arg_str.trim().parse::<f64>() {
-                        result.push_str(&fmt_num(n));
-                    } else {
-                        result.push_str(&arg_str);
-                    }
-                    true
-                }
-                '%' => {
-                    result.push('%');
-                    false
-                }
-                _ => {
-                    result.push('%');
-                    result.push(spec);
-                    false
-                }
-            };
-            if consumed {
-                arg_idx += 1;
-            }
-        } else {
-            result.push(chars[j]);
-        }
-        j += 1;
-    }
-    result
 }

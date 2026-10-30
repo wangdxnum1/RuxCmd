@@ -174,11 +174,11 @@ fn expression_patterns_parse_as_single_rule() {
 // --- P1: for is rejected loudly at parse time (exit 1, English stderr) ---
 
 #[test]
-fn for_loop_is_rejected_at_parse_time() {
-    let out = awk(&["{for (i = 1; i <= 3; i++) print i}"], b"1\n");
-    assert_eq!(out.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&out.stderr).contains("for loops"));
-    assert_eq!(out.stdout, b"");
+fn for_loop_executes_three_part_form() {
+    // Round 21: classic for loops run with postfix increments.
+    let out = awk(&["BEGIN { for (i = 0; i < 3; i++) print i }"], b"");
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "0\n1\n2\n");
 }
 
 // --- printf keeps working after the argument-collection refactor ---

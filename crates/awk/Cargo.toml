@@ -9,7 +9,14 @@ description = "Pattern scanning and processing language"
 authors = ["Tim"]
 
 [dependencies]
+printf = { path = "../printf" }
+regex = "1"
 clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+assert_cmd.workspace = true
+predicates.workspace = true
+tempfile.workspace = true
 
 [build-dependencies]
 ruxcmd-build.workspace = true
