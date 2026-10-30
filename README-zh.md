@@ -29,7 +29,7 @@ PowerShell 为 `cat`、`ls`、`cp`、`rm` 等名称定义了别名。使用 `.ex
 Get-FileHash .\ruxcmd-0.3.2-x86_64-pc-windows-msvc.zip -Algorithm SHA256
 ```
 
-CI artifact 保留 7 天，按 tag 构建的 Release workflow artifact 保留 30 天。目前 workflow 生成构建产物，不自动发布 GitHub Release。
+CI artifact 保留 7 天，按 tag 构建的 Release workflow artifact 保留 30 天。Release 运行成功后会以 tag 名自动发布 GitHub Release 并附上 ZIP 与校验文件（预发布标签标记为 prerelease）；已存在的 Release 不会被覆盖。本机 `release.ps1 -Publish` 路径仍然可用。
 
 ## 本地编译
 
@@ -127,7 +127,7 @@ pwsh -File scripts/release.ps1 -OutputDir dist/local-check
 
 3. 打开 **Actions → Release → Run workflow**，选择 `main`，在 `tag` 输入框填入 `v0.3.2` 并启动。仅推送 tag 不会触发 Release。
 4. workflow 检出 tag，安装 Rust，执行 `scripts/build.ps1 -Task Verify`，再用 `scripts/release.ps1 -RequireClean -Tag <tag>` 打包。
-5. 成功后下载 `ruxcmd-v0.3.2-windows-x64` artifact，保留 30 天。将文件发布到 GitHub Release，需要维护者另行操作。
+5. 成功后下载 `ruxcmd-v0.3.2-windows-x64` artifact，保留 30 天。workflow 同时会以该 tag 自动发布 GitHub Release 并附上两个文件；同名 Release 已存在时跳过发布。
 
 tag 必须与套件版本一致，并指向当前检出的提交。正式打包拒绝含未提交文件的工作目录。若需本地执行相同检查，在干净克隆中检出 tag 后运行：
 
