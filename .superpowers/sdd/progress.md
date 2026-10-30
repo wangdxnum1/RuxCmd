@@ -631,4 +631,4 @@ Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
 - References: local Git Bash coreutils 8.32 probed live for every command (expr operator/exit semantics, sum BSD+SysV vectors, base32 vectors and wrap, tsort odd-token wording with input name, truncate sizes, nproc --ignore, printenv -0, pathchk, hostid format).
 - Implementation: single-file main.rs crates with behavior tests (58 new tests); expr adds the regex dependency for BRE translation (back refs unsupported, documented); sum counts a final partial block; base32 decodes across padding groups and tolerates newlines.
 - Deferred: chgrp (reuses chown group logic), dd, b2sum (needs a BLAKE2 dependency); iostat/mpstat/sar/w behavior tests; difftest additions.
-- Verify: see acceptance below.
+- Final Verify passed: 96.4s; 134 smoke cases, all gates green (fmt required one cargo fmt pass; truncate -s needed allow_hyphen_values for negative adjustments). Merged locally to main; not pushed.

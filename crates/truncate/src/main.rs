@@ -12,7 +12,12 @@ pub struct Args {
     pub no_create: bool,
 
     /// Set or adjust the file size by SIZE bytes
-    #[arg(short = 's', long = "size", value_name = "SIZE")]
+    #[arg(
+        short = 's',
+        long = "size",
+        value_name = "SIZE",
+        allow_hyphen_values = true
+    )]
     pub size: Option<String>,
 
     /// Base the size on that of RFILE
