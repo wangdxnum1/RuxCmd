@@ -446,6 +446,8 @@ enum Token {
     If,
     Else,
     For,
+    While,
+    Do,
     Next,
     Delete,
     In,
@@ -596,6 +598,8 @@ fn tokenize(s: &str) -> Vec<Token> {
                     "if" => tokens.push(Token::If),
                     "else" => tokens.push(Token::Else),
                     "for" => tokens.push(Token::For),
+                    "while" => tokens.push(Token::While),
+                    "do" => tokens.push(Token::Do),
                     "next" => tokens.push(Token::Next),
                     "delete" => tokens.push(Token::Delete),
                     "function" | "func" => tokens.push(Token::Function),
@@ -1326,6 +1330,20 @@ fn execute_block_inner(tokens: &[Token], vars: &mut HashMap<String, String>) -> 
                 }
                 i = next_i;
             }
+            Token::While => {
+                let (next_i, flow) = execute_while(tokens, i, vars);
+                if matches!(flow, Flow::Next | Flow::Return) {
+                    return flow;
+                }
+                i = next_i;
+            }
+            Token::Do => {
+                let (next_i, flow) = execute_do(tokens, i, vars);
+                if matches!(flow, Flow::Next | Flow::Return) {
+                    return flow;
+                }
+                i = next_i;
+            }
             Token::Next => return Flow::Next,
             Token::Return => {
                 // return [expr] — the value lands in RETURN_VALUE for the
@@ -1604,6 +1622,99 @@ fn execute_for(
     (body_end, Flow::Normal)
 }
 
+/// Executes `while (cond) body`.
+fn execute_while(
+    tokens: &[Token],
+    start: usize,
+    vars: &mut HashMap<String, String>,
+) -> (usize, Flow) {
+    let Some(open) = tokens
+        .get(start + 1)
+        .filter(|t| matches!(t, Token::LParen))
+        .map(|_| start + 1)
+    else {
+        return (start + 1, Flow::Normal);
+    };
+    let Some(close) = find_matching_paren(tokens, open) else {
+        return (start + 1, Flow::Normal);
+    };
+    let cond = &tokens[open + 1..close];
+    let body_start = close + 1;
+    let body_end = statement_end(tokens, body_start);
+    let body = &tokens[body_start..body_end];
+
+    while is_truthy(&eval_tokens(cond, vars)) {
+        let flow = execute_block(body, vars);
+        if matches!(flow, Flow::Next | Flow::Return) {
+            return (body_end, flow);
+        }
+    }
+    (body_end, Flow::Normal)
+}
+
+/// Executes `do body while (cond)`.
+fn execute_do(tokens: &[Token], start: usize, vars: &mut HashMap<String, String>) -> (usize, Flow) {
+    // tokens: Do, Action(body), While, LParen, cond, RParen
+    let Some(Token::Action(body)) = tokens.get(start + 1) else {
+        return (start + 2, Flow::Normal);
+    };
+    let body = body.to_vec();
+    // Find the while condition
+    let mut while_idx = start + 2;
+    while while_idx < tokens.len() && !matches!(tokens[while_idx], Token::While) {
+        while_idx += 1;
+    }
+    let Some(open) = tokens
+        .get(while_idx + 1)
+        .filter(|t| matches!(t, Token::LParen))
+        .map(|_| while_idx + 1)
+    else {
+        return (while_idx + 1, Flow::Normal);
+    };
+    let Some(close) = find_matching_paren(tokens, open) else {
+        return (while_idx + 1, Flow::Normal);
+    };
+    let cond = &tokens[open + 1..close];
+    let end = close + 1;
+
+    loop {
+        let flow = execute_block(&body, vars);
+        if matches!(flow, Flow::Next | Flow::Return) {
+            return (end, flow);
+        }
+        if !is_truthy(&eval_tokens(cond, vars)) {
+            break;
+        }
+    }
+    (end, Flow::Normal)
+}
+
+/// End (exclusive) of the while/do statement starting at `start`.
+fn while_end(tokens: &[Token], start: usize) -> usize {
+    let Some(open) = tokens
+        .get(start + 1)
+        .filter(|t| matches!(t, Token::LParen))
+        .map(|_| start + 1)
+    else {
+        return start + 1;
+    };
+    let Some(close) = find_matching_paren(tokens, open) else {
+        return start + 1;
+    };
+    if matches!(tokens[start], Token::Do) {
+        // do body while (cond) — find the RParen after while
+        let mut j = close + 1;
+        while j < tokens.len() && !matches!(tokens[j], Token::LParen) {
+            j += 1;
+        }
+        return find_matching_paren(tokens, j)
+            .map(|c| c + 1)
+            .unwrap_or(j + 1);
+    }
+    // while: body starts at close+1
+    statement_end(tokens, close + 1)
+}
+
 /// End (exclusive) of the statement starting at `i`.
 fn statement_end(tokens: &[Token], i: usize) -> usize {
     match tokens.get(i) {
@@ -1614,6 +1725,7 @@ fn statement_end(tokens: &[Token], i: usize) -> usize {
         }
         Some(Token::If) => if_chain_end(tokens, i),
         Some(Token::For) => for_end(tokens, i),
+        Some(Token::While) | Some(Token::Do) => while_end(tokens, i),
         Some(Token::Next) | Some(Token::Action(_)) => i + 1,
         Some(Token::Return) => expr_end(tokens, i + 1),
         Some(Token::Index(_, _)) => {

@@ -8,7 +8,7 @@
 
 | 命令 | 显式长参数示例（源码） | 当前验证 | Windows 差异 / 限制 |
 | --- | --- | --- | --- |
-| awk | --assign, --field-separator, --file, --version | 冒烟 + 行为测试 | 条件、else/next 与多参数 print 可用；NR 跨文件累计，BEGIN/END 各运行一次；for/while 循环与三段式 for（含 i++/i--）可执行。模式与 `~` 使用 ERE（regex crate）。内建：length（含裸形式）、substr（gawk 裁剪语义）、index、sprintf（共享 GNU 格式化器）、toupper、tolower、sub/gsub（& 写回变量或 $0，字段重切分）、split 入数组、close。数组：元素读写、delete arr[k] / delete arr、`k in arr`、for-in（键排序）。用户函数：function name(params) { body }、return 带值、递归（深度上限）、动态局部参数。输出重定向：print/printf > 文件、>> 文件、| 命令（经 cmd /C）、/dev/stdout、/dev/stderr、close()。printf 支持完整指示符集。仍不支持：getline、协程（|&）。 |
+| awk | --assign, --field-separator, --file, --version | 冒烟 + 行为测试 | 条件、else/next 与多参数 print 可用；NR 跨文件累计，BEGIN/END 各运行一次；for/while/do-while 循环与三段式 for（含 i++/i--）可执行。模式与 `~` 使用 ERE（regex crate）。内建：length（含裸形式）、substr（gawk 裁剪语义）、index、sprintf（共享 GNU 格式化器）、toupper、tolower、sub/gsub（& 写回变量或 $0，字段重切分）、split 入数组、close。数组：元素读写、delete arr[k] / delete arr、`k in arr`、for-in（键排序）。用户函数：function name(params) { body }、return 带值、递归（深度上限）、动态局部参数。输出重定向：print/printf > 文件、>> 文件、| 命令（经 cmd /C）、/dev/stdout、/dev/stderr、close()。printf 支持完整指示符集。仍不支持：getline、协程（|&）。 |
 | base64 | --decode, --version, --wrap | 冒烟 + 行为测试 | 解码与 GNU 一致地严格：无填充且长度非 4 倍数的输入会输出已解码字节，但报 invalid input 并退出 1。 |
 | base32 | -d, --decode, --ignore-garbage, --wrap | 冒烟 + 行为测试 | 按 GNU 换行语义编解码 RFC 4648 base32（默认 76，0 为不换行）；解码始终容忍换行，-i 跳过其他非法字节；填充结束每组。 |
 | | b2sum | --check, --length, --quiet, --status, --tag | 冒烟 + 行为测试 | BLAKE2b，沿用 sha1sum 家族的输出、--tag 与校验规则；--length 接受 8 的任意倍数且不超过 512。无 -b/-t/-z 标记；GNU (MSYS) 对 stdin 输出二进制标记，本实现从不输出。 |

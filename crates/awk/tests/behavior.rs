@@ -137,3 +137,22 @@ fn numeric_concat_produces_string() {
     let out = awk(&["BEGIN { print 1 2 }"], b"");
     assert_eq!(String::from_utf8_lossy(&out.stdout), "12\n");
 }
+
+#[test]
+fn while_loop_executes() {
+    let out = awk(&["BEGIN { i = 0; while (i < 3) { print i; i++ } }"], b"");
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "0\n1\n2\n");
+}
+
+#[test]
+fn do_while_loop_executes() {
+    let out = awk(&["BEGIN { i = 0; do { print i; i++ } while (i < 3) }"], b"");
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "0\n1\n2\n");
+}
+
+#[test]
+fn do_while_executes_at_least_once() {
+    // do-while runs the body even when the condition is false initially.
+    let out = awk(&["BEGIN { i = 10; do { print i } while (i < 3) }"], b"");
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "10\n");
+}
