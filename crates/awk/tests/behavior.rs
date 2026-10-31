@@ -1,4 +1,5 @@
 use assert_cmd::cargo::cargo_bin_cmd;
+use std::fs;
 use std::process::Output;
 
 fn awk(args: &[&str], stdin: &[u8]) -> Output {
@@ -155,4 +156,29 @@ fn do_while_executes_at_least_once() {
     // do-while runs the body even when the condition is false initially.
     let out = awk(&["BEGIN { i = 10; do { print i } while (i < 3) }"], b"");
     assert_eq!(String::from_utf8_lossy(&out.stdout), "10\n");
+}
+
+#[test]
+fn getline_reads_from_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("gl.txt");
+    fs::write(&path, "alpha\nbeta\n").unwrap();
+    let p = path.to_string_lossy().replace('\\', "/");
+    let prog = format!(
+        "BEGIN {{ while ((getline line < \"{}\") > 0) print line }}",
+        p
+    );
+    let out = awk(&[&prog], b"");
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "alpha\nbeta\n");
+}
+
+#[test]
+fn getline_captures_return_code() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("rc.txt");
+    fs::write(&path, "one\n").unwrap();
+    let p = path.to_string_lossy().replace('\\', "/");
+    let prog = format!("BEGIN {{ r = getline line < \"{}\"; print r, line }}", p);
+    let out = awk(&[&prog], b"");
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "1 one\n");
 }

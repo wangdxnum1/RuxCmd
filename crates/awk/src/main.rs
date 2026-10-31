@@ -11,6 +11,8 @@ use std::io::{BufRead, BufReader, Read};
 /// store, so arrays cannot collide with scalar variables.
 const ARRAY_SEP: &str = "\u{1}";
 
+type GetlineSources = std::cell::RefCell<HashMap<String, (Vec<String>, usize)>>;
+
 enum OutHandle {
     File(std::fs::File),
     Stdout(std::io::Stdout),
@@ -69,6 +71,8 @@ thread_local! {
     static FUNCTIONS: std::cell::RefCell<HashMap<String, (Vec<String>, Vec<Token>)>> =
         std::cell::RefCell::new(HashMap::new());
     /// The value of the most recent `return` inside a user function body.
+    static GETLINE_SOURCES: GetlineSources =
+        std::cell::RefCell::new(HashMap::new());
     static RETURN_VALUE: std::cell::RefCell<Value> =
         const { std::cell::RefCell::new(Value::Str(String::new())) };
     /// Recursion guard for user function calls.
@@ -402,6 +406,11 @@ fn process_input<R: BufRead>(
         line.clear();
     }
 
+    MAIN_INPUT_LINES.with(|l| {
+        *l.borrow_mut() = lines.clone();
+    });
+    MAIN_INPUT_POS.with(|p| p.set(0));
+
     for line in &lines {
         *nr += 1;
         let fields: Vec<&str> = if vars["FS"] == " " {
@@ -451,6 +460,7 @@ enum Token {
     Next,
     Delete,
     In,
+    Getline,
     Function,
     Return,
     Index(String, Vec<Token>),
@@ -602,6 +612,7 @@ fn tokenize(s: &str) -> Vec<Token> {
                     "do" => tokens.push(Token::Do),
                     "next" => tokens.push(Token::Next),
                     "delete" => tokens.push(Token::Delete),
+                    "getline" => tokens.push(Token::Getline),
                     "function" | "func" => tokens.push(Token::Function),
                     "return" => tokens.push(Token::Return),
                     "in" => tokens.push(Token::In),
@@ -973,6 +984,9 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
                     if v == "close" {
                         if let Some(target) = args.first() {
                             let name = target.to_str();
+                            GETLINE_SOURCES.with(|g| {
+                                g.borrow_mut().remove(&name);
+                            });
                             let removed = REDIRECTS.with(|r| {
                                 eprintln!(
                                     "DBGR close key={:?} keys={:?}",
@@ -1039,6 +1053,44 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
                 stack.push(Value::Str(vars.get(&full).cloned().unwrap_or_default()));
                 index += 1;
             }
+            Token::Getline => {
+                let mut target: Option<String> = None;
+                if let Some(Token::Var(v)) = tokens.get(index + 1) {
+                    if !v.starts_with('$') && v != "in" {
+                        target = Some(v.clone());
+                        index += 1;
+                    }
+                }
+                index += 1;
+                let (result, line) = if matches!(tokens.get(index), Some(Token::Op(op)) if op == "<")
+                {
+                    index += 1;
+                    let end = expr_end(tokens, index);
+                    let file = eval_tokens(&tokens[index..end], vars).to_str();
+                    index = end;
+                    getline_from_file(&file)
+                } else {
+                    getline_main(vars)
+                };
+                if let Some(var) = target {
+                    vars.insert(var, line);
+                } else {
+                    vars.insert("$0".to_string(), line.clone());
+                    let fs = vars.get("FS").cloned().unwrap_or_else(|| " ".to_string());
+                    let fields: Vec<&str> = if fs == " " {
+                        line.split_whitespace().collect()
+                    } else {
+                        line.split(&fs).collect()
+                    };
+                    vars.retain(|k, _| !(k.starts_with('$') && k != "$0"));
+                    vars.insert("NF".to_string(), fields.len().to_string());
+                    for (j, f) in fields.iter().enumerate() {
+                        vars.insert(format!("${}", j + 1), (*f).to_string());
+                    }
+                }
+                last_was_value = true;
+                stack.push(result);
+            }
             Token::In => {
                 // `key in arr`: the left value was pushed; the right side is
                 // the bare array name.
@@ -1094,6 +1146,49 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
     }
 
     stack.pop().unwrap_or(Value::Str(String::new()))
+}
+
+fn getline_from_file(path: &str) -> (Value, String) {
+    GETLINE_SOURCES.with(|src| {
+        let mut map = src.borrow_mut();
+        if !map.contains_key(path) {
+            match std::fs::read_to_string(path) {
+                Ok(content) => {
+                    let lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+                    map.insert(path.to_string(), (lines, 0));
+                }
+                Err(_) => return (Value::Num(-1.0), String::new()),
+            }
+        }
+        let (lines, pos) = map.get_mut(path).unwrap();
+        if *pos < lines.len() {
+            let line = lines[*pos].clone();
+            *pos += 1;
+            (Value::Num(1.0), line)
+        } else {
+            (Value::Num(0.0), String::new())
+        }
+    })
+}
+
+thread_local! {
+    static MAIN_INPUT_LINES: std::cell::RefCell<Vec<String>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+    static MAIN_INPUT_POS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+fn getline_main(vars: &mut HashMap<String, String>) -> (Value, String) {
+    MAIN_INPUT_LINES.with(|lines| {
+        let mut lines = lines.borrow_mut();
+        let pos = MAIN_INPUT_POS.with(|p| p.get());
+        if pos < lines.len() {
+            let line = lines[pos].clone();
+            MAIN_INPUT_POS.with(|p| p.set(pos + 1));
+            (Value::Num(1.0), line)
+        } else {
+            (Value::Num(0.0), String::new())
+        }
+    })
 }
 
 /// Dispatch one builtin function call. `split` requires arrays, which this
