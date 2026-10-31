@@ -60,10 +60,11 @@ fn canonicalize_resolves_existing_paths() {
     let text = String::from_utf8_lossy(&out.stdout).trim().to_string();
     // paths::display normalizes to forward slashes; compare on either form.
     let normalized = text.replace('/', "\\");
-    assert_eq!(
-        normalized,
-        dir.path().join("deep").to_string_lossy().into_owned()
-    );
+    // Compare against the canonicalized temp dir: CI hosts may expose
+    // short (8.3) temp paths that canonicalize to the long form.
+    let canonical = std::fs::canonicalize(dir.path()).unwrap().join("deep");
+    let expected = canonical.to_string_lossy().replace(r"\\?\", "");
+    assert_eq!(normalized, expected);
 }
 
 #[test]
