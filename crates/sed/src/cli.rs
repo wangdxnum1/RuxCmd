@@ -13,6 +13,10 @@ pub struct Args {
     #[arg(short = 'e', long = "expression", value_name = "SCRIPT")]
     pub expressions: Vec<String>,
 
+    /// Read the script from FILE
+    #[arg(short = 'f', long = "file", value_name = "SCRIPT_FILE")]
+    pub script_files: Vec<String>,
+
     /// Suppress automatic printing of pattern space
     #[arg(short = 'n', long = "quiet", visible_alias = "silent")]
     pub quiet: bool,

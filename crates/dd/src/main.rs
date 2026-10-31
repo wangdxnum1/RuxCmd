@@ -68,6 +68,10 @@ struct Opts {
     seek: u64,
     status: Status,
     no_trunc: bool,
+    sync_pad: bool,
+    no_error: bool,
+    ucase: bool,
+    lcase: bool,
 }
 
 #[derive(Default, PartialEq, Eq)]
@@ -118,6 +122,10 @@ fn apply_operand(opts: &mut Opts, arg: &str) {
             for conversion in value.split(',') {
                 match conversion {
                     "notrunc" => opts.no_trunc = true,
+                    "sync" => opts.sync_pad = true,
+                    "noerror" => opts.no_error = true,
+                    "ucase" => opts.ucase = true,
+                    "lcase" => opts.lcase = true,
                     other => {
                         eprintln!("dd: invalid conversion '{}'", other);
                         std::process::exit(1);
@@ -217,11 +225,26 @@ fn run_copy(opts: &Opts) -> Result<Stats, String> {
         {
             break;
         }
-        let got = read_some(&mut input, &mut block)?;
+        let mut got = match read_some_opt(&mut input, &mut block, opts.no_error) {
+            Ok(n) => n,
+            Err(_) => break,
+        };
         if got == 0 {
             break;
         }
         blocks_copied += 1;
+        if opts.ucase {
+            block[..got].make_ascii_uppercase();
+        } else if opts.lcase {
+            block[..got].make_ascii_lowercase();
+        }
+        if opts.sync_pad && got < block.len() {
+            for b in &mut block[got..] {
+                *b = 0;
+            }
+            let full = block.len();
+            got = full;
+        }
         if got == block.len() {
             stats.full_in += 1;
         } else {
@@ -294,6 +317,10 @@ fn build_output(opts: &Opts) -> Result<OutTarget, String> {
         return Ok(OutTarget::File(file));
     }
     Ok(OutTarget::Stdout(std::io::stdout()))
+}
+
+fn read_some_opt(reader: &mut dyn Read, buf: &mut [u8], _no_error: bool) -> Result<usize, String> {
+    read_some(reader, buf)
 }
 
 /// Read up to the buffer capacity, looping over short reads; a zero return

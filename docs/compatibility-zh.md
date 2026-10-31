@@ -95,7 +95,8 @@
 | rm | --dir, --force, --no-preserve-root, --one-file-system, --preserve-root, --verbose | 冒烟 + 行为测试 | -f 仅静默不存在的路径；其余失败均打印错误并退出 1，preserve-root 拒绝信息不被压制。 |
 | rmdir | --ignore-fail-on-non-empty, --parents, --verbose | 冒烟 + 行为测试 | 仅删除空目录，`-p` 向上逐级删除；忽略标志仅抑制目录非空错误。受 Windows 文件系统和 ACL 限制。 |
 | sar | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
-| sed | --expression, --regexp-extended, --quiet, --in-place, --separate, --version | 冒烟 + 行为测试 | 默认 POSIX BRE（-E/-r/--regexp-extended 切换 ERE，两种方言均带 GNU \+ \? 扩展）；地址与 s 命令共用方言；替换端支持 & 与 \1-\9、\n/\t/\r 以及 g/N/p/i 标志。模式中的反向引用不支持（启动报错）。非 UTF-8 数据按原始字节匹配并原样透传；行号逐文件重置；缺失的末行换行保留。 |
+| sed | --expression, --regexp-extended, --quiet, --in-place, --separate, --version | 冒烟 + 行为测试 | 默认 POSIX BRE（-E/-r/--regexp-extended 切换 ERE，两种方言均带 GNU \+ \? 扩展）；地址与 s 命令共用方言；替换端支持 & 与 \1-\9、\n/\t/\r 以及 g/N/p/i 标志。模式中的反向引用不支持（启动报错）。非 UTF-8 数据按原始字节匹配并原样透传；行号逐文件重置；缺失的末行换行保留。 -f FILE 从文件读脚本。 |
+
 | seq | --equal-width, --format, --separator, --version | 冒烟 + 行为测试 | 选项之后可接负数操作数；-w 补位含符号（经 GNU 实测核对）。 |
 | sha1sum | --check, --quiet, --status, --tag, --version, --zero | 冒烟 + 行为测试 | 支持 -z/--zero 和 --tag -z，NUL 模式不转义文件名；-z -c 退出 1。普通校验支持 stdin、精确文件名、GNU 转义、BOM、二进制标记和 BSD tag；读取错误不产生部分数据的成功摘要。不支持 -b/-t、strict 或 NUL 清单解析。 |
 | sha256sum | --check, --quiet, --status, --tag, --version, --zero | 冒烟 + 行为测试 | SHA-256，NUL 输出与普通清单校验规则同 sha1sum：-z 禁止文件名转义，-z -c 报错；支持 stdin 清单、精确文件名和读取错误传播。不支持 -b/-t、strict 或 NUL 清单解析。 |

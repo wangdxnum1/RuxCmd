@@ -599,7 +599,18 @@ fn main() -> ExitCode {
 
     // -e scripts take precedence; without any, the first positional argument
     // is the script and the rest are the files (GNU `sed 's/a/b/' file`).
-    let (scripts, files): (Vec<String>, Vec<PathBuf>) = if args.expressions.is_empty() {
+    // -f script files contribute their contents as scripts
+    let mut all_expressions = args.expressions.clone();
+    for sf in &args.script_files {
+        match std::fs::read_to_string(sf) {
+            Ok(content) => all_expressions.push(content),
+            Err(e) => {
+                eprintln!("sed: can't read {}: {}", sf, e);
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+    let (scripts, files): (Vec<String>, Vec<PathBuf>) = if all_expressions.is_empty() {
         match args.operands.split_first() {
             Some((script, rest)) => (
                 vec![script.clone()],
@@ -609,7 +620,7 @@ fn main() -> ExitCode {
         }
     } else {
         (
-            args.expressions.clone(),
+            all_expressions.clone(),
             args.operands.iter().map(PathBuf::from).collect(),
         )
     };
