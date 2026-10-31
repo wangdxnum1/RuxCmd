@@ -70,7 +70,7 @@ thread_local! {
         std::cell::RefCell::new(HashMap::new());
     /// The value of the most recent `return` inside a user function body.
     static RETURN_VALUE: std::cell::RefCell<Value> =
-        std::cell::RefCell::new(Value::Str(String::new()));
+        const { std::cell::RefCell::new(Value::Str(String::new())) };
     /// Recursion guard for user function calls.
     static CALL_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
@@ -232,7 +232,7 @@ fn write_output(text: &str, add_newline: bool, dest: Option<&PrintDest>) {
 }
 
 fn close_redirects(redirects: &mut HashMap<String, OutHandle>) {
-    for (_, handle) in redirects.iter_mut() {
+    for handle in redirects.values_mut() {
         handle.close();
     }
     redirects.clear();
@@ -846,15 +846,29 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
     let mut ops: Vec<String> = Vec::new();
 
     let mut index = 0usize;
+    let mut last_was_value = false;
     while index < tokens.len() {
         let token = &tokens[index];
+        if last_was_value && is_value_start(token) {
+            while let Some(top) = ops.last() {
+                if precedence(top) >= precedence("concat") {
+                    let pending = ops.pop().unwrap();
+                    apply_op(&mut stack, &pending);
+                } else {
+                    break;
+                }
+            }
+            ops.push("concat".to_string());
+        }
         match token {
             Token::Number(n) => {
                 stack.push(Value::Num(*n));
+                last_was_value = true;
                 index += 1;
             }
             Token::String(s) => {
                 stack.push(Value::Str(s.clone()));
+                last_was_value = true;
                 index += 1;
             }
             Token::Var(v) => {
@@ -1012,6 +1026,7 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
                     continue;
                 }
                 stack.push(Value::Str(vars.get(v).cloned().unwrap_or_default()));
+                last_was_value = true;
                 index += 1;
             }
             Token::Index(name, key_tokens) => {
@@ -1034,6 +1049,7 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
                 index += 2;
             }
             Token::Op(op) => {
+                last_was_value = false;
                 while let Some(top) = ops.last() {
                     if precedence(top) >= precedence(op) {
                         let pending = ops.pop().unwrap();
@@ -1047,6 +1063,7 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
             }
             Token::LParen => {
                 ops.push("(".to_string());
+                last_was_value = false;
                 index += 1;
             }
             Token::RParen => {
@@ -1056,6 +1073,7 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
                     }
                     apply_op(&mut stack, &op);
                 }
+                last_was_value = true;
                 index += 1;
             }
             _ => {
@@ -1214,9 +1232,12 @@ fn precedence(op: &str) -> i32 {
     match op {
         "*" | "/" => 2,
         "+" | "-" => 1,
-        "<" | ">" | "<=" | ">=" | "==" | "!=" => 0,
-        "(" => -2,
-        _ => -1,
+        "concat" => 0,
+        "<" | ">" | "<=" | ">=" | "==" | "!=" => -1,
+        "&&" => -2,
+        "||" => -3,
+        "(" => -4,
+        _ => -5,
     }
 }
 
@@ -1241,6 +1262,7 @@ fn apply_op(stack: &mut Vec<Value>, op: &str) {
         ">=" => bool_val(compare_values(&a, &b) != Ordering::Less),
         "==" => bool_val(compare_values(&a, &b) == Ordering::Equal),
         "!=" => bool_val(compare_values(&a, &b) != Ordering::Equal),
+        "concat" => Value::Str(format!("{}{}", a.to_str(), b.to_str())),
         "&&" => bool_val(a.to_num() != 0.0 && b.to_num() != 0.0),
         "||" => bool_val(a.to_num() != 0.0 || b.to_num() != 0.0),
         _ => Value::Num(0.0),

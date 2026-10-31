@@ -99,3 +99,41 @@ fn sub_targets_a_variable_lvalue() {
     let out = awk(&["{ x = \"a1a2\"; sub(/a/, \"X\", x); print x }"], b"x\n");
     assert_eq!(String::from_utf8_lossy(&out.stdout), "X1a2\n");
 }
+
+#[test]
+fn adjacent_values_concatenate() {
+    let out = awk(&["BEGIN { print \"hello\" \"world\" }"], b"");
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "helloworld\n");
+}
+
+#[test]
+fn three_values_concatenate() {
+    let out = awk(&["BEGIN { print \"a\" \"b\" \"c\" }"], b"");
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "abc\n");
+}
+
+#[test]
+fn field_and_literal_concatenate() {
+    let out = awk(&["{ print $1 \"-\" $2 }"], b"hello world\n");
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "hello-world\n");
+}
+
+#[test]
+fn concat_binds_looser_than_addition() {
+    // "x" 1 + 2 → "x" . (1 + 2) = "x3" (concat looser than +)
+    let out = awk(&["BEGIN { print \"x\" 1 + 2 }"], b"");
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "x3\n");
+}
+
+#[test]
+fn concat_binds_tighter_than_comparison() {
+    // "a" "b" == "ab" → ("a" . "b") == "ab" → 1 (concat tighter than ==)
+    let out = awk(&["BEGIN { print \"a\" \"b\" == \"ab\" }"], b"");
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "1\n");
+}
+
+#[test]
+fn numeric_concat_produces_string() {
+    let out = awk(&["BEGIN { print 1 2 }"], b"");
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "12\n");
+}
