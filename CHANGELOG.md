@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Round 22 系统测试收尾与 dd(2026-10-31)
+
+- 补齐 R17 遗留的四个系统命令行为测试：iostat（百分比范围/多采样）、mpstat（all 行/Average 汇总）、sar（时间戳报告/逐行百分比限定）、w（本地化启动头部）——至此仅冒烟清单清零，全部 137 个命令均有行为验证。
+- 新增 dd（核心子集：if/of/bs/ibs/obs/count/skip/seek，GNU 尺寸后缀 c/w/b/K/KB/M/G；conv=notrunc，其余拒绝；records/copy 统计与 GNU 格式一致，实测向量对齐）；命令总数 136 → 137（140 个包）。
+- 兼容性表双语与 README 计数同步；"仅冒烟"状态自此不复存在。
+
 ### Round 21 awk 解释器升级(方向 3 第二片,2026-10-31)
 
 - awk 模式升级为 ERE(regex crate,编译期报错);求值器改为可变求值并新增内建函数:length(含裸形式)、substr(gawk 裁剪语义)、index、sprintf、toupper、tolower、sub/gsub(& 写回变量或 $0,字段重切分);printf 语句复用 printf crate 的完整 GNU 格式化器(crate 拆分为 lib+bin 共享)。

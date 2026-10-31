@@ -2,7 +2,7 @@
 
 [English](compatibility.md) | **简体中文**
 
-当前 workspace 范围为 136 个命令。下表参数来自各 cli.rs 中显式声明的 long 名称，不是完整语法；以该命令 --help 为准。源码声明不等于功能已经通过测试。
+当前 workspace 范围为 137 个命令。下表参数来自各 cli.rs 中显式声明的 long 名称，不是完整语法；以该命令 --help 为准。源码声明不等于功能已经通过测试。
 
 所有命令已通过有界发布冒烟检查（帮助入口，true/false 为退出码）。只有标记“行为测试”的命令运行了代表性业务断言；其余业务行为尚未自动验证。未声明完整 GNU/POSIX 兼容性。
 
@@ -29,6 +29,7 @@
 | curl | --data, --header, --output, --request, --silent, --version, --include, --head, --fail, --location | 冒烟 + 行为测试 | 默认仅输出 body（-i 加响应头）；-d 隐含 POST；重定向默认关闭（-L 手动跟随，最多 10 次）；-f 对 HTTP >= 400 退出 22。HTTPS/TLS 与联网行为尚未验证。 |
 | cut | --bytes, --characters, --delimiter, --fields, --only-delimited, --output-delimiter, --zero-terminated | 冒烟 + 行为测试 | 支持 -z NUL 记录；字节和字段选择保持原始数据，-c 对合法 UTF-8 记录按字符选择，非法输入回退为字节。NUL 模式保留 CR/LF，默认 LF 模式仍剥 CRLF。无字段分隔符的记录默认透传，-s 时抑制；本端既有 -s 也作用于 -b/-c（与 GNU 不同）。不支持 -n/--complement。 |
 | date | --date, --nanoseconds, --seconds, --set, --utc, --version | 冒烟 + 行为测试 | -d/--date 与位置参数接受 @EPOCH、YYYY-MM-DD、YYYY-MM-DDTHH:MM[:SS]（空串=now，其他格式报错退出 1）；-s/--set 经 SetLocalTime 设置本地时钟。--seconds 作用于解析出的时刻；%N 恒为 0。 |
+| dd | conv=notrunc, status=none/noxfer | 冒烟 + 行为测试 | 核心子集：if/of/bs/ibs/obs/count/skip/seek，支持 GNU 尺寸后缀（c/w/b/K/KB/M/G 及 1000 进制形式）；conv 支持 notrunc 并拒绝其他值；stdout 不可 seek。GNU 的 records/copy 统计输出到 stderr。conv/flag 完整面（sync、fullblock、iflag）不支持。 |
 | df | --human-readable, --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
 | diff | --unified, --ignore-case, --ignore-whitespace, --ignore-blank-lines, --version | 冒烟 + 行为测试 | 退出码遵循 GNU（0/1/2）。普通格式输出未合并的 d/a 命令，行号锚点与 GNU 一致；c 合并与区间折叠未实现。 |
 | dirname | --version, --zero | 冒烟 + 行为测试 | -z/--zero 仅改变输出终止符，路径仍作为命令行操作数传入。路径输出正斜杠；仅根 / 或 // 输出 /，裸盘符前缀输出 .。Windows 路径与 UNC 近似保持不变。 |
@@ -146,6 +147,6 @@
 | zip | --recurse, --version | 冒烟 + 行为测试 | PowerShell 5.1 Compress-Archive 外壳；文件与目标参数经单引号转义（内部引号加倍，防注入）。其余 GNU zip 参数不支持。 |
 
 
-Round 15 同时新增 `ls -h`，等价于 `--human-readable`；帮助入口保留 `--help`。Round 16 为上表 15 个已有命令增加 NUL 模式，命令总数仍为 125。 Round 18 新增 9 个命令（base32/expr/hostid/nproc/pathchk/printenv/sum/truncate/tsort），Round 20 新增 b2sum 与 chgrp，命令总数 136；iostat、mpstat、sar 与 w 仍为仅冒烟。
+Round 15 同时新增 `ls -h`，等价于 `--human-readable`；帮助入口保留 `--help`。Round 16 为上表 15 个已有命令增加 NUL 模式，命令总数仍为 125。 Round 18 新增 9 个命令（base32/expr/hostid/nproc/pathchk/printenv/sum/truncate/tsort），Round 20 新增 b2sum 与 chgrp，Round 22 新增 dd，命令总数 137；iostat、mpstat、sar 与 w 仍为仅冒烟。
 
 更详细的 ps 参数文档见 [ps README](ps/README-zh.md)。本表由首次源码调查建立，新增或修改命令时需同步更新。
