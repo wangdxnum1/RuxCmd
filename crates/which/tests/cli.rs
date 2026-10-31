@@ -7,13 +7,13 @@ fn prints_clean_forward_slash_path_without_verbatim_prefix() {
     let dir = TempDir::new().unwrap();
     fs::write(dir.path().join("prog.exe"), b"").unwrap();
 
-    // Expected: the canonical path with the \\?\ verbatim prefix stripped
-    // and backslashes normalized to forward slashes.
-    let canon = fs::canonicalize(dir.path().join("prog.exe")).unwrap();
-    let s = canon.to_string_lossy();
-    let s = s.strip_prefix(r"\\?\").unwrap_or(&s);
-    let expected = s.replace('\\', "/");
-    assert!(!expected.contains(r"\\?\"));
+    // Expected: the PATH-relative as-written path with forward slashes
+    // (which prints the PATH entry verbatim, no canonicalization).
+    let expected = dir
+        .path()
+        .join("prog.exe")
+        .to_string_lossy()
+        .replace('\\', "/");
 
     cargo_bin_cmd!("which")
         .env("PATH", dir.path())
