@@ -7,6 +7,10 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
 
+/// Separator between an array name and its element key inside the variable
+/// store, so arrays cannot collide with scalar variables.
+const ARRAY_SEP: &str = "\u{1}";
+
 fn main() {
     let args = cli::Args::parse();
 
@@ -165,6 +169,9 @@ enum Token {
     Else,
     For,
     Next,
+    Delete,
+    In,
+    Index(String, Vec<Token>),
     LParen,
     RParen,
     Semicolon,
@@ -308,7 +315,33 @@ fn tokenize(s: &str) -> Vec<Token> {
                     "else" => tokens.push(Token::Else),
                     "for" => tokens.push(Token::For),
                     "next" => tokens.push(Token::Next),
-                    _ => tokens.push(Token::Var(word)),
+                    "delete" => tokens.push(Token::Delete),
+                    "in" => tokens.push(Token::In),
+                    _ => {
+                        // arr[expr] indexes an array element.
+                        if chars.peek() == Some(&'[') {
+                            chars.next();
+                            let mut depth = 1usize;
+                            let mut inner = Vec::new();
+                            for ch in chars.by_ref() {
+                                if ch == '[' {
+                                    depth += 1;
+                                } else if ch == ']' {
+                                    depth -= 1;
+                                    if depth == 0 {
+                                        break;
+                                    }
+                                }
+                                inner.push(ch);
+                            }
+                            tokens.push(Token::Index(
+                                word,
+                                tokenize(&inner.into_iter().collect::<String>()),
+                            ));
+                            continue;
+                        }
+                        tokens.push(Token::Var(word))
+                    }
                 }
             }
             _ => {}
@@ -521,6 +554,7 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
                             | "tolower"
                             | "sub"
                             | "gsub"
+                            | "split"
                     )
                 {
                     let Some(close) = find_matching_paren(tokens, index + 1) else {
@@ -529,6 +563,31 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
                         continue;
                     };
                     let arg_tokens = &tokens[index + 2..close];
+                    // split's second argument is a bare array name.
+                    if v == "split" {
+                        // find the second top-level comma segment's first token
+                        let mut commas = 0usize;
+                        let mut depth = 0usize;
+                        let mut second_start = None;
+                        for (j, t) in arg_tokens.iter().enumerate() {
+                            match t {
+                                Token::LParen => depth += 1,
+                                Token::RParen => depth = depth.saturating_sub(1),
+                                Token::Comma if depth == 0 => {
+                                    commas += 1;
+                                    if commas == 1 {
+                                        second_start = Some(j + 1);
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                        if let Some(ts) = second_start
+                            && let Some(Token::Var(name)) = arg_tokens.get(ts)
+                        {
+                            vars.insert("\u{0}split_arr".to_string(), name.clone());
+                        }
+                    }
                     // sub/gsub take an lvalue as their optional third
                     // argument; record its name before values are evaluated.
                     if matches!(v.as_str(), "sub" | "gsub") {
@@ -609,6 +668,25 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
                 stack.push(Value::Str(vars.get(v).cloned().unwrap_or_default()));
                 index += 1;
             }
+            Token::Index(name, key_tokens) => {
+                let key = eval_tokens(key_tokens, vars).to_str();
+                let full = format!("{}{}{}", name, ARRAY_SEP, key);
+                stack.push(Value::Str(vars.get(&full).cloned().unwrap_or_default()));
+                index += 1;
+            }
+            Token::In => {
+                // `key in arr`: the left value was pushed; the right side is
+                // the bare array name.
+                let Some(Token::Var(arr)) = tokens.get(index + 1) else {
+                    stack.push(Value::Num(0.0));
+                    index += 1;
+                    continue;
+                };
+                let key = stack.pop().map(|v| v.to_str()).unwrap_or_default();
+                let present = vars.contains_key(&format!("{}{}{}", arr, ARRAY_SEP, key));
+                stack.push(bool_val(present));
+                index += 2;
+            }
             Token::Op(op) => {
                 while let Some(top) = ops.last() {
                     if precedence(top) >= precedence(op) {
@@ -641,6 +719,9 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
     }
 
     while let Some(op) = ops.pop() {
+        if op == "(" {
+            break;
+        }
         apply_op(&mut stack, &op);
     }
 
@@ -694,6 +775,30 @@ fn call_builtin(name: &str, args: Vec<Value>, vars: &mut HashMap<String, String>
         }
         "toupper" => Value::Str(arg(0).to_uppercase()),
         "tolower" => Value::Str(arg(0).to_lowercase()),
+        "split" => {
+            let source = arg(0);
+            let arr = vars.get("\u{0}split_arr").cloned().unwrap_or_default();
+            vars.remove("\u{0}split_arr");
+            if arr.is_empty() {
+                return Value::Num(0.0);
+            }
+            let fs = if args.len() >= 3 {
+                arg(2)
+            } else {
+                vars.get("FS").cloned().unwrap_or_else(|| " ".to_string())
+            };
+            let parts: Vec<String> = if fs == " " {
+                source.split_whitespace().map(str::to_string).collect()
+            } else if fs.is_empty() {
+                source.chars().map(|c| c.to_string()).collect()
+            } else {
+                source.split(&fs).map(str::to_string).collect()
+            };
+            for (j, part) in parts.iter().enumerate() {
+                vars.insert(format!("{}{}{}", arr, ARRAY_SEP, j + 1), part.clone());
+            }
+            Value::Num(parts.len() as f64)
+        }
         "sub" | "gsub" => {
             // The third argument names the lvalue; eval passes values only,
             // so the caller stashes the target key beforehand.
@@ -811,8 +916,7 @@ fn execute_block(tokens: &[Token], vars: &mut HashMap<String, String>) -> Flow {
     while i < tokens.len() {
         match &tokens[i] {
             Token::Print => {
-                let paren = matches!(tokens.get(i + 1), Some(Token::LParen));
-                let (args, next) = collect_args(tokens, i + 1, paren, vars);
+                let (args, next) = collect_args(tokens, i + 1, false, vars);
                 if args.is_empty() {
                     println!("{}", vars.get("$0").map(String::as_str).unwrap_or(""));
                 } else {
@@ -822,8 +926,7 @@ fn execute_block(tokens: &[Token], vars: &mut HashMap<String, String>) -> Flow {
                 i = next;
             }
             Token::Printf => {
-                let paren = matches!(tokens.get(i + 1), Some(Token::LParen));
-                let (args, next) = collect_args(tokens, i + 1, paren, vars);
+                let (args, next) = collect_args(tokens, i + 1, false, vars);
                 if let Some(fmt) = args.first() {
                     let rest: Vec<String> = args[1..].iter().map(Value::to_str).collect();
                     let mut bytes = Vec::new();
@@ -848,6 +951,59 @@ fn execute_block(tokens: &[Token], vars: &mut HashMap<String, String>) -> Flow {
                 i = next_i;
             }
             Token::Next => return Flow::Next,
+            Token::Index(name, key_tokens) => {
+                if matches!(tokens.get(i + 1), Some(Token::Assign)) {
+                    let key = eval_tokens(key_tokens, vars).to_str();
+                    let end = expr_end(tokens, i + 2);
+                    let val = eval_tokens(&tokens[i + 2..end], vars).to_str();
+                    vars.insert(format!("{}{}{}", name, ARRAY_SEP, key), val);
+                    i = end;
+                } else if let Some(Token::Op(op)) = tokens.get(i + 1)
+                    && matches!(op.as_str(), "+=" | "-=" | "*=" | "/=")
+                {
+                    let key = eval_tokens(key_tokens, vars).to_str();
+                    let full = format!("{}{}{}", name, ARRAY_SEP, key);
+                    let end = expr_end(tokens, i + 2);
+                    let rhs = eval_tokens(&tokens[i + 2..end], vars);
+                    let cur = vars
+                        .get(&full)
+                        .and_then(|s| s.trim().parse::<f64>().ok())
+                        .unwrap_or(0.0);
+                    let val = match op.as_str() {
+                        "+=" => Value::Num(cur + rhs.to_num()),
+                        "-=" => Value::Num(cur - rhs.to_num()),
+                        "*=" => Value::Num(cur * rhs.to_num()),
+                        _ => {
+                            let d = rhs.to_num();
+                            if d == 0.0 {
+                                Value::Num(0.0)
+                            } else {
+                                Value::Num(cur / d)
+                            }
+                        }
+                    };
+                    vars.insert(full, val.to_str());
+                    i = end;
+                } else {
+                    i += 1;
+                }
+            }
+            Token::Delete => {
+                // delete arr[key] or delete arr
+                match tokens.get(i + 1) {
+                    Some(Token::Index(name, key_tokens)) => {
+                        let key = eval_tokens(key_tokens, vars).to_str();
+                        vars.remove(&format!("{}{}{}", name, ARRAY_SEP, key));
+                        i += 2;
+                    }
+                    Some(Token::Var(name)) => {
+                        let prefix = format!("{}{}", name, ARRAY_SEP);
+                        vars.retain(|k, _| !k.starts_with(&prefix));
+                        i += 2;
+                    }
+                    _ => i += 1,
+                }
+            }
             Token::Var(v) => {
                 if matches!(tokens.get(i + 1), Some(Token::Assign)) {
                     let name = v.clone();
@@ -856,11 +1012,36 @@ fn execute_block(tokens: &[Token], vars: &mut HashMap<String, String>) -> Flow {
                     vars.insert(name, val);
                     i = end;
                 } else if matches!(tokens.get(i + 1), Some(Token::LParen))
-                    && matches!(v.as_str(), "sub" | "gsub")
+                    && matches!(v.as_str(), "sub" | "gsub" | "split")
                 {
-                    // A bare sub/gsub statement runs for its side effect.
+                    // A bare sub/gsub/split statement runs for its side effect.
                     let end = args_extent(tokens, i + 1, true);
                     let _ = eval_tokens(&tokens[i..end], vars);
+                    i = end;
+                } else if let Some(Token::Op(op)) = tokens.get(i + 1)
+                    && matches!(op.as_str(), "+=" | "-=" | "*=" | "/=")
+                {
+                    // Compound assignment: s += expr and friends.
+                    let end = expr_end(tokens, i + 2);
+                    let rhs = eval_tokens(&tokens[i + 2..end], vars);
+                    let cur = vars
+                        .get(v)
+                        .and_then(|s| s.trim().parse::<f64>().ok())
+                        .unwrap_or(0.0);
+                    let val = match op.as_str() {
+                        "+=" => Value::Num(cur + rhs.to_num()),
+                        "-=" => Value::Num(cur - rhs.to_num()),
+                        "*=" => Value::Num(cur * rhs.to_num()),
+                        _ => {
+                            let d = rhs.to_num();
+                            if d == 0.0 {
+                                Value::Num(0.0)
+                            } else {
+                                Value::Num(cur / d)
+                            }
+                        }
+                    };
+                    vars.insert(v.clone(), val.to_str());
                     i = end;
                 } else if let Some(Token::Op(op)) = tokens.get(i + 1) {
                     // i++ / i-- statements (and prefixes within expressions).
@@ -974,7 +1155,37 @@ fn execute_for(
     let (Some(close_paren), _) = (close, ()) else {
         return (start + 1, Flow::Normal);
     };
+    // `for (k in arr)` form: no semicolons, Var In Var header.
     if seps.len() < 2 {
+        if matches!(tokens.get(open + 1), Some(Token::Var(_)))
+            && matches!(tokens.get(open + 2), Some(Token::In))
+            && matches!(tokens.get(open + 3), Some(Token::Var(_arr)))
+        {
+            let Some(Token::Var(key_var)) = tokens.get(open + 1) else {
+                return (close_paren + 1, Flow::Normal);
+            };
+            let Some(Token::Var(arr)) = tokens.get(open + 3) else {
+                return (close_paren + 1, Flow::Normal);
+            };
+            let prefix = format!("{}{}", arr, ARRAY_SEP);
+            let mut keys: Vec<String> = vars
+                .keys()
+                .filter(|k| k.starts_with(&prefix))
+                .map(|k| k[prefix.len()..].to_string())
+                .collect();
+            keys.sort();
+            let body_start = close_paren + 1;
+            let body_end = statement_end(tokens, body_start);
+            let body = &tokens[body_start..body_end];
+            for key in keys {
+                vars.insert(key_var.clone(), key);
+                let flow = execute_block(body, vars);
+                if flow == Flow::Next {
+                    return (body_end, Flow::Next);
+                }
+            }
+            return (body_end, Flow::Normal);
+        }
         return (close_paren + 1, Flow::Normal);
     }
     let init = &tokens[open + 1..seps[0]];
@@ -1012,14 +1223,29 @@ fn statement_end(tokens: &[Token], i: usize) -> usize {
         Some(Token::If) => if_chain_end(tokens, i),
         Some(Token::For) => for_end(tokens, i),
         Some(Token::Next) | Some(Token::Action(_)) => i + 1,
+        Some(Token::Index(_, _)) => {
+            if matches!(tokens.get(i + 1), Some(Token::Assign)) {
+                expr_end(tokens, i + 2)
+            } else {
+                i + 1
+            }
+        }
+        Some(Token::Delete) => match tokens.get(i + 1) {
+            Some(Token::Index(_, _)) => i + 2,
+            Some(Token::Var(_)) => i + 2,
+            _ => i + 1,
+        },
         Some(Token::Var(_)) => {
             if matches!(tokens.get(i + 1), Some(Token::Assign)) {
                 expr_end(tokens, i + 2)
-            } else if matches!(
-                tokens.get(i + 1),
-                Some(Token::Op(op)) if op == "++" || op == "--"
-            ) {
-                i + 2
+            } else if let Some(Token::Op(op)) = tokens.get(i + 1)
+                && matches!(op.as_str(), "++" | "--" | "+=" | "-=" | "*=" | "/=")
+            {
+                if op == "++" || op == "--" {
+                    i + 2
+                } else {
+                    expr_end(tokens, i + 2)
+                }
             } else {
                 i + 1
             }
@@ -1073,22 +1299,44 @@ fn for_end(tokens: &[Token], start: usize) -> usize {
     statement_end(tokens, close_paren + 1)
 }
 
-/// End (exclusive) of the comma-separated argument list starting at `start`.
-/// With `paren`, the list is wrapped in parentheses.
+/// End (exclusive) of the comma-separated argument list starting at
+/// `start`. Depth counts from zero: commas at depth zero split arguments,
+/// and a closing parenthesis at depth zero ends the list unless a comma
+/// follows it (`print (1), (2)` keeps going).
 fn args_extent(tokens: &[Token], start: usize, paren: bool) -> usize {
-    let mut i = if paren { start + 1 } else { start };
-    loop {
-        let e = expr_end(tokens, i);
-        i = e;
+    let mut i = start;
+    let mut depth = 0usize;
+    while i < tokens.len() {
         match tokens.get(i) {
-            Some(Token::Comma) => i += 1,
-            Some(Token::RParen) if paren => return i + 1,
-            // Adjacent value: the list already ended (concatenation is not
-            // supported, so the neighbouring token is a new statement).
-            Some(t) if is_value_start(t) => return i,
-            _ => return i,
+            Some(Token::LParen) => depth += 1,
+            Some(Token::RParen) => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 && !matches!(tokens.get(i + 1), Some(Token::Comma)) {
+                    return if paren { i + 1 } else { i };
+                }
+            }
+            Some(t)
+                if depth == 0
+                    && matches!(
+                        t,
+                        Token::Semicolon
+                            | Token::If
+                            | Token::Else
+                            | Token::Print
+                            | Token::Printf
+                            | Token::Next
+                            | Token::Begin
+                            | Token::End
+                            | Token::Action(_)
+                    ) =>
+            {
+                return i;
+            }
+            _ => {}
         }
+        i += 1;
     }
+    i
 }
 
 /// Collects and evaluates the comma-separated argument list starting at
@@ -1099,21 +1347,58 @@ fn collect_args(
     paren: bool,
     vars: &mut HashMap<String, String>,
 ) -> (Vec<Value>, usize) {
-    let end = args_extent(tokens, start, paren);
-    let mut args = Vec::new();
-    let mut i = if paren { start + 1 } else { start };
-    let limit = if paren { end - 1 } else { end };
-    while i < limit {
-        let e = expr_end(tokens, i);
-        if e > i {
-            args.push(eval_tokens(&tokens[i..e], vars));
+    let mut i = start;
+    let mut depth = 0usize;
+    let mut args: Vec<Value> = Vec::new();
+    let mut seg = i;
+    while i < tokens.len() {
+        match tokens.get(i) {
+            Some(Token::LParen) => depth += 1,
+            Some(Token::RParen) => {
+                depth = depth.saturating_sub(1);
+                // Call-style list: this RParen closes the call. Wrapper-less
+                // print lists keep the RParen inside the current segment.
+                if depth == 0 && paren {
+                    if seg < i {
+                        args.push(eval_tokens(&tokens[seg..i], vars));
+                    }
+                    return (args, i + 1);
+                }
+            }
+            Some(Token::Comma) if depth == usize::from(paren) => {
+                if seg < i {
+                    args.push(eval_tokens(&tokens[seg..i], vars));
+                }
+                seg = i + 1;
+            }
+            Some(t)
+                if depth == usize::from(paren)
+                    && matches!(
+                        t,
+                        Token::Semicolon
+                            | Token::If
+                            | Token::Else
+                            | Token::Print
+                            | Token::Printf
+                            | Token::Next
+                            | Token::Begin
+                            | Token::End
+                            | Token::Action(_)
+                    ) =>
+            {
+                if seg < i {
+                    args.push(eval_tokens(&tokens[seg..i], vars));
+                }
+                return (args, i);
+            }
+            _ => {}
         }
-        match tokens.get(e) {
-            Some(Token::Comma) => i = e + 1,
-            _ => break,
-        }
+        i += 1;
     }
-    (args, end)
+    if seg < i {
+        args.push(eval_tokens(&tokens[seg..i], vars));
+    }
+    (args, i)
 }
 
 /// End (exclusive) of a single expression starting at `start`.
@@ -1152,6 +1437,7 @@ fn expr_end(tokens: &[Token], start: usize) -> usize {
                 Some(close) => i = close + 1,
                 None => return tokens.len(),
             },
+            Token::In => i += 1,
             _ => i += 1,
         }
     }
