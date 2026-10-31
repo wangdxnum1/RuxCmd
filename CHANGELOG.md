@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 — 行为收口、命令扩展与 awk/sed 深化(2026-10-31)
 
 ### Round 24 awk 用户函数/重定向与 sed ERE(2026-10-31)
 

@@ -11,7 +11,7 @@ The project is under active development. Familiar command names and options do n
 
 ## Use the tools
 
-Download `ruxcmd-0.3.2-x86_64-pc-windows-msvc.zip` from the latest [GitHub Release](https://github.com/wangdxnum1/RuxCmd/releases) and extract it. Alternatively, open a successful [CI run](https://github.com/wangdxnum1/RuxCmd/actions/workflows/ci.yml) and download the `ruxcmd-windows-x64-ci` artifact (7-day retention); extract the Actions download, then extract the `ruxcmd-<version>-x86_64-pc-windows-msvc.zip` inside it.
+Download `ruxcmd-0.4.0-x86_64-pc-windows-msvc.zip` from the latest [GitHub Release](https://github.com/wangdxnum1/RuxCmd/releases) and extract it. Alternatively, open a successful [CI run](https://github.com/wangdxnum1/RuxCmd/actions/workflows/ci.yml) and download the `ruxcmd-windows-x64-ci` artifact (7-day retention); extract the Actions download, then extract the `ruxcmd-<version>-x86_64-pc-windows-msvc.zip` inside it.
 
 Run the executables directly, or add the extracted `bin` directory to your user `PATH` and reopen your terminal:
 
@@ -26,7 +26,7 @@ PowerShell defines aliases such as `cat`, `ls`, `cp`, and `rm`. Use the `.exe` s
 Packages contain a source/build manifest, per-file SHA256 checksums, and documentation. Compare the ZIP checksum in the companion `.zip.sha256` file with:
 
 ```powershell
-Get-FileHash .\ruxcmd-0.3.2-x86_64-pc-windows-msvc.zip -Algorithm SHA256
+Get-FileHash .\ruxcmd-0.4.0-x86_64-pc-windows-msvc.zip -Algorithm SHA256
 ```
 
 CI artifacts are retained for 7 days; tagged Release workflow artifacts for 30 days. A successful Release run publishes the ZIP and checksum as a GitHub Release at the tag (prerelease for pre-release tags); existing releases are never overwritten. The local `release.ps1 -Publish` path remains available.
@@ -89,8 +89,8 @@ pwsh -File scripts/release.ps1
 The script builds release binaries, checks DLL dependencies, runs smoke checks, generates the manifest and checksums, then extracts and verifies the ZIP and reruns smoke/behavior checks. Verified output is written to:
 
 ```text
-dist/ruxcmd-0.3.2-x86_64-pc-windows-msvc.zip
-dist/ruxcmd-0.3.2-x86_64-pc-windows-msvc.zip.sha256
+dist/ruxcmd-0.4.0-x86_64-pc-windows-msvc.zip
+dist/ruxcmd-0.4.0-x86_64-pc-windows-msvc.zip.sha256
 ```
 
 The suite version comes from `workspace.metadata.ruxcmd.version` in `Cargo.toml`; individual command versions may differ. Local packages record the source commit and whether the checkout has uncommitted files (`dirty`). Existing files are never overwritten; choose a new directory for another build of the same version:
@@ -115,24 +115,24 @@ To start CI manually, open **Actions → CI → Run workflow**, select a branch,
 
 ### Release: an existing version tag
 
-[Release](.github/workflows/release.yml) is started manually and builds an **existing tag**, such as `v0.3.2`:
+[Release](.github/workflows/release.yml) is started manually and builds an **existing tag**, such as `v0.4.0`:
 
 1. Update the suite version in `Cargo.toml` and [CHANGELOG](CHANGELOG.md), then commit and push.
-2. After CI succeeds, create and push a matching tag at that commit. For version `0.3.2`:
+2. After CI succeeds, create and push a matching tag at that commit. For version `0.4.0`:
 
    ```powershell
-   git tag -a v0.3.2 -m "RuxCmd 0.3.2"
-   git push origin v0.3.2
+   git tag -a v0.4.0 -m "RuxCmd 0.4.0"
+   git push origin v0.4.0
    ```
 
-3. Open **Actions → Release → Run workflow** on `main`, enter `v0.3.2` in the `tag` input, and start it. Pushing a tag alone does not trigger Release.
+3. Open **Actions → Release → Run workflow** on `main`, enter `v0.4.0` in the `tag` input, and start it. Pushing a tag alone does not trigger Release.
 4. The workflow checks out the tag, installs Rust, runs `scripts/build.ps1 -Task Verify`, and packages with `scripts/release.ps1 -RequireClean -Tag <tag>`.
-5. Download `ruxcmd-v0.3.2-windows-x64` after success (30-day retention). The workflow also publishes a GitHub Release at the tag with both files attached; publishing is skipped when a release with that tag already exists.
+5. Download `ruxcmd-v0.4.0-windows-x64` after success (30-day retention). The workflow also publishes a GitHub Release at the tag with both files attached; publishing is skipped when a release with that tag already exists.
 
 The tag must match the suite version and point to the checked-out commit. Formal packaging rejects a dirty checkout. To package locally with the same checks, check out the tag in a clean clone and run:
 
 ```powershell
-pwsh -File scripts/release.ps1 -RequireClean -Tag v0.3.2
+pwsh -File scripts/release.ps1 -RequireClean -Tag v0.4.0
 ```
 
 ### Publish a GitHub Release from your computer

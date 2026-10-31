@@ -172,7 +172,7 @@ fn collect_print_args(
 fn dest_mode(dest: &PrintDest) -> RedirectMode {
     match dest {
         PrintDest::Target(_, mode) => *mode,
-        PrintDest::Stdout | PrintDest::Stderr => RedirectMode::Truncate,
+        _ => RedirectMode::Truncate,
     }
 }
 
@@ -198,6 +198,8 @@ fn write_output(text: &str, add_newline: bool, dest: Option<&PrintDest>) {
                 let mut map = r.borrow_mut();
                 if !map.contains_key(name) {
                     let handle = match name.as_str() {
+                        "/dev/stdout" => OutHandle::Stdout(std::io::stdout()),
+                        "/dev/stderr" => OutHandle::Stderr(std::io::stderr()),
                         pipe if mode == RedirectMode::Pipe => {
                             let child = std::process::Command::new("cmd")
                                 .args(["/C", pipe])
@@ -216,7 +218,6 @@ fn write_output(text: &str, add_newline: bool, dest: Option<&PrintDest>) {
                             OutHandle::File(file)
                         }
                     };
-                    eprintln!("DBGR insert key={:?}", name);
                     map.insert(name.to_string(), handle);
                 }
                 let handle = map.get_mut(name).unwrap();

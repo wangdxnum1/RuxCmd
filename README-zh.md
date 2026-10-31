@@ -11,7 +11,7 @@
 
 ## 使用命令
 
-从最新的 [GitHub Release](https://github.com/wangdxnum1/RuxCmd/releases) 下载 `ruxcmd-0.3.2-x86_64-pc-windows-msvc.zip` 并解压。也可以打开一次成功的 [CI 运行](https://github.com/wangdxnum1/RuxCmd/actions/workflows/ci.yml)下载 `ruxcmd-windows-x64-ci` artifact（保留 7 天）；先解压 Actions 下载的文件，再解压其中的 `ruxcmd-<版本>-x86_64-pc-windows-msvc.zip`。
+从最新的 [GitHub Release](https://github.com/wangdxnum1/RuxCmd/releases) 下载 `ruxcmd-0.4.0-x86_64-pc-windows-msvc.zip` 并解压。也可以打开一次成功的 [CI 运行](https://github.com/wangdxnum1/RuxCmd/actions/workflows/ci.yml)下载 `ruxcmd-windows-x64-ci` artifact（保留 7 天）；先解压 Actions 下载的文件，再解压其中的 `ruxcmd-<版本>-x86_64-pc-windows-msvc.zip`。
 
 直接调用可执行文件，或将解压后的 `bin` 目录加入用户 `PATH`，再重新打开终端：
 
@@ -26,7 +26,7 @@ PowerShell 为 `cat`、`ls`、`cp`、`rm` 等名称定义了别名。使用 `.ex
 包内包含源码与构建清单、逐文件 SHA256 校验和及说明文档。将旁边 `.zip.sha256` 文件中的 ZIP 校验和与以下结果比较：
 
 ```powershell
-Get-FileHash .\ruxcmd-0.3.2-x86_64-pc-windows-msvc.zip -Algorithm SHA256
+Get-FileHash .\ruxcmd-0.4.0-x86_64-pc-windows-msvc.zip -Algorithm SHA256
 ```
 
 CI artifact 保留 7 天，按 tag 构建的 Release workflow artifact 保留 30 天。Release 运行成功后会以 tag 名自动发布 GitHub Release 并附上 ZIP 与校验文件（预发布标签标记为 prerelease）；已存在的 Release 不会被覆盖。本机 `release.ps1 -Publish` 路径仍然可用。
@@ -89,8 +89,8 @@ pwsh -File scripts/release.ps1
 脚本编译 release 可执行文件，检查 DLL 依赖，执行冒烟检查，生成清单与校验和，再解压 ZIP 核对文件并重新运行冒烟和行为检查。验证完成的产物写入：
 
 ```text
-dist/ruxcmd-0.3.2-x86_64-pc-windows-msvc.zip
-dist/ruxcmd-0.3.2-x86_64-pc-windows-msvc.zip.sha256
+dist/ruxcmd-0.4.0-x86_64-pc-windows-msvc.zip
+dist/ruxcmd-0.4.0-x86_64-pc-windows-msvc.zip.sha256
 ```
 
 套件版本取自 `Cargo.toml` 的 `workspace.metadata.ruxcmd.version`，各命令自身版本可以不同。本地包记录源码提交及是否存在未提交文件（`dirty`）。脚本不覆盖已有文件；再次生成相同版本时指定新目录：
@@ -115,24 +115,24 @@ pwsh -File scripts/release.ps1 -OutputDir dist/local-check
 
 ### Release：已存在的版本 tag
 
-[Release](.github/workflows/release.yml) 需要手动启动，构建一个**已存在的 tag**，例如 `v0.3.2`：
+[Release](.github/workflows/release.yml) 需要手动启动，构建一个**已存在的 tag**，例如 `v0.4.0`：
 
 1. 更新 `Cargo.toml` 中的套件版本和 [CHANGELOG](CHANGELOG.md)，提交并推送修改。
 2. CI 成功后，在该提交上创建并推送与版本一致的 tag。以 `0.3.2` 为例：
 
    ```powershell
-   git tag -a v0.3.2 -m "RuxCmd 0.3.2"
-   git push origin v0.3.2
+   git tag -a v0.4.0 -m "RuxCmd 0.4.0"
+   git push origin v0.4.0
    ```
 
-3. 打开 **Actions → Release → Run workflow**，选择 `main`，在 `tag` 输入框填入 `v0.3.2` 并启动。仅推送 tag 不会触发 Release。
+3. 打开 **Actions → Release → Run workflow**，选择 `main`，在 `tag` 输入框填入 `v0.4.0` 并启动。仅推送 tag 不会触发 Release。
 4. workflow 检出 tag，安装 Rust，执行 `scripts/build.ps1 -Task Verify`，再用 `scripts/release.ps1 -RequireClean -Tag <tag>` 打包。
-5. 成功后下载 `ruxcmd-v0.3.2-windows-x64` artifact，保留 30 天。workflow 同时会以该 tag 自动发布 GitHub Release 并附上两个文件；同名 Release 已存在时跳过发布。
+5. 成功后下载 `ruxcmd-v0.4.0-windows-x64` artifact，保留 30 天。workflow 同时会以该 tag 自动发布 GitHub Release 并附上两个文件；同名 Release 已存在时跳过发布。
 
 tag 必须与套件版本一致，并指向当前检出的提交。正式打包拒绝含未提交文件的工作目录。若需本地执行相同检查，在干净克隆中检出 tag 后运行：
 
 ```powershell
-pwsh -File scripts/release.ps1 -RequireClean -Tag v0.3.2
+pwsh -File scripts/release.ps1 -RequireClean -Tag v0.4.0
 ```
 
 ### 从本机发布 GitHub Release
