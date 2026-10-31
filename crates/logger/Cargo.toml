@@ -1,0 +1,19 @@
+[package]
+build = "../../build/windows-version.rs"
+license.workspace = true
+repository.workspace = true
+name = "logger"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows logger clone - write messages to stderr or the system log"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+assert_cmd.workspace = true
+predicates.workspace = true
+
+[build-dependencies]
+ruxcmd-build.workspace = true

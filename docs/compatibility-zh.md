@@ -2,7 +2,7 @@
 
 [English](compatibility.md) | **简体中文**
 
-当前 workspace 范围为 137 个命令。下表参数来自各 cli.rs 中显式声明的 long 名称，不是完整语法；以该命令 --help 为准。源码声明不等于功能已经通过测试。
+当前 workspace 范围为 140 个命令。下表参数来自各 cli.rs 中显式声明的 long 名称，不是完整语法；以该命令 --help 为准。源码声明不等于功能已经通过测试。
 
 所有命令已通过有界发布冒烟检查（帮助入口，true/false 为退出码）。只有标记“行为测试”的命令运行了代表性业务断言；其余业务行为尚未自动验证。未声明完整 GNU/POSIX 兼容性。
 
@@ -37,6 +37,8 @@
 | echo | --version | 冒烟 + 行为测试 | 未知的前导选项簇按操作数原样输出（含 --）；-e 覆盖 coreutils 全部转义（\c 截断全部输出）；--help/--version 与 coreutils 一致。 |
 | env | --ignore-environment, --unset, --verbose, --version | 冒烟 + 行为测试 | NAME=VAL 赋值并执行命令（-i 清空、-u 移除、透传退出码、spawn 失败 127）；无命令时打印环境。 |
 | expr | See --help | 冒烟 + 行为测试 | 整数四则（i64）、| / &（GNU 左操作数语义）、比较（双方均为整数按数值否则按字符串）、: 与 match 的锚定 BRE 匹配（返回分组 1 或匹配长度）、substr/index/length。BRE 反向引用不支持（报语法错误）；退出码与 GNU 一致（0/1/2）。 |
+| | envsubst | See --help | Smoke + behavior tests | Substitutes $VAR and ${VAR} from the environment. With SHELL-FORMAT, only the listed variables are replaced; others stay verbatim. Unknown variables become empty. | |
+| | envsubst | See --help | 冒烟 + 行为测试 | 替换 $VAR 和 ${VAR} 环境变量。有 SHELL-FORMAT 参数时仅替换列出的变量，其余保持原文。未知变量替换为空。 | |
 | expand | --initial, --tabs, --version | 冒烟 + 行为测试 | 字节安全：CR 字节、非法 UTF-8 与未终止末行原样透传；tab 诊断与 GNU 一致（0 尺寸、升序列表）。 |
 | factor | --version | 冒烟 + 行为测试 | 对 u64 试除（无 Pollard rho，大半素数较慢）；0 和 1 与 GNU 一致输出裸标签。 |
 | false | --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
@@ -60,6 +62,8 @@
 | kill | --list, --signal, --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
 | link | （仅自动 help/version） | 冒烟 + 行为测试 | 创建一个文件硬链接，两个路径必须位于支持硬链接的同一卷；不创建符号链接或目录链接。 |
 | ln | --force, --symbolic, --verbose, --version | 冒烟 + 行为测试 | 链接目标按书写形式存储（无 \\?\ 前缀）；-v 打印创建结果。Windows 符号链接可能需要权限或开发者模式。 |
+| | logger -s, -t/--tag | Smoke + behavior tests | Writes tagged messages to stderr. -s echoes to stderr, -t sets the tag prefix (defaults to USERNAME). Reads stdin when no message is given. Windows Event Log integration is a future enhancement. | |
+| | logger -s, -t/--tag | 冒烟 + 行为测试 | 将带标签的消息写入 stderr。-s 同时输出到 stderr，-t 设置标签前缀（默认 USERNAME）。无消息时从 stdin 读。Windows 事件日志集成为后续增强。 | |
 | logname | --version | 冒烟 + 行为测试 | GetUserNameW 获取当前进程账户，失败回退 USERNAME；切换凭据后可能与 Unix 登录身份不同。 |
 | ls | --all, --almost-all, --author, --block-size, --classify, --color | 冒烟 + 行为测试 | 长格式附加列（-i/-s 与符号链接目标）按位置索引渲染，着色时不丢失。完整 GNU 行为未验证。 |
 | md5sum | --check, --quiet, --status, --tag, --version, --zero | 冒烟 + 行为测试 | 支持 -z/--zero 和 --tag -z，NUL 模式不转义文件名；-z -c 退出 1。普通校验从 stdin 或 - 读取清单，保留精确文件名，支持 GNU 转义/BOM/二进制标记/tag，并传播读取错误；FAILED 写 stdout，--status 静默。不支持 -b/-t、strict 或 NUL 清单解析。 |
@@ -119,6 +123,8 @@
 | timeout | --kill-after, --version | 冒烟 + 行为测试 | 轮询子进程：正常结束透传退出码，超时返回 124；-k/--kill-after 在宽限期后升级终止。时长支持小数与 s/m/h/d 后缀；子命令允许以 '-' 开头。仅终止直接子进程。 |
 | top | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
 | touch | --no-create, --version | 冒烟 + 行为测试 | 经 SetFileTime 更新已存在文件、目录与只读文件的 atime/mtime；-a 与 -m 选择更新的时间。-d/--date、-t、-r/--reference 未实现。 |
+| | tree | -a, --charset, --level | Smoke + behavior tests | Recursive directory listing with Unicode or ASCII tree characters. -a shows hidden files, -L limits depth, --charset=ascii uses | ` -- characters. Directories sort before files, then alphabetical. | |
+| | tree | -a, --charset, --level | 冒烟 + 行为测试 | 递归目录列表，Unicode 或 ASCII 树枝字符。-a 显示隐藏文件，-L 限制深度，--charset=ascii 使用 | ` -- 字符。目录排前，同名按字典序。 | |
 | truncate | --no-create, --reference, --size | 冒烟 + 行为测试 | 尺寸支持 +/- 调整与 K/M/G/T/P/E（1024 进制）或 KB/MB/GB（1000 进制）后缀；+ 表示不小于。--io-blocks 不支持。 |
 | tr | --complement, --delete, --squeeze, --version | 冒烟 + 行为测试 | 支持转义（\n、\t、八进制）与 POSIX 字符类（[:alpha:] 等）；-c 作用于替换与挤压；-s 按 SET2 挤压；反序区间报错退出 1。按字符而非字节处理。 |
 | traceroute | --max-hops, --nqueries, --timeout, --version | 冒烟 + 行为测试 | 通过 IcmpSendEcho 发送 IPv4 ICMP 探测，超时单位为毫秒；到达目标、收到不可达状态或达到跳数上限时结束。不支持 IPv6、UDP/TCP 探测和反向 DNS。已测环回和有界 TEST-NET 场景，多路由器网络行为未验证。没有 `tracert` 可执行别名。 |

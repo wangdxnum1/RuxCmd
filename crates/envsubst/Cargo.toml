@@ -1,0 +1,19 @@
+[package]
+build = "../../build/windows-version.rs"
+license.workspace = true
+repository.workspace = true
+name = "envsubst"
+version = "0.1.0"
+edition = "2024"
+description = "A Windows envsubst clone - substitute environment variables in text"
+authors = ["Tim"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+assert_cmd.workspace = true
+predicates.workspace = true
+
+[build-dependencies]
+ruxcmd-build.workspace = true

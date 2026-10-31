@@ -5,7 +5,7 @@
 
 **English** | [简体中文](README-zh.md)
 
-Linux-style command-line tools for Windows, written in Rust. RuxCmd currently builds **137 standalone executables** for Windows x64 with MSVC, covering files, text, processes, networking, and system information.
+Linux-style command-line tools for Windows, written in Rust. RuxCmd currently builds **140 standalone executables** for Windows x64 with MSVC, covering files, text, processes, networking, and system information.
 
 The project is under active development. Familiar command names and options do not imply full GNU/POSIX compatibility. See the [command compatibility table](docs/compatibility.md) for supported options and known differences.
 
@@ -160,7 +160,7 @@ Cargo.lock               Shared, committed dependency lockfile
 rust-toolchain.toml      Pinned Rust toolchain
 ```
 
-**140 packages produce 137 commands**: 136 commands each have one package; `ps-bin` produces `ps.exe` and shares the `ps-sys` native collector with `pgrep` and `pkill`. `ruxcmd-core` provides shared helpers and `ruxcmd-build` is a build-only library for executable version resources; `ls` exposes both a binary and a library reused by `vdir`. Independent non-command projects are outside the suite.
+**143 packages produce 140 commands**: 139 commands each have one package; `ps-bin` produces `ps.exe` and shares the `ps-sys` native collector with `pgrep` and `pkill`. `ruxcmd-core` provides shared helpers and `ruxcmd-build` is a build-only library for executable version resources; `ls` exposes both a binary and a library reused by `vdir`. Independent non-command projects are outside the suite.
 
 ## Contributing and documentation
 

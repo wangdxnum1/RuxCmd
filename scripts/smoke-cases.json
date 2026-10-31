@@ -196,6 +196,13 @@
   "exitCode": 0
  },
  {
+  "name": "envsubst",
+  "arguments": [
+   "--help"
+  ],
+  "exitCode": 0
+ },
+ {
   "name": "expand",
   "arguments": [
    "--help"
@@ -356,6 +363,13 @@
  },
  {
   "name": "ln",
+  "arguments": [
+   "--help"
+  ],
+  "exitCode": 0
+ },
+ {
+  "name": "logger",
   "arguments": [
    "--help"
   ],
@@ -776,6 +790,13 @@
  },
  {
   "name": "traceroute",
+  "arguments": [
+   "--help"
+  ],
+  "exitCode": 0
+ },
+ {
+  "name": "tree",
   "arguments": [
    "--help"
   ],

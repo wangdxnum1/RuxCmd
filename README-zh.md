@@ -5,7 +5,7 @@
 
 [English](README.md) | **简体中文**
 
-用 Rust 实现的 Linux 风格 Windows 命令集。目前生成 **137 个独立可执行文件**，面向 Windows x64 / MSVC，覆盖文件、文本、进程、网络及系统信息工具。
+用 Rust 实现的 Linux 风格 Windows 命令集。目前生成 **140 个独立可执行文件**，面向 Windows x64 / MSVC，覆盖文件、文本、进程、网络及系统信息工具。
 
 项目仍在开发中。命令名称和参数沿用 Linux 风格，但不保证完整 GNU/POSIX 兼容性。支持的选项及已知差异见[命令兼容性表](docs/compatibility-zh.md)。
 
@@ -160,7 +160,7 @@ Cargo.lock               统一提交的依赖锁文件
 rust-toolchain.toml      固定 Rust 工具链
 ```
 
-**140 个包生成 137 个命令**：136 个命令各占一个包；`ps-bin` 生成 `ps.exe`，并与 `pgrep`、`pkill` 共用 `ps-sys` 原生采集层。`ruxcmd-core` 提供共享辅助函数，`ruxcmd-build` 仅在构建时生成可执行文件版本资源；`ls` 同时提供可执行目标和供 `vdir` 复用的库。独立非命令项目不纳入套件。
+**143 个包生成 140 个命令**：139 个命令各占一个包；`ps-bin` 生成 `ps.exe`，并与 `pgrep`、`pkill` 共用 `ps-sys` 原生采集层。`ruxcmd-core` 提供共享辅助函数，`ruxcmd-build` 仅在构建时生成可执行文件版本资源；`ls` 同时提供可执行目标和供 `vdir` 复用的库。独立非命令项目不纳入套件。
 
 ## 贡献与文档
 
