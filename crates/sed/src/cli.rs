@@ -5,7 +5,7 @@ use std::ffi::{OsStr, OsString};
 ///
 /// Supported subset: `s/pat/rep/[g]`, `p`, `d`, `q` commands with optional
 /// addresses (line number, `$`, `/substring/`, and `addr,addr` ranges).
-/// Matching is literal substring, not regular expression.
+/// Matching uses POSIX BRE by default, or ERE with -E.
 #[derive(Parser, Debug)]
 #[command(name = "sed", version, about, disable_version_flag = true)]
 pub struct Args {
@@ -32,6 +32,10 @@ pub struct Args {
     /// Consider files as separate rather than as a single continuous stream
     #[arg(short = 's', long = "separate")]
     pub separate: bool,
+
+    /// Use extended regular expressions (ERE) in scripts
+    #[arg(short = 'E', short_alias = 'r', long = "regexp-extended")]
+    pub extended: bool,
 
     /// The script (when no -e is given) followed by the file(s) to edit
     #[arg(value_name = "SCRIPT FILE...")]

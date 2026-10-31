@@ -55,14 +55,16 @@ struct ExprParser<'a> {
     src: &'a [u8],
     pos: usize,
     expr_no: usize,
+    extended: bool,
 }
 
 impl<'a> ExprParser<'a> {
-    fn new(src: &'a str, expr_no: usize) -> Self {
+    fn new(src: &'a str, expr_no: usize, extended: bool) -> Self {
         ExprParser {
             src: src.as_bytes(),
             pos: 0,
             expr_no,
+            extended,
         }
     }
 
@@ -129,7 +131,7 @@ impl<'a> ExprParser<'a> {
                 }
             }
         }
-        compile_bre(&pattern, self.expr_no)
+        compile_bre(&pattern, self.expr_no, self.extended)
     }
 
     fn parse_address(&mut self) -> Result<Option<Address>, String> {
@@ -203,8 +205,12 @@ impl<'a> ExprParser<'a> {
 
         // Translate the BRE first; prepending (?i) before translation would
         // escape the inline flag into a literal.
-        let translated = bre::to_regex(&String::from_utf8_lossy(&pattern))
-            .map_err(|e| format!("sed: -e expression #{}: {}", self.expr_no, e))?;
+        let translated = if self.extended {
+            bre::to_regex_ere(&String::from_utf8_lossy(&pattern))
+        } else {
+            bre::to_regex(&String::from_utf8_lossy(&pattern))
+        }
+        .map_err(|e| format!("sed: -e expression #{}: {}", self.expr_no, e))?;
         let re = compile_bre_flags(&translated, case_insensitive, self.expr_no)?;
 
         Ok(CmdKind::Substitute {
@@ -266,17 +272,21 @@ fn compile_bre_flags(
     Regex::new(&source).map_err(|e| format!("sed: -e expression #{expr_no}: invalid BRE: {e}"))
 }
 
-fn compile_bre(pattern: &[u8], expr_no: usize) -> Result<Regex, String> {
+fn compile_bre(pattern: &[u8], expr_no: usize, extended: bool) -> Result<Regex, String> {
     let source = String::from_utf8_lossy(pattern).into_owned();
-    let translated =
-        bre::to_regex(&source).map_err(|e| format!("sed: -e expression #{expr_no}: {e}"))?;
+    let translated = if extended {
+        bre::to_regex_ere(&source)
+    } else {
+        bre::to_regex(&source)
+    }
+    .map_err(|e| format!("sed: -e expression #{expr_no}: {e}"))?;
     compile_bre_flags(&translated, false, expr_no)
 }
 
 /// Parse one script expression (a single -e argument or the first positional
 /// argument) into a command list. Multiple commands may be separated by `;`.
-fn parse_expression(src: &str, expr_no: usize) -> Result<Vec<Command>, String> {
-    let mut p = ExprParser::new(src, expr_no);
+fn parse_expression(src: &str, expr_no: usize, extended: bool) -> Result<Vec<Command>, String> {
+    let mut p = ExprParser::new(src, expr_no, extended);
     let mut commands = Vec::new();
     loop {
         p.skip_blanks_and_semicolons();
@@ -612,7 +622,7 @@ fn main() -> ExitCode {
     // Parse every script up front so nothing is processed on a bad command.
     let mut commands: Vec<Command> = Vec::new();
     for (index, script) in scripts.iter().enumerate() {
-        match parse_expression(script, index + 1) {
+        match parse_expression(script, index + 1, args.extended) {
             Ok(mut parsed) => commands.append(&mut parsed),
             Err(message) => {
                 eprintln!("{message}");

@@ -1,8 +1,12 @@
 use assert_cmd::cargo::cargo_bin_cmd;
 
 fn run(script: &str, stdin: &[u8]) -> (String, Option<i32>) {
+    run_args(&[script], stdin)
+}
+
+fn run_args(args: &[&str], stdin: &[u8]) -> (String, Option<i32>) {
     let out = cargo_bin_cmd!("sed")
-        .arg(script)
+        .args(args)
         .write_stdin(stdin)
         .output()
         .unwrap();
@@ -141,3 +145,47 @@ fn escaped_delimiter_in_pattern() {
 }
 
 use predicates::prelude::*;
+
+#[test]
+fn ere_mode_alternation_and_intervals() {
+    // -E: unescaped ERE operators keep their operator meaning.
+    let (out, code) = run_args(&["-E", "s/cat|dog/PET/g"], b"cat bird dog\n");
+    assert_eq!(code, Some(0));
+    assert_eq!(out, "PET bird PET\n");
+
+    let (out, code) = run_args(&["-E", "s/o{2}/OO/"], b"foot\n");
+    assert_eq!(code, Some(0));
+    assert_eq!(out, "fOOt\n");
+}
+
+#[test]
+fn ere_mode_groups_are_unescaped() {
+    // In ERE, ( ) are groups without backslashes; backrefs still rejected.
+    let out = cargo_bin_cmd!("sed")
+        .args(["-E", r"s/(f[o]+t)/<\1>/g"])
+        .write_stdin(b"foot bar boot\n")
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "<foot> bar boot\n");
+
+    cargo_bin_cmd!("sed")
+        .args(["-E", r"s/(a)\1/X/"])
+        .write_stdin(b"aa\n")
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("back references"));
+}
+
+#[test]
+fn ere_mode_r_alias_and_bre_unchanged() {
+    // -r is the historical alias.
+    let (out, code) = run_args(&["-r", "s/o{2}/OO/"], b"foot\n");
+    assert_eq!(code, Some(0));
+    assert_eq!(out, "fOOt\n");
+
+    // BRE stays literal: + is a plain plus sign without -E.
+    let (out, code) = run("s/o+/0/", b"foot\n");
+    assert_eq!(code, Some(0));
+    assert_eq!(out, "foot\n");
+}
