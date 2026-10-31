@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1 — awk while/do-while、sed -f、dd conv 扩展(2026-10-31)
+
+- awk: while 循环、do-while 循环
+- sed: -f FILE 从文件读脚本
+- dd: conv=sync/noerror/ucase/lcase
+
 ## 0.4.0 — 行为收口、命令扩展与 awk/sed 深化(2026-10-31)
 
 ### Round 24 awk 用户函数/重定向与 sed ERE(2026-10-31)
