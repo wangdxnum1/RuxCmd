@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Round 24 awk 用户函数/重定向与 sed ERE(2026-10-31)
+
+- awk 用户函数:function name(params) { body }、return 带值、递归(深度上限 512)、动态局部参数(调用后恢复);输出重定向:print/printf > 文件、>> 文件、| 命令(经 cmd /C)、/dev/stdout、/dev/stderr、close() 内建(GNU 语义:同一目标打开后持续写入)。
+- sed -E/-r/--regexp-extended:切换 ERE 方案(共享转换器加开关);ERE 直传 Rust 正则语法(未转义 + ? {m,n} | ( ));反向引用在两种方言中均报错。
+- 修复:expr_end 将函数调用括号误判为相邻值拼接;print 多参数在括号参数后丢失;statement_end 缺 Return 臂导致 if 内 return 值丢失;参数收集重写为显式深度扫描解决包装/无包装逗号深度混淆。
+
 ### Round 23 awk 数组与控制流(方向 3 收尾,2026-10-31)
 
 - awk 支持关联数组:元素读写、delete arr[k] 与 delete arr、`k in arr`、for-in(键排序输出)、split 入数组(含默认 FS);三段式 for 循环与 i++/i-- 后缀;复合赋值 += -= *= /=(标量与数组元素)。

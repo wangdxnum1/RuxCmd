@@ -11,6 +11,276 @@ use std::io::{BufRead, BufReader, Read};
 /// store, so arrays cannot collide with scalar variables.
 const ARRAY_SEP: &str = "\u{1}";
 
+enum OutHandle {
+    File(std::fs::File),
+    Stdout(std::io::Stdout),
+    Stderr(std::io::Stderr),
+    Pipe(std::process::Child),
+}
+
+impl OutHandle {
+    fn write(&mut self, bytes: &[u8]) -> Result<(), String> {
+        use std::io::Write;
+        match self {
+            OutHandle::File(f) => f.write_all(bytes).map_err(|e| e.to_string()),
+            OutHandle::Stdout(s) => s.write_all(bytes).map_err(|e| e.to_string()),
+            OutHandle::Stderr(s) => s.write_all(bytes).map_err(|e| e.to_string()),
+            OutHandle::Pipe(c) => c
+                .stdin
+                .as_mut()
+                .ok_or_else(|| "pipe stdin already closed".to_string())?
+                .write_all(bytes)
+                .map_err(|e| e.to_string()),
+        }
+    }
+
+    fn flush(&mut self) -> Result<(), String> {
+        use std::io::Write;
+        match self {
+            OutHandle::File(f) => f.flush().map_err(|e| e.to_string()),
+            OutHandle::Stdout(s) => s.flush().map_err(|e| e.to_string()),
+            OutHandle::Stderr(s) => s.flush().map_err(|e| e.to_string()),
+            OutHandle::Pipe(_) => Ok(()),
+        }
+    }
+
+    fn close(&mut self) {
+        if let OutHandle::Pipe(c) = self {
+            c.stdin.take();
+            let _ = c.wait();
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RedirectMode {
+    Truncate,
+    Append,
+    Pipe,
+}
+
+thread_local! {
+    /// Open print-redirection targets by destination name (GNU semantics:
+    /// a target opened once stays open and subsequent writes append).
+    static REDIRECTS: std::cell::RefCell<HashMap<String, OutHandle>> =
+        std::cell::RefCell::new(HashMap::new());
+    /// User-defined functions: name -> (parameters, body tokens).
+    /// Installed once at parse time; fixed for the program duration.
+    static FUNCTIONS: std::cell::RefCell<HashMap<String, (Vec<String>, Vec<Token>)>> =
+        std::cell::RefCell::new(HashMap::new());
+    /// The value of the most recent `return` inside a user function body.
+    static RETURN_VALUE: std::cell::RefCell<Value> =
+        std::cell::RefCell::new(Value::Str(String::new()));
+    /// Recursion guard for user function calls.
+    static CALL_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+const MAX_CALL_DEPTH: u32 = 512;
+
+#[derive(Debug, Clone)]
+enum PrintDest {
+    Target(String, RedirectMode),
+}
+
+/// Collect print/printf arguments, splitting off a trailing output
+/// redirection (`> file`, `>> file`, `| command`) if present.
+fn collect_print_args(
+    tokens: &[Token],
+    start: usize,
+    vars: &mut HashMap<String, String>,
+) -> (Vec<Value>, usize, Option<PrintDest>) {
+    let mut depth = 0usize;
+    let mut redir_at: Option<(usize, RedirectMode)> = None;
+    let mut j = start;
+    while j < tokens.len() {
+        match tokens.get(j) {
+            Some(Token::LParen) => depth += 1,
+            Some(Token::RParen) => depth = depth.saturating_sub(1),
+            Some(Token::Op(op)) if depth == 0 && matches!(op.as_str(), ">" | ">>" | "|") => {
+                let mode = match op.as_str() {
+                    ">>" => RedirectMode::Append,
+                    "|" => RedirectMode::Pipe,
+                    _ => RedirectMode::Truncate,
+                };
+                redir_at = Some((j, mode));
+                break;
+            }
+            Some(t)
+                if depth == 0
+                    && matches!(
+                        t,
+                        Token::Semicolon
+                            | Token::If
+                            | Token::Else
+                            | Token::Print
+                            | Token::Printf
+                            | Token::Next
+                            | Token::Begin
+                            | Token::End
+                            | Token::Action(_)
+                    ) =>
+            {
+                break;
+            }
+            _ => {}
+        }
+        j += 1;
+    }
+
+    let Some((redir_index, mode)) = redir_at else {
+        let (args, next) = collect_args(tokens, start, false, vars);
+        return (args, next, None);
+    };
+
+    let dest_end = expr_end(tokens, redir_index + 1);
+    let dest_tokens = &tokens[redir_index + 1..dest_end];
+    let dest_expr = if dest_tokens.is_empty() {
+        None
+    } else {
+        Some(eval_tokens(dest_tokens, vars).to_str())
+    };
+
+    let mut args: Vec<Value> = Vec::new();
+    let mut seg = start;
+    let mut k = start;
+    while k < redir_index {
+        if matches!(tokens.get(k), Some(Token::Comma)) && depth == 0 {
+            if seg < k {
+                args.push(eval_tokens(&tokens[seg..k], vars));
+            }
+            seg = k + 1;
+        }
+        if matches!(tokens.get(k), Some(Token::LParen)) {
+            depth += 1;
+        }
+        if matches!(tokens.get(k), Some(Token::RParen)) {
+            depth = depth.saturating_sub(1);
+        }
+        k += 1;
+    }
+    if seg < redir_index {
+        args.push(eval_tokens(&tokens[seg..redir_index], vars));
+    }
+
+    let dest = dest_expr.map(|d| match mode {
+        RedirectMode::Pipe => PrintDest::Target(d, RedirectMode::Pipe),
+        m => PrintDest::Target(d, m),
+    });
+    (args, redir_index.max(start), dest)
+}
+
+fn dest_mode(dest: &PrintDest) -> RedirectMode {
+    match dest {
+        PrintDest::Target(_, mode) => *mode,
+        PrintDest::Stdout | PrintDest::Stderr => RedirectMode::Truncate,
+    }
+}
+
+/// Write one print/printf result to the resolved destination.
+fn write_output(text: &str, add_newline: bool, dest: Option<&PrintDest>) {
+    let payload = if add_newline {
+        format!("{}\n", text)
+    } else {
+        text.to_string()
+    };
+    let result = match dest {
+        None => {
+            use std::io::Write;
+            let stdout = std::io::stdout();
+            let mut lock = stdout.lock();
+            lock.write_all(payload.as_bytes())
+                .and_then(|()| lock.flush())
+                .map_err(|e| e.to_string())
+        }
+        Some(PrintDest::Target(name, _)) => {
+            let mode = dest_mode(dest.unwrap());
+            REDIRECTS.with(|r| -> Result<(), String> {
+                let mut map = r.borrow_mut();
+                if !map.contains_key(name) {
+                    let handle = match name.as_str() {
+                        pipe if mode == RedirectMode::Pipe => {
+                            let child = std::process::Command::new("cmd")
+                                .args(["/C", pipe])
+                                .stdin(std::process::Stdio::piped())
+                                .spawn()
+                                .map_err(|e| format!("cannot open pipe '{}': {}", pipe, e))?;
+                            OutHandle::Pipe(child)
+                        }
+                        path => {
+                            let file = std::fs::OpenOptions::new()
+                                .write(true)
+                                .create(true)
+                                .append(mode == RedirectMode::Append)
+                                .open(path)
+                                .map_err(|e| format!("cannot open '{}': {}", path, e))?;
+                            OutHandle::File(file)
+                        }
+                    };
+                    eprintln!("DBGR insert key={:?}", name);
+                    map.insert(name.to_string(), handle);
+                }
+                let handle = map.get_mut(name).unwrap();
+                handle.write(payload.as_bytes())?;
+                handle.flush()
+            })
+        }
+    };
+    if let Err(e) = result {
+        eprintln!("awk: print redirection failed: {}", e);
+    }
+}
+
+fn close_redirects(redirects: &mut HashMap<String, OutHandle>) {
+    for (_, handle) in redirects.iter_mut() {
+        handle.close();
+    }
+    redirects.clear();
+}
+
+fn call_user_function(
+    name: &str,
+    args: Vec<Value>,
+    vars: &mut HashMap<String, String>,
+) -> Option<Value> {
+    let (params, body) = FUNCTIONS.with(|f| f.borrow().get(name).cloned())?;
+    let depth = CALL_DEPTH.with(|d| d.get());
+    if depth >= MAX_CALL_DEPTH {
+        return Some(Value::Str(String::new()));
+    }
+    CALL_DEPTH.with(|d| d.set(depth + 1));
+    eprintln!("DBGF name={:?} params={:?} args={:?}", name, params, args);
+
+    // Parameters are dynamic locals: save their current values, bind the
+    // arguments, run the body, then restore. Extra params default to "".
+    let mut saved: Vec<(String, Option<String>)> = Vec::new();
+    for (idx, param) in params.iter().enumerate() {
+        saved.push((param.clone(), vars.get(param).cloned()));
+        let value = args.get(idx).cloned().unwrap_or(Value::Str(String::new()));
+        vars.insert(param.clone(), value.to_str());
+    }
+
+    let flow = execute_block(&body, vars);
+    let result = if matches!(flow, Flow::Return) {
+        RETURN_VALUE.with(|r| r.borrow().clone())
+    } else {
+        Value::Str(String::new())
+    };
+
+    for (param, old) in saved {
+        match old {
+            Some(v) => {
+                vars.insert(param, v);
+            }
+            None => {
+                vars.remove(&param);
+            }
+        }
+    }
+    eprintln!("DBGF result={:?}", result);
+    CALL_DEPTH.with(|d| d.set(depth));
+    Some(result)
+}
+
 fn main() {
     let args = cli::Args::parse();
 
@@ -111,6 +381,9 @@ fn main() {
         execute_block(action, &mut vars);
     }
 
+    // Flush and close any open print-redirection targets.
+    REDIRECTS.with(|r| close_redirects(&mut r.borrow_mut()));
+
     std::process::exit(exit_code);
 }
 
@@ -148,7 +421,11 @@ fn process_input<R: BufRead>(
         }
 
         for (pattern, action) in &parsed.pattern_actions {
-            if match_pattern(pattern, line, vars) && execute_block(action, vars) == Flow::Next {
+            if !match_pattern(pattern, line, vars) {
+                continue;
+            }
+            let flow = execute_block(action, vars);
+            if matches!(flow, Flow::Next | Flow::Return) {
                 break;
             }
         }
@@ -171,6 +448,8 @@ enum Token {
     Next,
     Delete,
     In,
+    Function,
+    Return,
     Index(String, Vec<Token>),
     LParen,
     RParen,
@@ -235,6 +514,8 @@ fn tokenize(s: &str) -> Vec<Token> {
                 op.push(c);
                 while let Some(&next) = chars.peek() {
                     if next == '=' || next == '&' || next == '|' {
+                        op.push(chars.next().unwrap());
+                    } else if op == ">" && next == '>' {
                         op.push(chars.next().unwrap());
                     } else {
                         break;
@@ -316,6 +597,8 @@ fn tokenize(s: &str) -> Vec<Token> {
                     "for" => tokens.push(Token::For),
                     "next" => tokens.push(Token::Next),
                     "delete" => tokens.push(Token::Delete),
+                    "function" | "func" => tokens.push(Token::Function),
+                    "return" => tokens.push(Token::Return),
                     "in" => tokens.push(Token::In),
                     _ => {
                         // arr[expr] indexes an array element.
@@ -375,10 +658,42 @@ fn parse_program(tokens: &[Token]) -> Result<ParsedProgram, String> {
         pattern_actions: Vec::new(),
         end_actions: Vec::new(),
     };
+    FUNCTIONS.with(|f| f.borrow_mut().clear());
 
     let mut i = 0;
     while i < tokens.len() {
         match &tokens[i] {
+            Token::Function => {
+                // function name(param, ...) { body }
+                let Some(Token::Var(name)) = tokens.get(i + 1) else {
+                    return Err("awk: function: expected a name".to_string());
+                };
+                let name = name.clone();
+                let Some(Token::LParen) = tokens.get(i + 2) else {
+                    return Err(format!("awk: function {}: expected '('", name));
+                };
+                let Some(close) = find_matching_paren(tokens, i + 2) else {
+                    return Err(format!("awk: function {}: expected ')'", name));
+                };
+                let mut params = Vec::new();
+                for t in &tokens[i + 3..close] {
+                    if let Token::Var(v) = t {
+                        if !v.starts_with('$') {
+                            params.push(v.clone());
+                        }
+                    }
+                }
+                let Some(Token::Action(body)) = tokens.get(close + 1) else {
+                    return Err(format!("awk: function {}: expected '{{'", name));
+                };
+                FUNCTIONS.with(|f| f.borrow_mut().insert(name.clone(), (params, body.to_vec())));
+                eprintln!(
+                    "DBGParsed fn={:?} all={:?}",
+                    name,
+                    FUNCTIONS.with(|f| f.borrow().keys().cloned().collect::<Vec<_>>())
+                );
+                i = close + 2;
+            }
             Token::Begin => {
                 if let Some(Token::Action(a)) = tokens.get(i + 1) {
                     parsed.begin_actions.push(a.clone());
@@ -543,19 +858,22 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
             }
             Token::Var(v) => {
                 // Builtin function call: name followed by an argument list.
+                let is_builtin = matches!(
+                    v.as_str(),
+                    "length"
+                        | "substr"
+                        | "index"
+                        | "sprintf"
+                        | "toupper"
+                        | "tolower"
+                        | "sub"
+                        | "gsub"
+                        | "split"
+                        | "close"
+                );
+                let is_user_fn = FUNCTIONS.with(|f| f.borrow().contains_key(v));
                 if matches!(tokens.get(index + 1), Some(Token::LParen))
-                    && matches!(
-                        v.as_str(),
-                        "length"
-                            | "substr"
-                            | "index"
-                            | "sprintf"
-                            | "toupper"
-                            | "tolower"
-                            | "sub"
-                            | "gsub"
-                            | "split"
-                    )
+                    && (is_builtin || is_user_fn)
                 {
                     let Some(close) = find_matching_paren(tokens, index + 1) else {
                         stack.push(Value::Str(String::new()));
@@ -633,7 +951,34 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
                     if start <= arg_tokens.len() {
                         args.push(eval_arg(&arg_tokens[start..], vars));
                     }
-                    stack.push(call_builtin(v, args, vars));
+                    if v == "close" {
+                        if let Some(target) = args.first() {
+                            let name = target.to_str();
+                            let removed = REDIRECTS.with(|r| {
+                                eprintln!(
+                                    "DBGR close key={:?} keys={:?}",
+                                    name,
+                                    r.borrow().keys().cloned().collect::<Vec<_>>()
+                                );
+                                r.borrow_mut().remove(&name).map(|mut h| {
+                                    h.close();
+                                })
+                            });
+                            stack.push(Value::Num(if removed.is_some() { 0.0 } else { -1.0 }));
+                        } else {
+                            stack.push(Value::Num(-1.0));
+                        }
+                        index = close + 1;
+                        continue;
+                    }
+                    if FUNCTIONS.with(|f| f.borrow().contains_key(v)) {
+                        stack.push(
+                            call_user_function(v, args, vars)
+                                .unwrap_or_else(|| Value::Str(String::new())),
+                        );
+                    } else {
+                        stack.push(call_builtin(v, args, vars));
+                    }
                     index = close + 1;
                     continue;
                 }
@@ -908,49 +1253,73 @@ fn apply_op(stack: &mut Vec<Value>, op: &str) {
 enum Flow {
     Normal,
     Next,
+    Return,
 }
 
 fn execute_block(tokens: &[Token], vars: &mut HashMap<String, String>) -> Flow {
+    execute_block_inner(tokens, vars)
+}
+
+fn execute_block_inner(tokens: &[Token], vars: &mut HashMap<String, String>) -> Flow {
     let mut i = 0;
 
     while i < tokens.len() {
         match &tokens[i] {
             Token::Print => {
-                let (args, next) = collect_args(tokens, i + 1, false, vars);
-                if args.is_empty() {
-                    println!("{}", vars.get("$0").map(String::as_str).unwrap_or(""));
+                let (args, next, dest) = collect_print_args(tokens, i + 1, vars);
+                let rendered = if args.is_empty() {
+                    vars.get("$0").cloned().unwrap_or_default()
                 } else {
-                    let strs: Vec<String> = args.iter().map(Value::to_str).collect();
-                    println!("{}", strs.join(&vars["OFS"]));
-                }
+                    args.iter()
+                        .map(Value::to_str)
+                        .collect::<Vec<_>>()
+                        .join(&vars["OFS"])
+                };
+                write_output(&rendered, true, dest.as_ref());
                 i = next;
             }
             Token::Printf => {
-                let (args, next) = collect_args(tokens, i + 1, false, vars);
+                let (args, next, dest) = collect_print_args(tokens, i + 1, vars);
                 if let Some(fmt) = args.first() {
                     let rest: Vec<String> = args[1..].iter().map(Value::to_str).collect();
                     let mut bytes = Vec::new();
                     let mut stop = false;
                     let _ = printf::run_format(&mut bytes, &fmt.to_str(), &rest, &mut stop);
-                    print!("{}", String::from_utf8_lossy(&bytes));
+                    write_output(&String::from_utf8_lossy(&bytes), false, dest.as_ref());
                 }
                 i = next;
             }
             Token::If => {
                 let (next_i, flow) = execute_if(tokens, i, vars);
-                if flow == Flow::Next {
-                    return Flow::Next;
+                if matches!(flow, Flow::Next | Flow::Return) {
+                    return flow;
                 }
                 i = next_i;
             }
             Token::For => {
                 let (next_i, flow) = execute_for(tokens, i, vars);
-                if flow == Flow::Next {
-                    return Flow::Next;
+                if matches!(flow, Flow::Next | Flow::Return) {
+                    return flow;
                 }
                 i = next_i;
             }
             Token::Next => return Flow::Next,
+            Token::Return => {
+                // return [expr] — the value lands in RETURN_VALUE for the
+                // enclosing user-function call; a bare return yields "".
+                let i2 = i + 1;
+                let value = if !matches!(
+                    tokens.get(i2),
+                    None | Some(Token::Semicolon) | Some(Token::Action(_))
+                ) {
+                    let end = expr_end(tokens, i2);
+                    eval_tokens(&tokens[i2..end], vars)
+                } else {
+                    Value::Str(String::new())
+                };
+                RETURN_VALUE.with(|r| *r.borrow_mut() = value);
+                return Flow::Return;
+            }
             Token::Index(name, key_tokens) => {
                 if matches!(tokens.get(i + 1), Some(Token::Assign)) {
                     let key = eval_tokens(key_tokens, vars).to_str();
@@ -1012,7 +1381,7 @@ fn execute_block(tokens: &[Token], vars: &mut HashMap<String, String>) -> Flow {
                     vars.insert(name, val);
                     i = end;
                 } else if matches!(tokens.get(i + 1), Some(Token::LParen))
-                    && matches!(v.as_str(), "sub" | "gsub" | "split")
+                    && matches!(v.as_str(), "sub" | "gsub" | "split" | "close")
                 {
                     // A bare sub/gsub/split statement runs for its side effect.
                     let end = args_extent(tokens, i + 1, true);
@@ -1223,6 +1592,7 @@ fn statement_end(tokens: &[Token], i: usize) -> usize {
         Some(Token::If) => if_chain_end(tokens, i),
         Some(Token::For) => for_end(tokens, i),
         Some(Token::Next) | Some(Token::Action(_)) => i + 1,
+        Some(Token::Return) => expr_end(tokens, i + 1),
         Some(Token::Index(_, _)) => {
             if matches!(tokens.get(i + 1), Some(Token::Assign)) {
                 expr_end(tokens, i + 2)
