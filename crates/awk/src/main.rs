@@ -66,6 +66,15 @@ struct PipeInput {
     exit_status: Option<i32>,
 }
 
+/// A `|&` child with both directions open.
+struct CoProcess {
+    child: std::process::Child,
+    writer: Option<std::process::ChildStdin>,
+    reader: std::io::BufReader<std::process::ChildStdout>,
+    lines_read: usize,
+    exit_status: Option<i32>,
+}
+
 /// `cmd.exe` exit codes for an unknown command: `cmd /C` reports 1, while
 /// some interactive shells report 9009.
 const CMD_COMMAND_NOT_FOUND: [i32; 2] = [1, 9009];
@@ -75,6 +84,8 @@ enum RedirectMode {
     Truncate,
     Append,
     Pipe,
+    /// `|&`: one child process used for both writing and reading.
+    CoProcess,
 }
 
 thread_local! {
@@ -91,6 +102,9 @@ thread_local! {
         std::cell::RefCell::new(HashMap::new());
     /// Open `cmd | getline` pipes, keyed by the command string.
     static PIPE_INPUTS: std::cell::RefCell<HashMap<String, PipeInput>> =
+        std::cell::RefCell::new(HashMap::new());
+    /// Open `|&` coprocesses, keyed by the command string.
+    static COPROCESSES: std::cell::RefCell<HashMap<String, CoProcess>> =
         std::cell::RefCell::new(HashMap::new());
     static RETURN_VALUE: std::cell::RefCell<Value> =
         const { std::cell::RefCell::new(Value::Str(String::new())) };
@@ -119,10 +133,11 @@ fn collect_print_args(
         match tokens.get(j) {
             Some(Token::LParen) => depth += 1,
             Some(Token::RParen) => depth = depth.saturating_sub(1),
-            Some(Token::Op(op)) if depth == 0 && matches!(op.as_str(), ">" | ">>" | "|") => {
+            Some(Token::Op(op)) if depth == 0 && matches!(op.as_str(), ">" | ">>" | "|" | "|&") => {
                 let mode = match op.as_str() {
                     ">>" => RedirectMode::Append,
                     "|" => RedirectMode::Pipe,
+                    "|&" => RedirectMode::CoProcess,
                     _ => RedirectMode::Truncate,
                 };
                 redir_at = Some((j, mode));
@@ -217,36 +232,40 @@ fn write_output(text: &str, add_newline: bool, dest: Option<&PrintDest>) {
         }
         Some(PrintDest::Target(name, _)) => {
             let mode = dest_mode(dest.unwrap());
-            REDIRECTS.with(|r| -> Result<(), String> {
-                let mut map = r.borrow_mut();
-                if !map.contains_key(name) {
-                    let handle = match name.as_str() {
-                        "/dev/stdout" => OutHandle::Stdout(std::io::stdout()),
-                        "/dev/stderr" => OutHandle::Stderr(std::io::stderr()),
-                        pipe if mode == RedirectMode::Pipe => {
-                            let child = std::process::Command::new("cmd")
-                                .args(["/C", pipe])
-                                .stdin(std::process::Stdio::piped())
-                                .spawn()
-                                .map_err(|e| format!("cannot open pipe '{}': {}", pipe, e))?;
-                            OutHandle::Pipe(child)
-                        }
-                        path => {
-                            let file = std::fs::OpenOptions::new()
-                                .write(true)
-                                .create(true)
-                                .append(mode == RedirectMode::Append)
-                                .open(path)
-                                .map_err(|e| format!("cannot open '{}': {}", path, e))?;
-                            OutHandle::File(file)
-                        }
-                    };
-                    map.insert(name.to_string(), handle);
-                }
-                let handle = map.get_mut(name).unwrap();
-                handle.write(payload.as_bytes())?;
-                handle.flush()
-            })
+            if mode == RedirectMode::CoProcess {
+                coprocess_write(name, payload.as_bytes())
+            } else {
+                REDIRECTS.with(|r| -> Result<(), String> {
+                    let mut map = r.borrow_mut();
+                    if !map.contains_key(name) {
+                        let handle = match name.as_str() {
+                            "/dev/stdout" => OutHandle::Stdout(std::io::stdout()),
+                            "/dev/stderr" => OutHandle::Stderr(std::io::stderr()),
+                            pipe if mode == RedirectMode::Pipe => {
+                                let child = std::process::Command::new("cmd")
+                                    .args(["/C", pipe])
+                                    .stdin(std::process::Stdio::piped())
+                                    .spawn()
+                                    .map_err(|e| format!("cannot open pipe '{}': {}", pipe, e))?;
+                                OutHandle::Pipe(child)
+                            }
+                            path => {
+                                let file = std::fs::OpenOptions::new()
+                                    .write(true)
+                                    .create(true)
+                                    .append(mode == RedirectMode::Append)
+                                    .open(path)
+                                    .map_err(|e| format!("cannot open '{}': {}", path, e))?;
+                                OutHandle::File(file)
+                            }
+                        };
+                        map.insert(name.to_string(), handle);
+                    }
+                    let handle = map.get_mut(name).unwrap();
+                    handle.write(payload.as_bytes())?;
+                    handle.flush()
+                })
+            }
         }
     };
     if let Err(e) = result {
@@ -265,6 +284,151 @@ fn close_redirects(redirects: &mut HashMap<String, OutHandle>) {
 fn close_pipe_inputs(pipes: &mut HashMap<String, PipeInput>) {
     for (_, mut pipe) in pipes.drain() {
         let _ = pipe.child.wait();
+    }
+}
+
+fn spawn_coprocess(cmd: &str) -> Result<CoProcess, String> {
+    let mut child = std::process::Command::new("cmd")
+        .args(["/C", cmd])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("cannot execute '{}': {}", cmd, e))?;
+    let writer = child
+        .stdin
+        .take()
+        .ok_or_else(|| format!("cannot capture stdin of '{}'", cmd))?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| format!("cannot capture stdout of '{}'", cmd))?;
+    Ok(CoProcess {
+        child,
+        writer: Some(writer),
+        reader: std::io::BufReader::new(stdout),
+        lines_read: 0,
+        exit_status: None,
+    })
+}
+
+fn coprocess_write(cmd: &str, payload: &[u8]) -> Result<(), String> {
+    use std::io::Write;
+    COPROCESSES.with(|pipes| {
+        let mut map = pipes.borrow_mut();
+        if !map.contains_key(cmd) {
+            map.insert(cmd.to_string(), spawn_coprocess(cmd)?);
+        }
+        let pipe = map.get_mut(cmd).expect("coprocess just opened");
+        let writer = pipe
+            .writer
+            .as_mut()
+            .ok_or_else(|| format!("coprocess '{}' stdin is closed", cmd))?;
+        writer
+            .write_all(payload)
+            .and_then(|()| writer.flush())
+            .map_err(|e| format!("write to '{}' failed: {}", cmd, e))
+    })
+}
+
+fn coprocess_getline(cmd: &str) -> (Value, String, Option<String>) {
+    COPROCESSES.with(|pipes| {
+        let mut map = pipes.borrow_mut();
+        if !map.contains_key(cmd) {
+            match spawn_coprocess(cmd) {
+                Ok(pipe) => {
+                    map.insert(cmd.to_string(), pipe);
+                }
+                Err(e) => return (Value::Num(-1.0), String::new(), Some(e)),
+            }
+        }
+        let mut line = String::new();
+        let read = map
+            .get_mut(cmd)
+            .expect("coprocess just opened")
+            .reader
+            .read_line(&mut line);
+        match read {
+            Ok(0) => {
+                let lines_read = map.get(cmd).map(|p| p.lines_read).unwrap_or(0);
+                if let Some(pipe) = map.get_mut(cmd) {
+                    // EOF means the child closed stdout; release its stdin so
+                    // a command that waits for EOF can terminate.
+                    pipe.writer.take();
+                    if pipe.exit_status.is_none() {
+                        pipe.exit_status = pipe.child.wait().ok().and_then(|s| s.code());
+                    }
+                }
+                let status = map.get(cmd).and_then(|p| p.exit_status);
+                if lines_read == 0
+                    && status.is_some_and(|code| CMD_COMMAND_NOT_FOUND.contains(&code))
+                {
+                    map.remove(cmd);
+                    let message = format!(
+                        "cannot execute '{}': command not found (exit {})",
+                        cmd,
+                        status.unwrap_or(1)
+                    );
+                    return (Value::Num(-1.0), String::new(), Some(message));
+                }
+                (Value::Num(0.0), String::new(), None)
+            }
+            Ok(_) => {
+                if let Some(pipe) = map.get_mut(cmd) {
+                    pipe.lines_read += 1;
+                }
+                let text = line
+                    .trim_end_matches(|c: char| c == '\r' || c == '\n')
+                    .to_string();
+                (Value::Num(1.0), text, None)
+            }
+            Err(e) => {
+                map.remove(cmd);
+                (
+                    Value::Num(-1.0),
+                    String::new(),
+                    Some(format!("getline from '{}': {}", cmd, e)),
+                )
+            }
+        }
+    })
+}
+
+fn coprocess_pipe_getline(
+    cmd: &str,
+    target: Option<&str>,
+    vars: &mut HashMap<String, String>,
+) -> Value {
+    let (result, line, errno) = coprocess_getline(cmd);
+    if let Some(message) = errno {
+        vars.insert("ERRNO".to_string(), message);
+    }
+    if let Some(name) = target {
+        vars.insert(name.to_string(), line);
+    } else {
+        install_record(vars, &line);
+    }
+    result
+}
+
+fn close_coprocess(pipe: CoProcess) -> Option<i32> {
+    let CoProcess {
+        mut child,
+        writer,
+        reader,
+        exit_status,
+        ..
+    } = pipe;
+    drop(writer);
+    drop(reader);
+    match exit_status {
+        Some(code) => Some(code),
+        None => child.wait().ok().and_then(|s| s.code()),
+    }
+}
+
+fn close_coprocesses(pipes: &mut HashMap<String, CoProcess>) {
+    for (_, pipe) in pipes.drain() {
+        let _ = close_coprocess(pipe);
     }
 }
 
@@ -412,9 +576,11 @@ fn main() {
         execute_block(action, &mut vars);
     }
 
-    // Flush and close any open print-redirection targets, then reap pipes.
+    // Flush and close any open print-redirection targets, then reap pipes
+    // and coprocesses.
     REDIRECTS.with(|r| close_redirects(&mut r.borrow_mut()));
     PIPE_INPUTS.with(|p| close_pipe_inputs(&mut p.borrow_mut()));
+    COPROCESSES.with(|p| close_coprocesses(&mut p.borrow_mut()));
 
     std::process::exit(exit_code);
 }
@@ -1014,9 +1180,15 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
                             GETLINE_SOURCES.with(|g| {
                                 g.borrow_mut().remove(&name);
                             });
-                            // A pipe input and a pipe output can share a
-                            // command string; close both, report the input
-                            // pipe's exit status when present.
+                            // A coprocess, a pipe input and a pipe output can
+                            // share a command string; close all of them and
+                            // prefer the coprocess exit status.
+                            let co_status = COPROCESSES.with(|c| {
+                                c.borrow_mut()
+                                    .remove(&name)
+                                    .and_then(close_coprocess)
+                                    .map(|code| code as f64)
+                            });
                             let input_status = PIPE_INPUTS.with(|p| {
                                 p.borrow_mut().remove(&name).map(|mut pipe| {
                                     match pipe.exit_status {
@@ -1033,11 +1205,12 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
                             });
                             let output_status = REDIRECTS
                                 .with(|r| r.borrow_mut().remove(&name).map(|mut h| h.close()));
-                            let status = match (input_status, output_status) {
-                                (Some(code), _) => code,
-                                (None, Some(Some(code))) => code as f64,
-                                (None, Some(None)) => 0.0,
-                                (None, None) => -1.0,
+                            let status = match (co_status, input_status, output_status) {
+                                (Some(code), _, _) => code,
+                                (None, Some(code), _) => code,
+                                (None, None, Some(Some(code))) => code as f64,
+                                (None, None, Some(None)) => 0.0,
+                                (None, None, None) => -1.0,
                             };
                             stack.push(Value::Num(status));
                         } else {
@@ -1137,11 +1310,14 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
             }
             Token::Op(op) => {
                 last_was_value = false;
-                if op == "|" && matches!(tokens.get(index + 1), Some(Token::Getline)) {
-                    // `expr | getline [var]`: reduce the command expression
-                    // first (stopping at an enclosing paren), then read.
+                if (op == "|" || op == "|&")
+                    && matches!(tokens.get(index + 1), Some(Token::Getline))
+                {
+                    // `expr | getline [var]` / `expr |& getline [var]`:
+                    // reduce the command expression first (stopping at an
+                    // enclosing paren), then read.
                     while let Some(top) = ops.last() {
-                        if top == "(" || precedence(top) < precedence("|") {
+                        if top == "(" || precedence(top) < precedence(op) {
                             break;
                         }
                         let pending = ops.pop().unwrap();
@@ -1156,7 +1332,11 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
                         }
                         _ => None,
                     };
-                    let value = pipe_getline(&cmd, target.as_deref(), vars);
+                    let value = if op == "|&" {
+                        coprocess_pipe_getline(&cmd, target.as_deref(), vars)
+                    } else {
+                        pipe_getline(&cmd, target.as_deref(), vars)
+                    };
                     stack.push(value);
                     last_was_value = true;
                     index = next;
@@ -2270,7 +2450,9 @@ fn is_pipe_getline_statement(tokens: &[Token], start: usize) -> bool {
                 break;
             }
             Token::Op(op)
-                if depth == 0 && op == "|" && matches!(tokens.get(i + 1), Some(Token::Getline)) =>
+                if depth == 0
+                    && (op == "|" || op == "|&")
+                    && matches!(tokens.get(i + 1), Some(Token::Getline)) =>
             {
                 return true;
             }
