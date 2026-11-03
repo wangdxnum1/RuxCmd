@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.3 — xxd 移植与新增选项、awk 协程与 FNR、logger 事件日志(2026-11-03)
+
+- 新增 2 个命令（sha3sum、xxd），命令总数 140 → 142（145 个包）：sha3sum 计算 SHA-3 摘要（--bits 支持 224/256/384/512，默认 512，多文件与 stdin，输出格式对齐 GNU）；xxd 提供十六进制转储与逆向。
+- xxd 补齐 GNU 转储选项 -l、-s（绝对、+N 相对、-N 从末尾、0x）、-g（0=不分组）、-p、-i、-e（小端）、-u（大写）、-b（二进制位）、-a（autoskip 折叠）、-n（覆盖 -i 变量名）；默认列宽按 GNU（16，-i 12，-p 30，-b 6，-e 分组 4），冲突组合按 GNU 报错。地址、十六进制、-a 折叠与 -n 命名输出已用本机 GNU xxd 逐字节对照 46 组全部一致。
+- 修复 xxd -r：只解析地址后的十六进制主体，ASCII 列不再参与，支持地址空洞零填充、`*` 折叠行、`-` 分组符与 CRLF 输入。
+- awk 新增 `print |& cmd`、`cmd |& getline` / `cmd |& getline var` 协程：同一命令复用同一个 cmd /C 子进程（双向管道），close() 同时关闭读写两端并返回退出码，读入返回 1/0/-1，失败写 ERRNO。
+- awk 新增 `cmd | getline` 与 `cmd | getline var`：同一命令字符串复用同一进程，close("cmd") 返回退出码并在下次使用时重启管道。
+- awk 修正 FNR：按输入文件重置（打开成功的空文件也会归零），NR 仍跨文件累计；主输入 getline 与主循环共享同一记录游标，读取成功时同时递增 NR 与 FNR 且可跨文件续读；管道、协程与 `getline < file` 不改 NR/FNR，返回 0 或 -1 时都不改目标变量与 $0/NF；裸 `getline` 语句此前不实际读取，现按 GNU 语义执行。上述行为用本机 gawk 5.4.0 对照 17 组全部一致。
+- logger 改为写入 Windows 应用程序事件日志：RegisterEventSourceW 注册来源、ReportEventW 逐行上报（固定事件 ID 1），-p 优先级映射 Error/Warning/Information；打开或上报失败、以及非 Windows 主机回退到 stderr 并打印原因，消息不会被静默丢弃。
+- top 补 3 个集成测试（--version、单帧输出、进程表 20 行上限），并移除从未被使用的内存占用百分比返回值（输出不变）。
+- 修复 chmod -R：递归遍历遇到 junction/符号链接按 GNU 语义忽略（不递归、不改属性）；此前会对条目本身应用模式并经 fs::metadata 跟随其目标，目标不可解析（如悬空 junction）时整个递归以 os error 3 中止退出 1。
+- 修复 rm：删除前先用 ruxcmd-core 的 clear_readonly 清除只读属性（同 cp/unzip 的既有做法）——std 的 remove_file/remove_dir 不清只读位，`rm <只读文件>` 与 `chmod -R 444` 后 `rm -r` 的经典组合此前都会以 os error 5 中止；符号链接/junction 跳过清理以免波及目标。
+- 文档修正：兼容性表把 iostat、mpstat、sar、w、pgrep、pkill、top 的验证状态改为行为测试；README 示例与 tag 引用同步到 0.4.3。
+- 已知限制：awk 输入改为预加载（全量驻留内存），缺失输入文件在首条记录处理前即报错，BEGIN 阶段的 getline 不读主输入，ENDFILE 伪规则未实现；xxd 仍未实现 -C/-t 的 C 头定制、-o、-d、-E、-R 与 postscript，-s 不接受 `16k` 之类后缀；logger 在来源未注册消息 DLL 时无法显示消息正文。
+
 ## 0.4.2 — awk getline、tree/envsubst/logger、while/do-while、相邻值拼接(2026-10-31)
 
 - awk getline：从文件读取行（getline < file、getline var < file），支持 while ((getline ...) > 0) 循环模式；close(file) 重置读取位置。
