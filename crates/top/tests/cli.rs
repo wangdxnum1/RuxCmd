@@ -49,3 +49,60 @@ fn cpu_percentages_accept_dominant_system_time() {
         "%Cpu(s): 6.7 us, 53.3 sy, 0.0 ni, 40.0 id, 0.0 wa, 0.0 hi, 0.0 si, 0.0 st",
     );
 }
+
+#[test]
+fn version_flag_reports_the_version() {
+    let out = cargo_bin_cmd!("top").args(["--version"]).output().unwrap();
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "top 0.1.0");
+}
+
+#[test]
+fn single_frame_without_delay_prints_expected_blocks() {
+    // -d 0 keeps the run immediate, so the test never sleeps on the sampling
+    // interval.
+    let out = cargo_bin_cmd!("top")
+        .args(["-i", "1", "-d", "0"])
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&out.get_output().stdout);
+    assert_eq!(
+        stdout.matches("top - ").count(),
+        1,
+        "exactly one frame: {}",
+        stdout
+    );
+    for marker in ["Tasks:", "%Cpu(s):", "KiB Mem :", "KiB Swap:", "PID"] {
+        assert!(stdout.contains(marker), "missing {marker}: {}", stdout);
+    }
+}
+
+#[test]
+fn process_table_is_capped_at_twenty_rows() {
+    let out = cargo_bin_cmd!("top")
+        .args(["-i", "1", "-d", "0"])
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&out.get_output().stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    let header = lines
+        .iter()
+        .position(|line| line.starts_with("PID "))
+        .expect("process header");
+    let mut rows = 0;
+    for line in lines.iter().skip(header + 1) {
+        if line.starts_with('=') {
+            break;
+        }
+        if line.trim().is_empty() {
+            continue;
+        }
+        let pid = line.split_whitespace().next().expect("pid column");
+        assert!(
+            pid.parse::<u32>().is_ok(),
+            "process row should start with a PID: {line}"
+        );
+        rows += 1;
+    }
+    assert!((1..=20).contains(&rows), "process rows: {}", rows);
+}
