@@ -402,10 +402,13 @@ fn coprocess_pipe_getline(
     if let Some(message) = errno {
         vars.insert("ERRNO".to_string(), message);
     }
-    if let Some(name) = target {
-        vars.insert(name.to_string(), line);
-    } else {
-        install_record(vars, &line);
+    // gawk leaves the variable and $0 untouched unless the read succeeded.
+    if matches!(result, Value::Num(value) if value == 1.0) {
+        if let Some(name) = target {
+            vars.insert(name.to_string(), line);
+        } else {
+            install_record(vars, &line);
+        }
     }
     result
 }
@@ -527,6 +530,7 @@ fn main() {
     vars.insert("RS".to_string(), "\n".to_string());
     vars.insert("ORS".to_string(), "\n".to_string());
     vars.insert("NR".to_string(), "0".to_string());
+    vars.insert("FNR".to_string(), "0".to_string());
     vars.insert("NF".to_string(), "0".to_string());
 
     // BEGIN runs exactly once, before any input file is read.
@@ -535,38 +539,23 @@ fn main() {
     }
 
     let mut exit_code = 0i32;
-    // NR keeps counting across all input files.
-    let mut nr: usize = 0;
+    MAIN_INPUT_ITEMS.with(|items| {
+        *items.borrow_mut() = load_main_input(&args, &mut exit_code);
+    });
+    MAIN_INPUT_POS.set(0);
 
-    if args.files.is_empty() {
-        let stdin = std::io::stdin();
-        if let Err(e) = process_input(stdin.lock(), &parsed, &mut vars, &mut nr) {
-            eprintln!("awk: error reading stdin: {}", e);
-            exit_code = 1;
-        }
-    } else {
-        for path in &args.files {
-            let path_str = path.to_string_lossy();
-            if path_str == "-" {
-                let stdin = std::io::stdin();
-                if let Err(e) = process_input(stdin.lock(), &parsed, &mut vars, &mut nr) {
-                    eprintln!("awk: error reading stdin: {}", e);
-                    exit_code = 1;
-                }
-            } else {
-                match File::open(path) {
-                    Ok(file) => {
-                        let reader = BufReader::new(file);
-                        if let Err(e) = process_input(reader, &parsed, &mut vars, &mut nr) {
-                            eprintln!("awk: {}: {}", path.display(), e);
-                            exit_code = 1;
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("awk: {}: {}", path.display(), e);
-                        exit_code = 1;
-                    }
-                }
+    // The record cursor is shared with `getline` from the main input, so a
+    // getline consumes the next record of the same file and can cross into the
+    // following input file, exactly like gawk.
+    while let Some(line) = next_main_record(&mut vars) {
+        install_record(&mut vars, &line);
+        for (pattern, action) in &parsed.pattern_actions {
+            if !match_pattern(pattern, &line, &mut vars) {
+                continue;
+            }
+            let flow = execute_block(action, &mut vars);
+            if matches!(flow, Flow::Next | Flow::Return) {
+                break;
             }
         }
     }
@@ -585,56 +574,96 @@ fn main() {
     std::process::exit(exit_code);
 }
 
-fn process_input<R: BufRead>(
-    mut reader: R,
-    parsed: &ParsedProgram,
-    vars: &mut HashMap<String, String>,
-    nr: &mut usize,
-) -> Result<(), std::io::Error> {
-    let mut lines: Vec<String> = Vec::new();
-    let mut line = String::new();
+/// One event of the main input stream. `Open` marks the start of an input
+/// file so `FNR` can be reset even when the file is empty; `Record` carries a
+/// line. `getline` skips `Open` events transparently.
+enum InputItem {
+    Open,
+    Record(String),
+}
 
+/// Read every input source up front so the main loop and main-input `getline`
+/// share one cursor and can cross file boundaries like gawk.
+fn load_main_input(args: &cli::Args, exit_code: &mut i32) -> Vec<InputItem> {
+    let mut items = Vec::new();
+    if args.files.is_empty() {
+        let stdin = std::io::stdin();
+        if let Err(e) = push_reader_items(&mut items, stdin.lock()) {
+            eprintln!("awk: error reading stdin: {}", e);
+            *exit_code = 1;
+        }
+    } else {
+        for path in &args.files {
+            if path.to_string_lossy() == "-" {
+                let stdin = std::io::stdin();
+                if let Err(e) = push_reader_items(&mut items, stdin.lock()) {
+                    eprintln!("awk: error reading stdin: {}", e);
+                    *exit_code = 1;
+                }
+            } else {
+                match File::open(path) {
+                    Ok(file) => {
+                        if let Err(e) = push_reader_items(&mut items, BufReader::new(file)) {
+                            eprintln!("awk: {}: {}", path.display(), e);
+                            *exit_code = 1;
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("awk: {}: {}", path.display(), e);
+                        *exit_code = 1;
+                    }
+                }
+            }
+        }
+    }
+    items
+}
+
+fn push_reader_items<R: BufRead>(items: &mut Vec<InputItem>, mut reader: R) -> std::io::Result<()> {
+    items.push(InputItem::Open);
+    let mut line = String::new();
     while reader.read_line(&mut line)? > 0 {
-        lines.push(line.trim_end().to_string());
+        items.push(InputItem::Record(line.trim_end().to_string()));
         line.clear();
     }
-
-    MAIN_INPUT_LINES.with(|l| {
-        *l.borrow_mut() = lines.clone();
-    });
-    MAIN_INPUT_POS.with(|p| p.set(0));
-
-    for line in &lines {
-        *nr += 1;
-        let fields: Vec<&str> = if vars["FS"] == " " {
-            line.split_whitespace().collect()
-        } else {
-            line.split(&vars["FS"]).collect()
-        };
-        let nf = fields.len();
-
-        // Clear every $N left over from the previous record before
-        // installing this record's fields.
-        vars.retain(|k, _| !(k.starts_with('$') && k != "$0"));
-        vars.insert("NR".to_string(), nr.to_string());
-        vars.insert("NF".to_string(), nf.to_string());
-        vars.insert("$0".to_string(), line.clone());
-        for (j, f) in fields.iter().enumerate() {
-            vars.insert(format!("${}", j + 1), (*f).to_string());
-        }
-
-        for (pattern, action) in &parsed.pattern_actions {
-            if !match_pattern(pattern, line, vars) {
-                continue;
-            }
-            let flow = execute_block(action, vars);
-            if matches!(flow, Flow::Next | Flow::Return) {
-                break;
-            }
-        }
-    }
-
     Ok(())
+}
+
+/// Advance `NR` and `FNR` by one record. The variables are the source of truth
+/// so user assignments such as `FNR = 100` carry over to the next record, as
+/// in gawk.
+fn account_record(vars: &mut HashMap<String, String>) {
+    for name in ["NR", "FNR"] {
+        let next = vars
+            .get(name)
+            .and_then(|value| value.trim().parse::<f64>().ok())
+            .unwrap_or(0.0) as i64
+            + 1;
+        vars.insert(name.to_string(), next.to_string());
+    }
+}
+
+/// Pull the next main-input record, applying the per-file `FNR` reset and the
+/// `NR`/`FNR` increments. Returns `None` once every input file is exhausted.
+fn next_main_record(vars: &mut HashMap<String, String>) -> Option<String> {
+    MAIN_INPUT_ITEMS.with(|items| {
+        let items = items.borrow();
+        loop {
+            let pos = MAIN_INPUT_POS.get();
+            match items.get(pos)? {
+                InputItem::Open => {
+                    MAIN_INPUT_POS.set(pos + 1);
+                    vars.insert("FNR".to_string(), "0".to_string());
+                }
+                InputItem::Record(line) => {
+                    MAIN_INPUT_POS.set(pos + 1);
+                    let line = line.clone();
+                    account_record(vars);
+                    return Some(line);
+                }
+            }
+        }
+    })
 }
 
 #[derive(Debug, Clone)]
@@ -1287,10 +1316,14 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
                 } else {
                     getline_main(vars)
                 };
-                if let Some(var) = target {
-                    vars.insert(var, line);
-                } else {
-                    install_record(vars, &line);
+                // gawk leaves the target variable and $0 untouched unless the
+                // read succeeded (return value 1).
+                if matches!(result, Value::Num(value) if value == 1.0) {
+                    if let Some(var) = target {
+                        vars.insert(var, line);
+                    } else {
+                        install_record(vars, &line);
+                    }
                 }
                 last_was_value = true;
                 stack.push(result);
@@ -1491,10 +1524,13 @@ fn pipe_getline(cmd: &str, target: Option<&str>, vars: &mut HashMap<String, Stri
     if let Some(message) = errno {
         vars.insert("ERRNO".to_string(), message);
     }
-    if let Some(name) = target {
-        vars.insert(name.to_string(), line);
-    } else {
-        install_record(vars, &line);
+    // gawk leaves the variable and $0 untouched unless the read succeeded.
+    if matches!(result, Value::Num(value) if value == 1.0) {
+        if let Some(name) = target {
+            vars.insert(name.to_string(), line);
+        } else {
+            install_record(vars, &line);
+        }
     }
     result
 }
@@ -1523,23 +1559,18 @@ fn getline_from_file(path: &str) -> (Value, String) {
 }
 
 thread_local! {
-    static MAIN_INPUT_LINES: std::cell::RefCell<Vec<String>> =
+    static MAIN_INPUT_ITEMS: std::cell::RefCell<Vec<InputItem>> =
         const { std::cell::RefCell::new(Vec::new()) };
     static MAIN_INPUT_POS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
+/// `getline` from the main input: shares the main loop's cursor, so it consumes
+/// the same records (and crosses input files) while incrementing NR and FNR.
 fn getline_main(vars: &mut HashMap<String, String>) -> (Value, String) {
-    MAIN_INPUT_LINES.with(|lines| {
-        let mut lines = lines.borrow_mut();
-        let pos = MAIN_INPUT_POS.with(|p| p.get());
-        if pos < lines.len() {
-            let line = lines[pos].clone();
-            MAIN_INPUT_POS.with(|p| p.set(pos + 1));
-            (Value::Num(1.0), line)
-        } else {
-            (Value::Num(0.0), String::new())
-        }
-    })
+    match next_main_record(vars) {
+        Some(line) => (Value::Num(1.0), line),
+        None => (Value::Num(0.0), String::new()),
+    }
 }
 
 /// Dispatch one builtin function call. `split` requires arrays, which this
@@ -1806,6 +1837,13 @@ fn execute_block_inner(tokens: &[Token], vars: &mut HashMap<String, String>) -> 
                 };
                 RETURN_VALUE.with(|r| *r.borrow_mut() = value);
                 return Flow::Return;
+            }
+            Token::Getline => {
+                // Bare `getline [var] [< file]` statement: evaluate it for the
+                // side effects so the shared record cursor and NR/FNR advance.
+                let end = expr_end(tokens, i);
+                let _ = eval_tokens(&tokens[i..end], vars);
+                i = end;
             }
             Token::Index(name, key_tokens) => {
                 if matches!(tokens.get(i + 1), Some(Token::Assign)) {
