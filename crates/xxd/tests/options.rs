@@ -204,6 +204,186 @@ fn columns_zero_keeps_the_default() {
 }
 
 #[test]
+fn autoskip_folds_runs_of_three_zero_lines() {
+    let mut data = vec![0u8; 64];
+    data.extend([b'B'; 16]);
+    assert_eq!(
+        stdout(&["-a"], &data),
+        "00000000: 0000 0000 0000 0000 0000 0000 0000 0000  ................\n\
+         *\n\
+         00000040: 4242 4242 4242 4242 4242 4242 4242 4242  BBBBBBBBBBBBBBBB\n"
+    );
+}
+
+#[test]
+fn autoskip_keeps_two_zero_lines() {
+    let mut data = vec![0u8; 32];
+    data.extend([b'A'; 16]);
+    assert_eq!(
+        stdout(&["-a"], &data),
+        "00000000: 0000 0000 0000 0000 0000 0000 0000 0000  ................\n\
+         00000010: 0000 0000 0000 0000 0000 0000 0000 0000  ................\n\
+         00000020: 4141 4141 4141 4141 4141 4141 4141 4141  AAAAAAAAAAAAAAAA\n"
+    );
+}
+
+#[test]
+fn autoskip_keeps_three_zero_lines_at_end_of_input() {
+    // GNU always prints the last zero line at EOF, so three trailing zero
+    // lines are shown in full instead of collapsing to first + "*".
+    let data = vec![0u8; 48];
+    assert_eq!(
+        stdout(&["-a"], &data),
+        "00000000: 0000 0000 0000 0000 0000 0000 0000 0000  ................\n\
+         00000010: 0000 0000 0000 0000 0000 0000 0000 0000  ................\n\
+         00000020: 0000 0000 0000 0000 0000 0000 0000 0000  ................\n"
+    );
+}
+
+#[test]
+fn autoskip_folds_four_zero_lines_at_end_of_input() {
+    let data = vec![0u8; 64];
+    assert_eq!(
+        stdout(&["-a"], &data),
+        "00000000: 0000 0000 0000 0000 0000 0000 0000 0000  ................\n\
+         *\n\
+         00000030: 0000 0000 0000 0000 0000 0000 0000 0000  ................\n"
+    );
+}
+
+#[test]
+fn autoskip_always_shows_a_partial_zero_line() {
+    let data = vec![0u8; 56];
+    assert_eq!(
+        stdout(&["-a"], &data),
+        "00000000: 0000 0000 0000 0000 0000 0000 0000 0000  ................\n\
+         *\n\
+         00000030: 0000 0000 0000 0000                      ........\n"
+    );
+}
+
+#[test]
+fn autoskip_without_groups() {
+    let mut data = vec![0u8; 64];
+    data.extend([b'B'; 16]);
+    assert_eq!(
+        stdout(&["-a", "-g", "0"], &data),
+        "00000000: 00000000000000000000000000000000  ................\n\
+         *\n\
+         00000040: 42424242424242424242424242424242  BBBBBBBBBBBBBBBB\n"
+    );
+}
+
+#[test]
+fn autoskip_in_binary_mode() {
+    let mut data = vec![0u8; 64];
+    data.extend([b'B'; 16]);
+    assert_eq!(
+        stdout(&["-a", "-b", "-c", "4"], &data),
+        "00000000: 00000000 00000000 00000000 00000000  ....\n\
+         *\n\
+         00000040: 01000010 01000010 01000010 01000010  BBBB\n\
+         00000044: 01000010 01000010 01000010 01000010  BBBB\n\
+         00000048: 01000010 01000010 01000010 01000010  BBBB\n\
+         0000004c: 01000010 01000010 01000010 01000010  BBBB\n"
+    );
+}
+
+#[test]
+fn autoskip_in_little_endian_mode() {
+    let mut data = vec![0u8; 64];
+    data.extend([b'B'; 16]);
+    assert_eq!(
+        stdout(&["-a", "-e"], &data),
+        "00000000: 00000000 00000000 00000000 00000000  ................\n\
+         *\n\
+         00000040: 42424242 42424242 42424242 42424242  BBBBBBBBBBBBBBBB\n"
+    );
+}
+
+#[test]
+fn autoskip_does_not_apply_to_plain_or_include_output() {
+    let data = vec![0u8; 64];
+    assert_eq!(stdout(&["-a", "-p"], &data), stdout(&["-p"], &data));
+    assert_eq!(
+        stdout(&["-a", "-i", "-n", "nm"], &data),
+        stdout(&["-i", "-n", "nm"], &data)
+    );
+}
+
+#[test]
+fn repeated_autoskip_flag_toggles_back_off() {
+    let data = vec![0u8; 64];
+    assert_eq!(stdout(&["-a", "-a"], &data), stdout(&[], &data));
+}
+
+#[test]
+fn name_overrides_the_derived_variable_name() {
+    assert_eq!(
+        stdout(&["-i", "-n", "my_name"], &[1, 2]),
+        "unsigned char my_name[] = {\n  0x01, 0x02\n};\nunsigned int my_name_len = 2;\n"
+    );
+}
+
+#[test]
+fn name_is_sanitized_and_never_rejected() {
+    // GNU turns invalid characters into '_' and prefixes a leading digit with
+    // "__" instead of reporting an error.
+    assert_eq!(
+        stdout(&["-i", "-n", "9bad-name!"], &[1, 2]),
+        "unsigned char __9bad_name_[] = {\n  0x01, 0x02\n};\n\
+         unsigned int __9bad_name__len = 2;\n"
+    );
+}
+
+#[test]
+fn empty_name_emits_an_unnamed_array() {
+    assert_eq!(
+        stdout(&["-i", "-n", ""], &[1, 2]),
+        "unsigned char [] = {\n  0x01, 0x02\n};\nunsigned int _len = 2;\n"
+    );
+}
+
+#[test]
+fn name_combines_with_binary_and_uppercase_include_output() {
+    assert_eq!(
+        stdout(&["-i", "-b", "-n", "zzz"], &[1, 2]),
+        "unsigned char zzz[] = {\n  0b00000001, 0b00000010\n};\nunsigned int zzz_len = 2;\n"
+    );
+    assert_eq!(
+        stdout(&["-i", "-u", "-n", "zzz"], &[1, 2]),
+        "unsigned char zzz[] = {\n  0X01, 0X02\n};\nunsigned int zzz_len = 2;\n"
+    );
+}
+
+#[test]
+fn name_is_ignored_without_include_mode() {
+    assert_eq!(
+        stdout(&["-n", "zzz"], &[1, 2]),
+        "00000000: 0102                                     ..\n"
+    );
+    assert_eq!(stdout(&["-p", "-n", "zzz"], &[1, 2]), "0102\n");
+}
+
+#[test]
+fn derived_name_prefixes_a_leading_digit() {
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join("9abc.bin"), [1u8, 2]).unwrap();
+    let out = cargo_bin_cmd!("xxd")
+        .current_dir(dir.path())
+        .arg("-i")
+        .arg("9abc.bin")
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8(out.stdout).unwrap(),
+        "unsigned char __9abc_bin[] = {\n  0x01, 0x02\n};\n\
+         unsigned int __9abc_bin_len = 2;\n"
+    );
+}
+
+#[test]
 fn reject_conflicting_style_options() {
     for args in [["-b", "-p"], ["-e", "-p"], ["-e", "-b"]] {
         let out = run(&args, &[0, 1]);
@@ -227,6 +407,7 @@ fn help_lists_supported_options() {
     let out = run(&["--help"], b"");
     let text = String::from_utf8_lossy(&out.stdout);
     for option in [
+        "--autoskip",
         "--len",
         "--seek",
         "--group",
@@ -235,6 +416,7 @@ fn help_lists_supported_options() {
         "--little-endian",
         "--uppercase",
         "--binary",
+        "--name",
     ] {
         assert!(text.contains(option), "help is missing {option}");
     }

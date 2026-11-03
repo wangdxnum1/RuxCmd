@@ -50,6 +50,14 @@ pub struct Args {
     #[arg(short = 'b', long = "binary")]
     pub binary: bool,
 
+    /// Toggle autoskip: a single '*' replaces runs of zero lines
+    #[arg(short = 'a', long = "autoskip", action = clap::ArgAction::Count)]
+    pub autoskip: u8,
+
+    /// Variable name used by -i (non-alphanumerics become '_')
+    #[arg(short = 'n', long = "name", value_name = "NAME")]
+    pub name: Option<String>,
+
     /// Read from FILE instead of stdin
     #[arg(value_name = "FILE")]
     pub files: Vec<String>,
@@ -72,6 +80,8 @@ struct Layout {
     uppercase: bool,
     /// `-b` also selects `0b` literals when combined with `-i`.
     bits: bool,
+    /// Effective `-a` state; GNU's flag toggles, so two `-a` turn it back off.
+    autoskip: bool,
 }
 
 fn main() {
@@ -146,18 +156,21 @@ fn main() {
     let data = &input[start..start + limit];
 
     let include_name = if layout.style == Style::Include {
-        args.files.first().filter(|file| *file != "-").map(|file| {
-            file.chars()
-                .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
-                .collect::<String>()
-        })
+        match args.name.as_deref() {
+            Some(name) => Some(sanitize_c_name(name)),
+            None => args
+                .files
+                .first()
+                .filter(|file| file.as_str() != "-")
+                .map(|file| sanitize_c_name(file)),
+        }
     } else {
         None
     };
 
     let result = match layout.style {
         Style::Normal | Style::LittleEndian => dump_grouped(&mut out, data, start, layout),
-        Style::Binary => dump_binary(&mut out, data, start, layout.cols),
+        Style::Binary => dump_binary(&mut out, data, start, layout),
         Style::Plain => dump_plain(&mut out, data, layout),
         Style::Include => dump_include(&mut out, data, layout, include_name.as_deref()),
     };
@@ -203,6 +216,7 @@ fn resolve_layout(args: &Args) -> Result<Layout, String> {
         group,
         uppercase: args.uppercase,
         bits: args.binary,
+        autoskip: args.autoskip % 2 == 1,
     })
 }
 
@@ -256,73 +270,192 @@ fn ascii_column(bytes: &[u8]) -> String {
         .collect()
 }
 
+/// GNU replaces every non-alphanumeric byte with `_` and prefixes names that
+/// start with a digit with `__`. It never validates or rejects the name.
+fn sanitize_c_name(name: &str) -> String {
+    let mut sanitized = String::new();
+    if name
+        .as_bytes()
+        .first()
+        .is_some_and(|byte| byte.is_ascii_digit())
+    {
+        sanitized.push_str("__");
+    }
+    for &byte in name.as_bytes() {
+        if byte.is_ascii_alphanumeric() {
+            sanitized.push(byte as char);
+        } else {
+            sanitized.push('_');
+        }
+    }
+    sanitized
+}
+
+/// Port of GNU xxd's `xxdline` zero-run tracker. `nz` is the number of non-zero
+/// bytes in a full line, 1 for lines that are always shown (partial lines and
+/// dumps without `-a`), and -1 for the end-of-input flush. GNU keeps the first
+/// zero line, folds the middle of a run into `*`, and always prints the last
+/// zero line at end of input, so the quirky transitions below are deliberate.
+struct AutoSkip {
+    zero_seen: i32,
+    saved: String,
+}
+
+impl AutoSkip {
+    fn new() -> Self {
+        Self {
+            zero_seen: 0,
+            saved: String::new(),
+        }
+    }
+
+    fn write_line<W: Write>(&mut self, out: &mut W, line: &str, nz: i32) -> std::io::Result<()> {
+        if nz == 0 && self.zero_seen == 1 {
+            self.saved = line.to_string();
+        }
+        let body = if nz != 0 {
+            true
+        } else {
+            let previous = self.zero_seen;
+            self.zero_seen += 1;
+            previous == 0
+        };
+        if body {
+            if nz != 0 {
+                if nz < 0 {
+                    self.zero_seen -= 1;
+                }
+                if self.zero_seen == 2 {
+                    writeln!(out, "{}", self.saved)?;
+                }
+                if self.zero_seen > 2 {
+                    writeln!(out, "*")?;
+                }
+            }
+            if nz >= 0 || self.zero_seen > 0 {
+                writeln!(out, "{}", line)?;
+            }
+            if nz != 0 {
+                self.zero_seen = 0;
+            }
+        }
+        if self.zero_seen >= 0x7f {
+            self.zero_seen = 4;
+        }
+        Ok(())
+    }
+}
+
+/// Non-zero byte count for a full line; partial lines are always displayed.
+fn non_zero_bytes(chunk: &[u8], cols: usize) -> i32 {
+    if chunk.len() == cols {
+        chunk.iter().filter(|byte| **byte != 0).count() as i32
+    } else {
+        1
+    }
+}
+
+fn grouped_line(chunk: &[u8], address: usize, layout: Layout) -> String {
+    let mut line = format!("{:08x}: ", address);
+    if layout.group == 0 {
+        for position in 0..layout.cols {
+            match chunk.get(position) {
+                Some(byte) => line.push_str(&hex_pair(*byte, layout.uppercase)),
+                None => line.push_str("  "),
+            }
+        }
+    } else {
+        let groups = layout.cols.div_ceil(layout.group);
+        let little = layout.style == Style::LittleEndian;
+        for group in 0..groups {
+            if group > 0 {
+                line.push(' ');
+            }
+            let first = group * layout.group;
+            let count = layout.group.min(layout.cols - first);
+            if little {
+                let available = chunk.len().saturating_sub(first).min(count);
+                let part = &chunk[first..first + available];
+                for _ in available..count {
+                    line.push_str("  ");
+                }
+                for byte in part.iter().rev() {
+                    line.push_str(&hex_pair(*byte, layout.uppercase));
+                }
+            } else {
+                for position in first..first + count {
+                    match chunk.get(position) {
+                        Some(byte) => line.push_str(&hex_pair(*byte, layout.uppercase)),
+                        None => line.push_str("  "),
+                    }
+                }
+            }
+        }
+    }
+    line.push_str("  ");
+    line.push_str(&ascii_column(chunk));
+    line
+}
+
 fn dump_grouped<W: Write>(
     out: &mut W,
     data: &[u8],
     start: usize,
     layout: Layout,
 ) -> std::io::Result<()> {
-    let little = layout.style == Style::LittleEndian;
+    let mut skip = AutoSkip::new();
+    let mut last = String::new();
     for (index, chunk) in data.chunks(layout.cols).enumerate() {
-        let address = start + index * layout.cols;
-        write!(out, "{:08x}: ", address)?;
-        if layout.group == 0 {
-            for position in 0..layout.cols {
-                match chunk.get(position) {
-                    Some(byte) => write!(out, "{}", hex_pair(*byte, layout.uppercase))?,
-                    None => write!(out, "  ")?,
-                }
-            }
+        let line = grouped_line(chunk, start + index * layout.cols, layout);
+        if layout.autoskip {
+            skip.write_line(out, &line, non_zero_bytes(chunk, layout.cols))?;
         } else {
-            let groups = layout.cols.div_ceil(layout.group);
-            for group in 0..groups {
-                if group > 0 {
-                    write!(out, " ")?;
-                }
-                let first = group * layout.group;
-                let count = layout.group.min(layout.cols - first);
-                if little {
-                    let available = chunk.len().saturating_sub(first).min(count);
-                    let part = &chunk[first..first + available];
-                    for _ in available..count {
-                        write!(out, "  ")?;
-                    }
-                    for byte in part.iter().rev() {
-                        write!(out, "{}", hex_pair(*byte, layout.uppercase))?;
-                    }
-                } else {
-                    for position in first..first + count {
-                        match chunk.get(position) {
-                            Some(byte) => write!(out, "{}", hex_pair(*byte, layout.uppercase))?,
-                            None => write!(out, "  ")?,
-                        }
-                    }
-                }
-            }
+            writeln!(out, "{}", line)?;
         }
-        writeln!(out, "  {}", ascii_column(chunk))?;
+        last = line;
+    }
+    if layout.autoskip && data.len().is_multiple_of(layout.cols) {
+        skip.write_line(out, &last, -1)?;
     }
     Ok(())
+}
+
+fn binary_line(chunk: &[u8], address: usize, cols: usize) -> String {
+    let mut line = format!("{:08x}: ", address);
+    for position in 0..cols {
+        if position > 0 {
+            line.push(' ');
+        }
+        match chunk.get(position) {
+            Some(byte) => line.push_str(&format!("{:08b}", byte)),
+            None => line.push_str("        "),
+        }
+    }
+    line.push_str("  ");
+    line.push_str(&ascii_column(chunk));
+    line
 }
 
 fn dump_binary<W: Write>(
     out: &mut W,
     data: &[u8],
     start: usize,
-    cols: usize,
+    layout: Layout,
 ) -> std::io::Result<()> {
+    let cols = layout.cols;
+    let mut skip = AutoSkip::new();
+    let mut last = String::new();
     for (index, chunk) in data.chunks(cols).enumerate() {
-        write!(out, "{:08x}: ", start + index * cols)?;
-        for position in 0..cols {
-            if position > 0 {
-                write!(out, " ")?;
-            }
-            match chunk.get(position) {
-                Some(byte) => write!(out, "{:08b}", byte)?,
-                None => write!(out, "        ")?,
-            }
+        let line = binary_line(chunk, start + index * cols, cols);
+        if layout.autoskip {
+            skip.write_line(out, &line, non_zero_bytes(chunk, cols))?;
+        } else {
+            writeln!(out, "{}", line)?;
         }
-        writeln!(out, "  {}", ascii_column(chunk))?;
+        last = line;
+    }
+    if layout.autoskip && data.len().is_multiple_of(cols) {
+        skip.write_line(out, &last, -1)?;
     }
     Ok(())
 }
