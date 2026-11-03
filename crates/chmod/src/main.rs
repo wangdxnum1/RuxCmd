@@ -137,10 +137,16 @@ fn chmod_recursive(dir: &Path, spec: &ModeSpec, args: &cli::Args) -> Result<(), 
         let entry_path = entry.path();
 
         // symlink_metadata never follows the entry: a junction or directory
-        // symlink pointing at an ancestor must not be recursed into.
-        let is_dir = fs::symlink_metadata(&entry_path)
-            .map(|m| m.is_dir())
-            .unwrap_or(false);
+        // symlink pointing at an ancestor must not be recursed into, and
+        // GNU chmod ignores symlinks encountered during recursive
+        // traversal, so reparse points are skipped entirely.
+        let (is_symlink, is_dir) = fs::symlink_metadata(&entry_path)
+            .map(|m| (m.file_type().is_symlink(), m.is_dir()))
+            .unwrap_or((false, false));
+
+        if is_symlink {
+            continue;
+        }
 
         if is_dir {
             chmod_recursive(&entry_path, spec, args)?;

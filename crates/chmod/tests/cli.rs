@@ -170,6 +170,15 @@ fn recursive_chmod_does_not_follow_junctions() {
     );
     assert!(is_readonly(&file));
 
+    // GNU semantics: symlinks met during traversal are ignored, so the
+    // junction itself must keep its original (writable) attributes.
+    assert!(
+        !fs::symlink_metadata(&junction)
+            .unwrap()
+            .permissions()
+            .readonly()
+    );
+
     // Cleanup: clear the readonly bit via chmod itself before removing the tree.
     Command::new(bin())
         .args(["644"])
