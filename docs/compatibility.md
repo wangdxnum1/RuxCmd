@@ -147,7 +147,7 @@
 | who | --all, --boot, --dead, --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
 | whoami | --hostname, --username, --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
 | xargs | --interactive, --max-args, --replace, --verbose, --version, --null | 冒烟 + 行为测试 | -0 读 NUL 分隔输入；分批遵守 Windows 命令行长度上限；空输入仍运行一次命令；-p 从控制台读确认。 |
-| xxd | --cols, --revert, --version | 冒烟 + 行为测试（部分） | 默认转储：8 位十六进制地址、每行 16 字节、2 字节分组、ASCII 列；--cols 改变列数，--revert 逆向。由原型并入，仅这三种能力：不支持 -l/-s/-g/-u/-b/-p/-i/-e 等模式；多文件按顺序拼接读取（GNU 只接受一个输入）。已知缺陷：-r 解析会把 ASCII 列中的十六进制字符当作数据，往返会多出字节。 |
+| xxd | --binary, --cols, --group, --include, --len, --little-endian, --plain, --revert, --seek, --uppercase | 冒烟 + 行为测试 | 已实现 GNU 兼容的 -c / -g（含 0=不分组）/ -l / -s（绝对、+N 相对、-N 从末尾；支持十进制与 0x）/ -u / -p / -i / -e / -b；各模式默认列数为 16、-i 12、-p 30、-b 6，默认分组 2（-e 为 4）。选项冲突（-p 与 -b/-e/-i、-e 与 -b/-i）按 GNU 报错；-i 的变量名由输入路径净化得到，stdin 输入按 GNU 省略声明与长度行，-b 可与 -i 组合输出 0b 字面量。逆向 -r 只解析地址后的十六进制主体（ASCII 列不参与），支持地址空洞零填充、`*` 折叠行忽略、`-` 分组符、奇数半字节丢弃与 CRLF 输入；`-r -s` 仅接受非负绝对偏移。未实现：-a 自动折叠、-n/-C/-t 的 C 头定制、-o 偏移显示、-d 十进制地址、-E EBCDIC、-R 着色与 postscript（-ps）；-s 不接受 GNU 的尾随后缀（如 `16k` 在本实现中拒绝），多文件按顺序拼接（GNU 仅接受一个输入）。地址与十六进制输出已与本机 GNU xxd 2026-06-16 逐字节比对一致。 |
 | yes | --version | 冒烟 + 行为测试 | 多操作数以空格拼接输出；管道关闭静默退出 0。 |
 | zcat | --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
 | zip | --recurse, --version | 冒烟 + 行为测试 | PowerShell 5.1 Compress-Archive 外壳；文件与目标参数经单引号转义（内部引号加倍，防注入）。其余 GNU zip 参数不支持。 |
