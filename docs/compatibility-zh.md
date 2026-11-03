@@ -62,8 +62,7 @@
 | kill | --list, --signal, --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
 | link | （仅自动 help/version） | 冒烟 + 行为测试 | 创建一个文件硬链接，两个路径必须位于支持硬链接的同一卷；不创建符号链接或目录链接。 |
 | ln | --force, --symbolic, --verbose, --version | 冒烟 + 行为测试 | 链接目标按书写形式存储（无 \\?\ 前缀）；-v 打印创建结果。Windows 符号链接可能需要权限或开发者模式。 |
-| | logger -s, -t/--tag | Smoke + behavior tests | Writes tagged messages to stderr. -s echoes to stderr, -t sets the tag prefix (defaults to USERNAME). Reads stdin when no message is given. Windows Event Log integration is a future enhancement. | |
-| | logger -s, -t/--tag | 冒烟 + 行为测试 | 将带标签的消息写入 stderr。-s 同时输出到 stderr，-t 设置标签前缀（默认 USERNAME）。无消息时从 stdin 读。Windows 事件日志集成为后续增强。 | |
+| logger | -p/--priority, -s, -t/--tag | 冒烟 + 行为测试 | 默认写入 Windows 事件日志（Application），事件 ID 固定为 1。事件源默认为 `RuxCmd`，`-t TAG` 同时把 TAG 作为事件源；未指定 -t 时消息前缀仍取 USERNAME。-p 接受 FACILITY.PRIORITY 或 PRIORITY：emerg/alert/crit/err → Error，warning → Warning，notice/info/debug → Information，默认 user.notice。源未在 HKLM 注册时事件仍会记录，但事件查看器只显示“找不到事件 ID 的描述”，消息体为空；注册源需要管理员权限并提供 message DLL，本工具不注册、不提权。RegisterEventSourceW/ReportEventW 失败、非 Windows 或设置 `RUXCMD_LOGGER_FORCE_STDERR` 时自动降级写 stderr 并打印原因；降级路径退出码仍为 0（与旧实现一致），`-s` 始终额外输出 stderr。 |
 | logname | --version | 冒烟 + 行为测试 | GetUserNameW 获取当前进程账户，失败回退 USERNAME；切换凭据后可能与 Unix 登录身份不同。 |
 | ls | --all, --almost-all, --author, --block-size, --classify, --color | 冒烟 + 行为测试 | 长格式附加列（-i/-s 与符号链接目标）按位置索引渲染，着色时不丢失。完整 GNU 行为未验证。 |
 | md5sum | --check, --quiet, --status, --tag, --version, --zero | 冒烟 + 行为测试 | 支持 -z/--zero 和 --tag -z，NUL 模式不转义文件名；-z -c 退出 1。普通校验从 stdin 或 - 读取清单，保留精确文件名，支持 GNU 转义/BOM/二进制标记/tag，并传播读取错误；FAILED 写 stdout，--status 静默。不支持 -b/-t、strict 或 NUL 清单解析。 |

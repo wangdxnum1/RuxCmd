@@ -33,3 +33,47 @@ fn tag_defaults_to_username() {
         .success()
         .stderr(predicates::str::contains(": msg"));
 }
+
+#[test]
+fn forced_fallback_writes_message_and_reason_to_stderr() {
+    // Injection hook for the degraded path: without it the event log may be
+    // writable, and a failure would depend on host permissions.
+    cargo_bin_cmd!("logger")
+        .env("RUXCMD_LOGGER_FORCE_STDERR", "1")
+        .args(["-t", "fallback", "hello"])
+        .assert()
+        .success()
+        .stderr(
+            predicates::str::contains("writing to stderr instead")
+                .and(predicates::str::contains("fallback: hello")),
+        );
+}
+
+#[test]
+fn fallback_still_honors_the_stderr_echo_flag() {
+    cargo_bin_cmd!("logger")
+        .env("RUXCMD_LOGGER_FORCE_STDERR", "1")
+        .args(["-s", "-t", "echoed", "twice"])
+        .assert()
+        .success()
+        .stderr(predicates::str::contains("echoed: twice"));
+}
+
+#[test]
+fn priority_option_accepts_facility_prefix() {
+    cargo_bin_cmd!("logger")
+        .env("RUXCMD_LOGGER_FORCE_STDERR", "1")
+        .args(["-p", "user.err", "-s", "boom"])
+        .assert()
+        .success()
+        .stderr(predicates::str::contains(": boom"));
+}
+
+#[test]
+fn invalid_priority_is_rejected() {
+    cargo_bin_cmd!("logger")
+        .env("RUXCMD_LOGGER_FORCE_STDERR", "1")
+        .args(["-p", "bogus", "msg"])
+        .assert()
+        .failure();
+}
