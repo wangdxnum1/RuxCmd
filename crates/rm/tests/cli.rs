@@ -107,3 +107,37 @@ fn removes_readonly_file() {
     cargo_bin_cmd!("rm").arg(&target).assert().success();
     assert!(!target.exists());
 }
+
+#[test]
+fn removes_readonly_tree_and_directory() {
+    // The classic `chmod -R 444` + `rm -r` flow: read-only files and a
+    // read-only subdirectory must not block the recursive removal, and
+    // `rm -d` must empty a read-only directory.
+    let dir = tempfile::tempdir().unwrap();
+    let sub = dir.path().join("sub");
+    fs::create_dir(&sub).unwrap();
+    let file = sub.join("f.txt");
+    fs::write(&file, "data").unwrap();
+
+    let set_readonly = |path: &std::path::Path| {
+        let mut perms = fs::metadata(path).unwrap().permissions();
+        perms.set_readonly(true);
+        fs::set_permissions(path, perms).unwrap();
+    };
+    set_readonly(&file);
+    set_readonly(&sub);
+
+    cargo_bin_cmd!("rm").arg("-r").arg(&sub).assert().success();
+    assert!(!sub.exists());
+
+    let empty = dir.path().join("ro-empty");
+    fs::create_dir(&empty).unwrap();
+    set_readonly(&empty);
+
+    cargo_bin_cmd!("rm")
+        .arg("-d")
+        .arg(&empty)
+        .assert()
+        .success();
+    assert!(!empty.exists());
+}

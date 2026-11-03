@@ -175,7 +175,9 @@ fn remove_path(
         }
 
         if remove_empty_dirs && !recursive {
-            // -d: only remove empty directories
+            // -d: only remove empty directories. A read-only directory
+            // blocks remove_dir on Windows, so clear the attribute first.
+            let _ = ruxcmd_core::fsutil::clear_readonly(path);
             match fs::remove_dir(path) {
                 Ok(()) => {
                     if verbose {
@@ -229,6 +231,13 @@ fn remove_path(
             ) {
                 return Ok(());
             }
+        }
+
+        // GNU unlink removes read-only files; std's remove_file keeps the
+        // Windows read-only attribute, so clear it first. Symlink targets
+        // must not be touched, so links are skipped.
+        if !file_type.is_symlink() {
+            let _ = ruxcmd_core::fsutil::clear_readonly(path);
         }
 
         match fs::remove_file(path) {
@@ -330,6 +339,12 @@ fn remove_dir_recursive(
                 }
             }
 
+            // Read-only files are removed like at the top level; symlinks
+            // are skipped so their targets keep their attributes.
+            if !metadata.file_type().is_symlink() {
+                let _ = ruxcmd_core::fsutil::clear_readonly(&path);
+            }
+
             if let Err(e) = fs::remove_file(&path) {
                 if !(force && is_missing(&e)) {
                     return Err(format!("cannot remove '{}': {}", path.display(), e));
@@ -340,7 +355,9 @@ fn remove_dir_recursive(
         }
     }
 
-    // Remove the top-level directory itself
+    // Remove the top-level directory itself. Read-only directories would
+    // block remove_dir as well, so clear the attribute first.
+    let _ = ruxcmd_core::fsutil::clear_readonly(dir);
     if let Err(e) = fs::remove_dir(dir) {
         if force && is_missing(&e) {
             return Ok(());
