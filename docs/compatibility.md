@@ -2,7 +2,7 @@
 
 [English](compatibility.md) | **简体中文**
 
-当前 workspace 范围为 140 个命令。下表参数来自各 cli.rs 中显式声明的 long 名称，不是完整语法；以该命令 --help 为准。源码声明不等于功能已经通过测试。
+当前 workspace 范围为 142 个命令。下表参数来自各 cli.rs 中显式声明的 long 名称，不是完整语法；以该命令 --help 为准。源码声明不等于功能已经通过测试。
 
 所有命令已通过有界发布冒烟检查（帮助入口，true/false 为退出码）。只有标记“行为测试”的命令运行了代表性业务断言；其余业务行为尚未自动验证。未声明完整 GNU/POSIX 兼容性。
 
@@ -103,6 +103,7 @@
 | sha1sum | --check, --quiet, --status, --tag, --version, --zero | 冒烟 + 行为测试 | 支持 -z/--zero 和 --tag -z，NUL 模式不转义文件名；-z -c 退出 1。普通校验支持 stdin、精确文件名、GNU 转义、BOM、二进制标记和 BSD tag；读取错误不产生部分数据的成功摘要。不支持 -b/-t、strict 或 NUL 清单解析。 |
 | sha256sum | --check, --quiet, --status, --tag, --version, --zero | 冒烟 + 行为测试 | SHA-256，NUL 输出与普通清单校验规则同 sha1sum：-z 禁止文件名转义，-z -c 报错；支持 stdin 清单、精确文件名和读取错误传播。不支持 -b/-t、strict 或 NUL 清单解析。 |
 | sha512sum | --check, --quiet, --status, --tag, --version, --zero | 冒烟 + 行为测试 | SHA-512，NUL 输出与普通清单校验规则同 sha1sum；不支持 -b/-t、strict 或 NUL 清单解析。 |
+| sha3sum | --bits, --version | 冒烟 + 行为测试（部分） | 仅 SHA-3 族：--bits 取 224/256/384/512，默认 512（GNU 用 -a/--algorithm 选择算法，本实现无该选项）；输出 `摘要  文件名`，支持 stdin 与多文件，读取失败退出 1。由原型并入：无 -c/--check 校验清单、--tag、-z/--zero、-b/-t，行为测试只校验摘要长度与两空格格式；SHA3-256(abc) 实测与公开向量一致。 |
 | shred | --force, --iterations, --remove, --verbose, --version | 冒烟 + 行为测试 | 原地覆写（伪随机轮次后末轮清零），仅 -u 才删除；失败传播退出码 1。 |
 | shuf | --head-count, --input-range, --output, --random-source, --version, --zero-terminated | 冒烟 + 行为测试 | 支持 -z NUL 记录、-n/-i/-o 和原始字节。--random-source 读取前 64 KiB 后以 FNV 播种，相同字节可复现，但排列不保证与 GNU 相同；随机源不可读时报错。随机行为以记录多重集合校验，不按 GNU 排列逐字节比较。 |
 | sleep | --version | 冒烟 + 行为测试 | 接受多个操作数求和，后缀为小写 s/m/h/d；大写后缀与负数退出 1。支持 --help/--version。 |
@@ -146,11 +147,12 @@
 | who | --all, --boot, --dead, --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
 | whoami | --hostname, --username, --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
 | xargs | --interactive, --max-args, --replace, --verbose, --version, --null | 冒烟 + 行为测试 | -0 读 NUL 分隔输入；分批遵守 Windows 命令行长度上限；空输入仍运行一次命令；-p 从控制台读确认。 |
+| xxd | --cols, --revert, --version | 冒烟 + 行为测试（部分） | 默认转储：8 位十六进制地址、每行 16 字节、2 字节分组、ASCII 列；--cols 改变列数，--revert 逆向。由原型并入，仅这三种能力：不支持 -l/-s/-g/-u/-b/-p/-i/-e 等模式；多文件按顺序拼接读取（GNU 只接受一个输入）。已知缺陷：-r 解析会把 ASCII 列中的十六进制字符当作数据，往返会多出字节。 |
 | yes | --version | 冒烟 + 行为测试 | 多操作数以空格拼接输出；管道关闭静默退出 0。 |
 | zcat | --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
 | zip | --recurse, --version | 冒烟 + 行为测试 | PowerShell 5.1 Compress-Archive 外壳；文件与目标参数经单引号转义（内部引号加倍，防注入）。其余 GNU zip 参数不支持。 |
 
 
-Round 15 同时新增 `ls -h`，等价于 `--human-readable`；帮助入口保留 `--help`。Round 16 为上表 15 个已有命令增加 NUL 模式，命令总数仍为 125。 Round 18 新增 9 个命令（base32/expr/hostid/nproc/pathchk/printenv/sum/truncate/tsort），Round 20 新增 b2sum 与 chgrp，Round 22 新增 dd，命令总数 137；iostat、mpstat、sar 与 w 仍为仅冒烟。
+Round 15 同时新增 `ls -h`，等价于 `--human-readable`；帮助入口保留 `--help`。Round 16 为上表 15 个已有命令增加 NUL 模式，命令总数仍为 125。 Round 18 新增 9 个命令（base32/expr/hostid/nproc/pathchk/printenv/sum/truncate/tsort），Round 20 新增 b2sum 与 chgrp，Round 22 新增 dd，命令总数 137；iostat、mpstat、sar 与 w 仍为仅冒烟。原型并入 sha3sum 与 xxd 后，命令总数 140 → 142（145 个包），两命令能力范围见上表。
 
 更详细的 ps 参数文档见 [ps README](ps/README-zh.md)。本表由首次源码调查建立，新增或修改命令时需同步更新。

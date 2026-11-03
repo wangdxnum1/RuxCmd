@@ -649,6 +649,13 @@
   "exitCode": 0
  },
  {
+  "name": "sha3sum",
+  "arguments": [
+   "--help"
+  ],
+  "exitCode": 0
+ },
+ {
   "name": "sha512sum",
   "arguments": [
    "--help"
@@ -949,6 +956,13 @@
  },
  {
   "name": "xargs",
+  "arguments": [
+   "--help"
+  ],
+  "exitCode": 0
+ },
+ {
+  "name": "xxd",
   "arguments": [
    "--help"
   ],

@@ -1510,6 +1510,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "keccak"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb26cec98cce3a3d96cbb7bced3c4b16e3d13f27ec56dbd62cbc8f39cfb9d653"
+dependencies = [
+ "cpufeatures",
+]
+
+[[package]]
 name = "kill"
 version = "0.1.0"
 dependencies = [
@@ -2679,6 +2688,29 @@ dependencies = [
  "predicates",
  "ruxcmd-build",
  "sha2",
+ "tempfile",
+]
+
+[[package]]
+name = "sha3"
+version = "0.10.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77fd7028345d415a4034cf8777cd4f8ab1851274233b45f84e3d955502d93874"
+dependencies = [
+ "digest",
+ "keccak",
+]
+
+[[package]]
+name = "sha3sum"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "clap",
+ "hex",
+ "predicates",
+ "ruxcmd-build",
+ "sha3",
  "tempfile",
 ]
 
@@ -4124,6 +4156,17 @@ checksum = "32e45ad4206f6d2479085147f02bc2ef834ac85886624a23575ae137c8aa8156"
 dependencies = [
  "libc",
  "rustix",
+]
+
+[[package]]
+name = "xxd"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "clap",
+ "predicates",
+ "ruxcmd-build",
+ "tempfile",
 ]
 
 [[package]]
