@@ -57,7 +57,7 @@
 | iconv | --from-code, --list, --output, --to-code, --version | 冒烟 + 行为测试 | 解码严格遵循 -f（无 BOM 嗅探）；--list 覆盖完整编码表。 |
 | id | --group, --groups, --name, --user, --version | 冒烟 + 行为测试 | uid/gid/groups 取自进程令牌 SID 的 RID；-u/-g/-G/-n 遵循 GNU；组名与区域相关，无法解析时回退为 RID。 |
 | install | --directory, --mode, --verbose | 冒烟 + 行为测试 | 复制文件；`-d` 建目录，`-D` 建目标父目录。八进制权限的写位映射 Windows 只读属性，不等价于 Unix 所有者、组和执行位。替换已有文件条目，不改写其硬链接别名；源与目标同一文件时报错。不支持符号权限及其他 GNU install 选项。 |
-| iostat | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| iostat | 见 --help | 冒烟 + 行为测试（6） | 覆盖 CPU 报告头部与行、百分比范围、count 多帧、已移除设备选项被拒绝；仅聚合 CPU 指标，未实现 GNU 的磁盘/设备报表与 interval 精度。 |
 | join | --field1, --field2, --separator, --version | 冒烟 + 行为测试 | 输出为键 + 双方剩余字段；无 -t 时按连续空白切分（输出以空格连接）。小于 1 的字段号报错退出 1。 |
 | kill | --list, --signal, --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
 | link | （仅自动 help/version） | 冒烟 + 行为测试 | 创建一个文件硬链接，两个路径必须位于支持硬链接的同一卷；不创建符号链接或目录链接。 |
@@ -69,7 +69,7 @@
 | mkdir | --mode, --parents, --verbose | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
 | mkfifo | --mode, --version | 冒烟 + 行为测试 | 创建瞬时的 Windows 命名管道服务端句柄并立即关闭，不留下持久对象；-m 声明不支持。 |
 | mktemp | --directory, --quiet, --suffix, --tmpdir | 冒烟 + 行为测试 | 使用系统安全随机源替换至少三个连续 X，独占创建避免覆盖。支持 `-d`、`-p DIR`、`-t` 和后缀。默认目录遵循 Windows 临时目录规则；继承 Windows ACL，不提供 Unix 0600/0700 权限语义。不支持无值 `--tmpdir` 和 dry-run。 |
-| mpstat | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| mpstat | 见 --help | 冒烟 + 行为测试（7） | 覆盖 ALL 行、百分比范围、count 的 Average 汇总、-P all 与默认输出一致；仅支持 ALL 聚合，逐 CPU 输出被拒绝，缺少逐核细分。 |
 | mv | --force, --interactive, --no-clobber, --verbose | 冒烟 + 行为测试 | 拒绝以非目录覆盖目录（绝不删除目标树）；跨卷回退为 copy+delete；src/. 并入已存在目录。 |
 | netstat | --all, --numeric, --protocol, --version, --own-pid | 冒烟 + 行为测试 | -a 控制是否显示 LISTENING/未绑定条目；-o 增加所属 PID 列（GetExtendedTcp/UdpTable）；表查询错误退出 1。 |
 | nice | --adjustment, --version | 冒烟 + 行为测试 | 直接 spawn 命令（不依赖 wmic）并应用优先级：adjustment <=-15 High、-14..-5 Above normal、-4..4 Normal、5..14 Below normal、>=15 Idle；透传子进程退出码。 |
@@ -83,9 +83,9 @@
 | pathchk | --all, --portability | 冒烟 + 行为测试 | 检查空组件、255 字节组件与 4096 字节路径上限；-p 限制为便携文件名字符集；盘符前缀属结构部分。不检查文件系统访问权限。 |
 | paste | --delimiters, --serial, --version, --zero-terminated | 冒烟 + 行为测试 | 支持 -z NUL 记录、并行/串行和循环 -d 分隔符列表。支持 \n、\t、\\、\0 转义（\0 表示不插入字段分隔符）；记录分隔符与字段分隔符独立。重复 - 操作数共享 stdin；串行空输入仍输出一个记录终止符。默认 LF 模式剥 CRLF，NUL 模式保留 CR/LF 和非法字节。 |
 | patch | --force, --reverse, --strip, --version | 冒烟 + 行为测试 | --strip/-p 剥离 N 个前导路径组件（默认 0）；hunk 严格按 @@ 声明计数消费（处理空上下文行与 \\ No newline）；多文件补丁分段应用；.rej 为被拒 hunk 原文；成功的 hunk 写回。 |
-| pgrep | --full, --list-name, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| pgrep | --full, --list-name, --version | 冒烟 + 行为测试（9） | 覆盖按名称匹配存活子进程、--list-name、--full、排除自身 PID、无匹配退出 1；不解析 GNU 的 -P/-u/-g/-n/-o 等过滤选项。 |
 | ping | --count, --size, --version | 冒烟 + 行为测试 | 全部丢包退出 1；失败状态分类提示；-s 上限 65500；-t 为持续 ping（Windows 语义），-w 为单次应答超时。 |
-| pkill | --full, --signal, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| pkill | --full, --signal, --version | 冒烟 + 行为测试（7） | 覆盖按名称/精确名/大小写与 --full 终止进程、排除自身 PID、无匹配退出 1；--signal 仅映射为 TerminateProcess，Windows 无 POSIX 信号语义。 |
 | pr | --double-space, --form-feed, --header, --indent, --length, --number-lines | 冒烟 + 行为测试 | 页眉显示真实本地日期时间；-n 遵循 GNU -n[SEP][DIGITS]（裸 -n 为 TAB + 宽 5，非法规格退出 1）；help 仅 --help（-h 是页眉）。 |
 | printenv | --null | 冒烟 + 行为测试 | 无名字时输出整个环境；给名字时输出命中值，任一缺失退出 1。 |
 | printf | --version | 冒烟 + 行为测试 | 完整 GNU 指示符支持：宽度/精度/标志（- 0 + 空格 #）、d/i/u/o/x/X（按 base-0 解析，%u 回绕负数）、f/e/E/g/G、c/s、%b（含 \c 截断）、%q、跨参数的格式复用，以及无转换指令时对多余参数的警告。未知指令报错退出 1；非法数字仍输出 0 并退出 1。 |
@@ -97,7 +97,7 @@
 | rev | --version | 冒烟 + 行为测试 | 有效 UTF-8 按字符反转（util-linux 语义），非法序列按字节反转；未终止末行保持未终止。 |
 | rm | --dir, --force, --no-preserve-root, --one-file-system, --preserve-root, --verbose | 冒烟 + 行为测试 | -f 仅静默不存在的路径；其余失败均打印错误并退出 1，preserve-root 拒绝信息不被压制。 |
 | rmdir | --ignore-fail-on-non-empty, --parents, --verbose | 冒烟 + 行为测试 | 仅删除空目录，`-p` 向上逐级删除；忽略标志仅抑制目录非空错误。受 Windows 文件系统和 ACL 限制。 |
-| sar | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| sar | 见 --help | 冒烟 + 行为测试（7） | 覆盖带时间戳的 CPU 报告、百分比范围、count 有界、内存报表与默认 CPU+内存输出；不支持 -d 磁盘报表与 -f 历史日志。 |
 | sed | --expression, --regexp-extended, --quiet, --in-place, --separate, --version | 冒烟 + 行为测试 | 默认 POSIX BRE（-E/-r/--regexp-extended 切换 ERE，两种方言均带 GNU \+ \? 扩展）；地址与 s 命令共用方言；替换端支持 & 与 \1-\9、\n/\t/\r 以及 g/N/p/i 标志。模式中的反向引用不支持（启动报错）。非 UTF-8 数据按原始字节匹配并原样透传；行号逐文件重置；缺失的末行换行保留。 -f FILE 从文件读脚本。 |
 
 | seq | --equal-width, --format, --separator, --version | 冒烟 + 行为测试 | 选项之后可接负数操作数；-w 补位含符号（经 GNU 实测核对）。 |
@@ -121,7 +121,7 @@
 | test | --version | 冒烟 + 行为测试 | POSIX 子集：单操作数字符串、-z/-n、!、数值 -eq/-ne/-lt/-le/-gt/-ge、文件 -e/-f/-d/-s 与 -r/-w/-x（Windows 近似：-r/-x 表示存在，-w 表示非只读）。用法错误退出 2。 |
 | time | --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
 | timeout | --kill-after, --version | 冒烟 + 行为测试 | 轮询子进程：正常结束透传退出码，超时返回 124；-k/--kill-after 在宽限期后升级终止。时长支持小数与 s/m/h/d 后缀；子命令允许以 '-' 开头。仅终止直接子进程。 |
-| top | 见 --help | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| top | 见 --help | 冒烟 + 行为测试（5 集成 + 2 单元） | 覆盖两帧头部实时 uptime 与 CPU 百分比、单帧块结构、进程行上限 20 与 --version；单元测试验证进程计数减一在 0 时不下溢。进程表 USER/%CPU/%MEM/VIRT/RES/SHR 为固定占位值，无交互模式、排序与按键，不是逐进程实时统计。 |
 | touch | --no-create, --version | 冒烟 + 行为测试 | 经 SetFileTime 更新已存在文件、目录与只读文件的 atime/mtime；-a 与 -m 选择更新的时间。-d/--date、-t、-r/--reference 未实现。 |
 | | tree | -a, --charset, --level | Smoke + behavior tests | Recursive directory listing with Unicode or ASCII tree characters. -a shows hidden files, -L limits depth, --charset=ascii uses | ` -- characters. Directories sort before files, then alphabetical. | |
 | | tree | -a, --charset, --level | 冒烟 + 行为测试 | 递归目录列表，Unicode 或 ASCII 树枝字符。-a 显示隐藏文件，-L 限制深度，--charset=ascii 使用 | ` -- 字符。目录排前，同名按字典序。 | |
@@ -140,7 +140,7 @@
 | users | --count, --version | 冒烟 + 行为测试 | 枚举 WTS 会话用户名，按首次出现顺序去重；失败回退 USERNAME（或 unknown）。`-q/--count` 为扩展，与 GNU utmp 排序和重复会话输出不同；不支持 utmp FILE 操作数。 |
 | vdir | 同 ls | 冒烟 + 行为测试 | 注入 `ls -l` 的薄别名，支持 `-h`；继承 ls 格式、权限和所有者近似，GNU 长格式的逐字节对比豁免。 |
 | vmstat | 见 --help | 冒烟 + 行为测试 | swpd/free 逐帧采样；-h 短名为 help（长名 --header-once 保留）。完整 GNU 行为未验证。 |
-| w | --header, --help, --ignore-username, --version | 仅冒烟；业务待验证 | 完整 GNU 行为未验证。 |
+| w | --header, --help, --ignore-username, --version | 冒烟 + 行为测试（4） | 覆盖非空输出与退出码、-h 启动信息、无会话不崩溃、路径不可用时的降级；Windows 无 utmp，会话/用户信息为本地近似，字段与 GNU 不完全一致。 |
 | watch | --chgexit, --differences, --errexit, --exec, --interval, --no-title, --version | 冒烟 + 行为测试 | ANSI 刷新，支持小数间隔（限制在 0.1..2678400 秒）、变化行高亮、变化或错误时退出。直接执行程序，内建命令/管道需显式启动 shell。标题按 80 列，stderr 拼在 stdout 后，UTF-8 有损解码，`-d` 整行高亮；Ctrl+C 遵循 Windows 控制台行为。 |
 | wc | --bytes, --chars, --lines, --max-line-length, --version, --words | 冒烟 + 行为测试 | -m 按 UTF-8 字符计数（无效序列回退字节计数）；-L 不含换行符；打不开的文件报错并退出 1。stdin 输出裸计数，与 GNU 一致。 |
 | wget | --directory-prefix, --output-document, --quiet, --version | 冒烟 + 行为测试 | -O - 输出到 stdout；URL 文件名解码（尾 / 取 index.html）；HTTP 错误退出 8；连接超时 10s。HTTPS/TLS 与联网行为尚未验证。 |
