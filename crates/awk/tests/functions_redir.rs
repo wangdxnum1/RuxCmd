@@ -81,9 +81,14 @@ fn print_to_file_truncate_and_append() {
 
 #[test]
 fn pipe_to_command() {
-    // Pipe through the Windows sort filter; output arrives on our stdout.
+    // findstr echoes stdin back byte-for-byte and copes with LF-only input, so
+    // this stays independent of the console code page. Do not switch back to
+    // sort/find/more: on a 936 code page they read LF-only input as console
+    // text and print "??" instead of the payload (verified without awk).
     let out = awk(
-        &["BEGIN { print \"b\" | \"sort\"; print \"a\" | \"sort\"; close(\"sort\") }"],
+        &[
+            "BEGIN { print \"b\" | \"findstr .\"; print \"a\" | \"findstr .\"; close(\"findstr .\") }",
+        ],
         b"",
     );
     assert_eq!(out.status.code(), Some(0));
