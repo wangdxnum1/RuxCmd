@@ -46,13 +46,29 @@ impl OutHandle {
         }
     }
 
-    fn close(&mut self) {
+    /// Close the handle, returning the command's exit status for pipes.
+    fn close(&mut self) -> Option<i32> {
         if let OutHandle::Pipe(c) = self {
             c.stdin.take();
-            let _ = c.wait();
+            c.wait().ok().and_then(|status| status.code())
+        } else {
+            None
         }
     }
 }
+
+/// One running `cmd | getline` producer. Keyed by the command string so
+/// repeated getlines reuse the same process and advance line by line.
+struct PipeInput {
+    child: std::process::Child,
+    reader: std::io::BufReader<std::process::ChildStdout>,
+    lines_read: usize,
+    exit_status: Option<i32>,
+}
+
+/// `cmd.exe` exit codes for an unknown command: `cmd /C` reports 1, while
+/// some interactive shells report 9009.
+const CMD_COMMAND_NOT_FOUND: [i32; 2] = [1, 9009];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RedirectMode {
@@ -72,6 +88,9 @@ thread_local! {
         std::cell::RefCell::new(HashMap::new());
     /// The value of the most recent `return` inside a user function body.
     static GETLINE_SOURCES: GetlineSources =
+        std::cell::RefCell::new(HashMap::new());
+    /// Open `cmd | getline` pipes, keyed by the command string.
+    static PIPE_INPUTS: std::cell::RefCell<HashMap<String, PipeInput>> =
         std::cell::RefCell::new(HashMap::new());
     static RETURN_VALUE: std::cell::RefCell<Value> =
         const { std::cell::RefCell::new(Value::Str(String::new())) };
@@ -242,6 +261,13 @@ fn close_redirects(redirects: &mut HashMap<String, OutHandle>) {
     redirects.clear();
 }
 
+/// Reap every input pipe before the program exits.
+fn close_pipe_inputs(pipes: &mut HashMap<String, PipeInput>) {
+    for (_, mut pipe) in pipes.drain() {
+        let _ = pipe.child.wait();
+    }
+}
+
 fn call_user_function(
     name: &str,
     args: Vec<Value>,
@@ -386,8 +412,9 @@ fn main() {
         execute_block(action, &mut vars);
     }
 
-    // Flush and close any open print-redirection targets.
+    // Flush and close any open print-redirection targets, then reap pipes.
     REDIRECTS.with(|r| close_redirects(&mut r.borrow_mut()));
+    PIPE_INPUTS.with(|p| close_pipe_inputs(&mut p.borrow_mut()));
 
     std::process::exit(exit_code);
 }
@@ -987,17 +1014,32 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
                             GETLINE_SOURCES.with(|g| {
                                 g.borrow_mut().remove(&name);
                             });
-                            let removed = REDIRECTS.with(|r| {
-                                eprintln!(
-                                    "DBGR close key={:?} keys={:?}",
-                                    name,
-                                    r.borrow().keys().cloned().collect::<Vec<_>>()
-                                );
-                                r.borrow_mut().remove(&name).map(|mut h| {
-                                    h.close();
+                            // A pipe input and a pipe output can share a
+                            // command string; close both, report the input
+                            // pipe's exit status when present.
+                            let input_status = PIPE_INPUTS.with(|p| {
+                                p.borrow_mut().remove(&name).map(|mut pipe| {
+                                    match pipe.exit_status {
+                                        Some(code) => code as f64,
+                                        None => pipe
+                                            .child
+                                            .wait()
+                                            .ok()
+                                            .and_then(|status| status.code())
+                                            .map(|code| code as f64)
+                                            .unwrap_or(-1.0),
+                                    }
                                 })
                             });
-                            stack.push(Value::Num(if removed.is_some() { 0.0 } else { -1.0 }));
+                            let output_status = REDIRECTS
+                                .with(|r| r.borrow_mut().remove(&name).map(|mut h| h.close()));
+                            let status = match (input_status, output_status) {
+                                (Some(code), _) => code,
+                                (None, Some(Some(code))) => code as f64,
+                                (None, Some(None)) => 0.0,
+                                (None, None) => -1.0,
+                            };
+                            stack.push(Value::Num(status));
                         } else {
                             stack.push(Value::Num(-1.0));
                         }
@@ -1075,18 +1117,7 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
                 if let Some(var) = target {
                     vars.insert(var, line);
                 } else {
-                    vars.insert("$0".to_string(), line.clone());
-                    let fs = vars.get("FS").cloned().unwrap_or_else(|| " ".to_string());
-                    let fields: Vec<&str> = if fs == " " {
-                        line.split_whitespace().collect()
-                    } else {
-                        line.split(&fs).collect()
-                    };
-                    vars.retain(|k, _| !(k.starts_with('$') && k != "$0"));
-                    vars.insert("NF".to_string(), fields.len().to_string());
-                    for (j, f) in fields.iter().enumerate() {
-                        vars.insert(format!("${}", j + 1), (*f).to_string());
-                    }
+                    install_record(vars, &line);
                 }
                 last_was_value = true;
                 stack.push(result);
@@ -1106,8 +1137,33 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
             }
             Token::Op(op) => {
                 last_was_value = false;
+                if op == "|" && matches!(tokens.get(index + 1), Some(Token::Getline)) {
+                    // `expr | getline [var]`: reduce the command expression
+                    // first (stopping at an enclosing paren), then read.
+                    while let Some(top) = ops.last() {
+                        if top == "(" || precedence(top) < precedence("|") {
+                            break;
+                        }
+                        let pending = ops.pop().unwrap();
+                        apply_op(&mut stack, &pending);
+                    }
+                    let cmd = stack.pop().map(|v| v.to_str()).unwrap_or_default();
+                    let mut next = index + 2;
+                    let target = match tokens.get(next) {
+                        Some(Token::Var(v)) if !v.starts_with('$') && v != "in" => {
+                            next += 1;
+                            Some(v.clone())
+                        }
+                        _ => None,
+                    };
+                    let value = pipe_getline(&cmd, target.as_deref(), vars);
+                    stack.push(value);
+                    last_was_value = true;
+                    index = next;
+                    continue;
+                }
                 while let Some(top) = ops.last() {
-                    if precedence(top) >= precedence(op) {
+                    if top != "(" && precedence(top) >= precedence(op) {
                         let pending = ops.pop().unwrap();
                         apply_op(&mut stack, &pending);
                     } else {
@@ -1146,6 +1202,121 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
     }
 
     stack.pop().unwrap_or(Value::Str(String::new()))
+}
+
+/// Install a record as `$0` and rebuild `$1..$NF` with the current `FS`.
+fn install_record(vars: &mut HashMap<String, String>, line: &str) {
+    vars.insert("$0".to_string(), line.to_string());
+    let fs = vars.get("FS").cloned().unwrap_or_else(|| " ".to_string());
+    let fields: Vec<&str> = if fs == " " {
+        line.split_whitespace().collect()
+    } else {
+        line.split(&fs).collect()
+    };
+    vars.retain(|k, _| !(k.starts_with('$') && k != "$0"));
+    vars.insert("NF".to_string(), fields.len().to_string());
+    for (j, f) in fields.iter().enumerate() {
+        vars.insert(format!("${}", j + 1), (*f).to_string());
+    }
+}
+
+fn spawn_pipe_input(cmd: &str) -> Result<PipeInput, String> {
+    let mut child = std::process::Command::new("cmd")
+        .args(["/C", cmd])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("cannot execute '{}': {}", cmd, e))?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| format!("cannot capture stdout of '{}'", cmd))?;
+    Ok(PipeInput {
+        child,
+        reader: std::io::BufReader::new(stdout),
+        lines_read: 0,
+        exit_status: None,
+    })
+}
+
+/// Read one record from `cmd | getline`. The child is opened once per
+/// command string and reused until `close(cmd)` or program exit.
+fn getline_from_cmd(cmd: &str) -> (Value, String, Option<String>) {
+    PIPE_INPUTS.with(|pipes| {
+        let mut map = pipes.borrow_mut();
+        if !map.contains_key(cmd) {
+            match spawn_pipe_input(cmd) {
+                Ok(pipe) => {
+                    map.insert(cmd.to_string(), pipe);
+                }
+                Err(e) => return (Value::Num(-1.0), String::new(), Some(e)),
+            }
+        }
+
+        let mut line = String::new();
+        let read = {
+            let pipe = map.get_mut(cmd).expect("pipe just opened");
+            pipe.reader.read_line(&mut line)
+        };
+        match read {
+            Ok(0) => {
+                let lines_read = map.get(cmd).map(|p| p.lines_read).unwrap_or(0);
+                if let Some(pipe) = map.get_mut(cmd)
+                    && pipe.exit_status.is_none()
+                {
+                    pipe.exit_status = pipe.child.wait().ok().and_then(|status| status.code());
+                }
+                let status = map.get(cmd).and_then(|p| p.exit_status);
+                if lines_read == 0
+                    && status.is_some_and(|code| CMD_COMMAND_NOT_FOUND.contains(&code))
+                {
+                    // cmd.exe accepted the line but could not find the
+                    // command. GNU awk returns 0 here; RuxCmd reports the
+                    // failure so scripts can react (declared difference).
+                    map.remove(cmd);
+                    let message = format!(
+                        "cannot execute '{}': command not found (exit {})",
+                        cmd,
+                        status.unwrap_or(1)
+                    );
+                    return (Value::Num(-1.0), String::new(), Some(message));
+                }
+                (Value::Num(0.0), String::new(), None)
+            }
+            Ok(_) => {
+                if let Some(pipe) = map.get_mut(cmd) {
+                    pipe.lines_read += 1;
+                }
+                let text = line
+                    .trim_end_matches(|c: char| c == '\r' || c == '\n')
+                    .to_string();
+                (Value::Num(1.0), text, None)
+            }
+            Err(e) => {
+                map.remove(cmd);
+                (
+                    Value::Num(-1.0),
+                    String::new(),
+                    Some(format!("getline from '{}': {}", cmd, e)),
+                )
+            }
+        }
+    })
+}
+
+/// `cmd | getline [var]`: update ERRNO on failure, then either assign the
+/// record to `var` (leaving `$0`/`NF` alone) or install it as the record.
+fn pipe_getline(cmd: &str, target: Option<&str>, vars: &mut HashMap<String, String>) -> Value {
+    let (result, line, errno) = getline_from_cmd(cmd);
+    if let Some(message) = errno {
+        vars.insert("ERRNO".to_string(), message);
+    }
+    if let Some(name) = target {
+        vars.insert(name.to_string(), line);
+    } else {
+        install_record(vars, &line);
+    }
+    result
 }
 
 fn getline_from_file(path: &str) -> (Value, String) {
@@ -1510,7 +1681,12 @@ fn execute_block_inner(tokens: &[Token], vars: &mut HashMap<String, String>) -> 
                 }
             }
             Token::Var(v) => {
-                if matches!(tokens.get(i + 1), Some(Token::Assign)) {
+                if is_pipe_getline_statement(tokens, i) {
+                    // Standalone `cmd | getline [var]` statement.
+                    let end = expr_end(tokens, i);
+                    let _ = eval_tokens(&tokens[i..end], vars);
+                    i = end;
+                } else if matches!(tokens.get(i + 1), Some(Token::Assign)) {
                     let name = v.clone();
                     let end = expr_end(tokens, i + 2);
                     let val = eval_tokens(&tokens[i + 2..end], vars).to_str();
@@ -1580,7 +1756,13 @@ fn execute_block_inner(tokens: &[Token], vars: &mut HashMap<String, String>) -> 
                 i += 1;
             }
             _ => {
-                i += 1;
+                if is_value_start(&tokens[i]) && is_pipe_getline_statement(tokens, i) {
+                    let end = expr_end(tokens, i);
+                    let _ = eval_tokens(&tokens[i..end], vars);
+                    i = end;
+                } else {
+                    i += 1;
+                }
             }
         }
     }
@@ -2049,6 +2231,54 @@ fn is_value_start(t: &Token) -> bool {
         t,
         Token::Var(_) | Token::Number(_) | Token::String(_) | Token::LParen
     )
+}
+
+/// Does the statement starting at `start` contain a top-level `| getline`?
+fn is_pipe_getline_statement(tokens: &[Token], start: usize) -> bool {
+    let mut begin = start;
+    if matches!(tokens.get(start), Some(Token::LParen))
+        && let Some(close) = find_matching_paren(tokens, start)
+        && matches!(
+            tokens.get(close + 1),
+            None | Some(Token::Semicolon) | Some(Token::Action(_))
+        )
+    {
+        begin = start + 1;
+    }
+    let mut depth = 0usize;
+    let mut i = begin;
+    while i < tokens.len() {
+        match &tokens[i] {
+            Token::LParen => depth += 1,
+            Token::RParen => {
+                if depth == 0 {
+                    break;
+                }
+                depth -= 1;
+            }
+            Token::Semicolon
+            | Token::Action(_)
+            | Token::Print
+            | Token::Printf
+            | Token::If
+            | Token::Else
+            | Token::Next
+            | Token::Begin
+            | Token::End
+                if depth == 0 =>
+            {
+                break;
+            }
+            Token::Op(op)
+                if depth == 0 && op == "|" && matches!(tokens.get(i + 1), Some(Token::Getline)) =>
+            {
+                return true;
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    false
 }
 
 fn is_value_end(t: &Token) -> bool {
