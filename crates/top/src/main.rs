@@ -7,7 +7,7 @@ use ruxcmd_core::cpu::{self, CpuTimes};
 
 const VERSION: &str = "top 0.1.0";
 
-fn get_memory_info() -> (u64, u64, u64, u64) {
+fn get_memory_info() -> (u64, u64, u64) {
     use windows_sys::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
 
     let mut mem_status: MEMORYSTATUSEX = unsafe { std::mem::zeroed() };
@@ -19,12 +19,7 @@ fn get_memory_info() -> (u64, u64, u64, u64) {
     let free = mem_status.ullAvailPhys;
     let used = total - free;
 
-    (
-        used / 1024 / 1024,
-        free / 1024 / 1024,
-        total / 1024 / 1024,
-        mem_status.dwMemoryLoad as u64,
-    )
+    (used / 1024 / 1024, free / 1024 / 1024, total / 1024 / 1024)
 }
 
 /// Boot duration in seconds via GetTickCount64.
@@ -86,7 +81,7 @@ fn header_process_count(processes: u64) -> u64 {
 
 fn print_header(prev: &CpuTimes) {
     let now = Local::now();
-    let (used, free, total, percent) = get_memory_info();
+    let (used, free, total) = get_memory_info();
     let processes = get_process_count();
     let up = uptime_secs();
     let up_days = up / 86400;
