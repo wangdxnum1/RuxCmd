@@ -70,7 +70,7 @@
 | mkfifo | --mode, --version | 冒烟 + 行为测试 | 创建瞬时的 Windows 命名管道服务端句柄并立即关闭，不留下持久对象；-m 声明不支持。 |
 | mktemp | --directory, --quiet, --suffix, --tmpdir | 冒烟 + 行为测试 | 使用系统安全随机源替换至少三个连续 X，独占创建避免覆盖。支持 `-d`、`-p DIR`、`-t` 和后缀。默认目录遵循 Windows 临时目录规则；继承 Windows ACL，不提供 Unix 0600/0700 权限语义。不支持无值 `--tmpdir` 和 dry-run。 |
 | mpstat | 见 --help | 冒烟 + 行为测试（7） | 覆盖 ALL 行、百分比范围、count 的 Average 汇总、-P all 与默认输出一致；仅支持 ALL 聚合，逐 CPU 输出被拒绝，缺少逐核细分。 |
-| mv | --force, --interactive, --no-clobber, --verbose | 冒烟 + 行为测试 | 拒绝以非目录覆盖目录（绝不删除目标树）；跨卷回退为 copy+delete；src/. 并入已存在目录。 |
+| mv | --force, --interactive, --no-clobber, --verbose | 冒烟 + 行为测试 | 拒绝以非目录覆盖目录（绝不删除目标树）；跨卷回退为 copy+delete；src/. 并入已存在目录。只读属性处理已对齐 GNU：-f 覆盖前先清目标只读位，跨卷回退删除只读源文件、递归删除含只读项的源目录树时先清位（符号链接目标属性不变）。既有差异：-n 下 GNU 静默跳过并退出 0，本实现报 "File exists" 并退出 1；无 -f 时 GNU 默认覆盖，本实现拒绝覆盖。 |
 | netstat | --all, --numeric, --protocol, --version, --own-pid | 冒烟 + 行为测试 | -a 控制是否显示 LISTENING/未绑定条目；-o 增加所属 PID 列（GetExtendedTcp/UdpTable）；表查询错误退出 1。 |
 | nice | --adjustment, --version | 冒烟 + 行为测试 | 直接 spawn 命令（不依赖 wmic）并应用优先级：adjustment <=-15 High、-14..-5 Above normal、-4..4 Normal、5..14 Below normal、>=15 Idle；透传子进程退出码。 |
 | nl | --body-numbering, --number-width, --separator, --version | 冒烟 + 行为测试 | 按 UTF-8 行读取不乱码；-b 接受 t（默认，仅非空行）、n（不编号）、a（全部行）；每行输出均以换行结束，与 GNU 一致。 |

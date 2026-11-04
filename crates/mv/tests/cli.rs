@@ -107,3 +107,109 @@ fn moves_file_into_directory_by_bare_name() {
     assert_eq!(fs::read_to_string(out.join("a.txt")).unwrap(), "A");
     assert!(!file.exists());
 }
+
+fn set_readonly(path: &std::path::Path) {
+    let mut perms = fs::metadata(path).unwrap().permissions();
+    perms.set_readonly(true);
+    fs::set_permissions(path, perms).unwrap();
+}
+
+#[test]
+fn force_replaces_readonly_destination() {
+    // GNU mv replaces the destination regardless of its own write bit
+    // (unlink depends on the directory), so -f must clear the Windows
+    // read-only attribute instead of failing with "Access is denied".
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.txt");
+    let dst = dir.path().join("dst.txt");
+    fs::write(&src, "NEW").unwrap();
+    fs::write(&dst, "OLD").unwrap();
+    set_readonly(&dst);
+
+    cargo_bin_cmd!("mv")
+        .arg("-f")
+        .arg(&src)
+        .arg(&dst)
+        .assert()
+        .success();
+
+    assert!(!src.exists());
+    assert_eq!(fs::read_to_string(&dst).unwrap(), "NEW");
+    assert!(
+        !fs::metadata(&dst).unwrap().permissions().readonly(),
+        "the replacement must not inherit the destination's read-only attribute"
+    );
+}
+
+#[test]
+fn interactive_yes_replaces_readonly_destination() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.txt");
+    let dst = dir.path().join("dst.txt");
+    fs::write(&src, "NEW").unwrap();
+    fs::write(&dst, "OLD").unwrap();
+    set_readonly(&dst);
+
+    cargo_bin_cmd!("mv")
+        .arg("-i")
+        .arg(&src)
+        .arg(&dst)
+        .write_stdin("y\n")
+        .assert()
+        .success();
+
+    assert!(!src.exists());
+    assert_eq!(fs::read_to_string(&dst).unwrap(), "NEW");
+}
+
+#[test]
+fn no_clobber_keeps_readonly_destination() {
+    // `-n` never reaches the delete step, so the read-only bit must survive
+    // untouched along with the source. (This port reports the skip as a
+    // "File exists" error instead of GNU's silent exit 0; that difference is
+    // pre-existing and unrelated to the read-only attribute.)
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.txt");
+    let dst = dir.path().join("dst.txt");
+    fs::write(&src, "NEW").unwrap();
+    fs::write(&dst, "OLD").unwrap();
+    set_readonly(&dst);
+
+    cargo_bin_cmd!("mv")
+        .arg("-n")
+        .arg(&src)
+        .arg(&dst)
+        .assert()
+        .failure()
+        .code(1)
+        .stderr(predicates::str::contains("File exists"));
+
+    assert_eq!(fs::read_to_string(&dst).unwrap(), "OLD");
+    assert!(fs::metadata(&dst).unwrap().permissions().readonly());
+    assert!(src.exists(), "the source must be kept");
+}
+
+#[test]
+fn plain_move_refuses_readonly_destination() {
+    // Without -f this port refuses any existing destination; a read-only one
+    // must give the regular "File exists" report, not an OS error, and must
+    // keep its content and attributes.
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.txt");
+    let dst = dir.path().join("dst.txt");
+    fs::write(&src, "NEW").unwrap();
+    fs::write(&dst, "OLD").unwrap();
+    set_readonly(&dst);
+
+    cargo_bin_cmd!("mv")
+        .arg(&src)
+        .arg(&dst)
+        .assert()
+        .failure()
+        .code(1)
+        .stderr(predicates::str::contains("File exists"));
+
+    assert_eq!(fs::read_to_string(&dst).unwrap(), "OLD");
+    assert!(fs::metadata(&dst).unwrap().permissions().readonly());
+    assert!(src.exists());
+}

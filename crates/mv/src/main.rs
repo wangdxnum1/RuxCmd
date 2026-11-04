@@ -1,6 +1,7 @@
 mod cli;
 
 use clap::Parser;
+use ruxcmd_core::fsutil::clear_readonly;
 use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
@@ -117,6 +118,11 @@ fn move_file(source: &Path, dest: &Path, args: &cli::Args) -> Result<(), String>
         }
 
         if !dest_is_dir {
+            // Windows refuses to delete a read-only file, but GNU mv replaces
+            // the destination outright (unlink only needs write access to the
+            // containing directory, not to the file itself). GetFileAttributesW
+            // reports the link itself, so a symlink target keeps its attributes.
+            let _ = clear_readonly(&dest_path);
             fs::remove_file(&dest_path)
                 .map_err(|e| format!("cannot remove '{}': {}", dest_path.display(), e))?;
         }
@@ -161,9 +167,15 @@ fn move_by_copy(source: &Path, dest: &Path) -> io::Result<()> {
             ));
         }
         copy_dir_recursive(source, dest)?;
+        // Windows refuses to delete read-only files and read-only directories,
+        // so clear the attributes across the tree before std removes it.
+        clear_readonly_recursive(source)?;
         fs::remove_dir_all(source)?;
     } else {
         fs::copy(source, dest)?;
+        // The source may be read-only: clear the attribute before unlinking
+        // (a symlink's own attributes are reported, its target is untouched).
+        let _ = clear_readonly(source);
         fs::remove_file(source)?;
     }
     Ok(())
@@ -180,6 +192,26 @@ fn copy_dir_recursive(source: &Path, dest: &Path) -> io::Result<()> {
             fs::copy(entry.path(), &entry_dest)?;
         }
     }
+    Ok(())
+}
+
+/// Clears the read-only attribute on `dir` and every entry below it so the
+/// tree can be deleted. Symlinks are skipped: they never block removal, and
+/// their targets must keep their attributes.
+fn clear_readonly_recursive(dir: &Path) -> io::Result<()> {
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if file_type.is_symlink() {
+            continue;
+        }
+        let path = entry.path();
+        let _ = clear_readonly(&path);
+        if file_type.is_dir() {
+            clear_readonly_recursive(&path)?;
+        }
+    }
+    let _ = clear_readonly(dir);
     Ok(())
 }
 
@@ -215,6 +247,12 @@ fn prompt_yes_no(prompt: &str) -> bool {
 mod tests {
     use super::*;
 
+    fn set_readonly(path: &Path) {
+        let mut perms = fs::metadata(path).unwrap().permissions();
+        perms.set_readonly(true);
+        fs::set_permissions(path, perms).unwrap();
+    }
+
     /// Cross-volume rename fails; the copy+delete fallback must still move
     /// the file. (The test environment has a single volume, so the fallback
     /// is exercised directly.)
@@ -241,6 +279,40 @@ mod tests {
 
         move_by_copy(&src, &dst).unwrap();
         assert!(!src.exists(), "source tree must be deleted after the copy");
+        assert_eq!(fs::read_to_string(dst.join("a.txt")).unwrap(), "A");
+        assert_eq!(
+            fs::read_to_string(dst.join("sub").join("b.txt")).unwrap(),
+            "B"
+        );
+    }
+
+    #[test]
+    fn cross_volume_fallback_deletes_readonly_source_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("ro.txt");
+        fs::write(&src, "bytes").unwrap();
+        set_readonly(&src);
+        let dst = tmp.path().join("moved.txt");
+
+        move_by_copy(&src, &dst).unwrap();
+        assert!(!src.exists(), "read-only source must be deleted");
+        assert_eq!(fs::read_to_string(&dst).unwrap(), "bytes");
+    }
+
+    #[test]
+    fn cross_volume_fallback_deletes_tree_with_readonly_entries() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("tree");
+        fs::create_dir_all(src.join("sub")).unwrap();
+        fs::write(src.join("a.txt"), "A").unwrap();
+        fs::write(src.join("sub").join("b.txt"), "B").unwrap();
+        set_readonly(&src.join("a.txt"));
+        set_readonly(&src.join("sub"));
+        set_readonly(&src);
+        let dst = tmp.path().join("tree2");
+
+        move_by_copy(&src, &dst).unwrap();
+        assert!(!src.exists(), "read-only tree must be deleted");
         assert_eq!(fs::read_to_string(dst.join("a.txt")).unwrap(), "A");
         assert_eq!(
             fs::read_to_string(dst.join("sub").join("b.txt")).unwrap(),
