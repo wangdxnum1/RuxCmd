@@ -15,9 +15,17 @@ pub struct Args {
     #[arg(long = "help", action = clap::ArgAction::Help)]
     pub help: (),
 
-    /// Show human-readable sizes (KB, MB, GB)
+    /// Show human-readable sizes (1.0K, 4.9K, 10K, 1.0M)
     #[arg(short = 'h', long = "human-readable")]
     pub human_readable: bool,
+
+    /// Print sizes in bytes instead of 1K blocks (implies --apparent-size)
+    #[arg(short = 'b', long = "bytes")]
+    pub bytes: bool,
+
+    /// Count apparent (logical) sizes instead of allocated disk space
+    #[arg(long = "apparent-size")]
+    pub apparent_size: bool,
 
     /// Show totals for all arguments
     #[arg(short = 's', long = "summarize")]
