@@ -843,10 +843,10 @@ name = "find"
 version = "0.1.0"
 dependencies = [
  "assert_cmd",
- "clap",
  "predicates",
  "regex",
  "ruxcmd-build",
+ "tempfile",
 ]
 
 [[package]]
