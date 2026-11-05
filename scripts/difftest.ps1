@@ -381,6 +381,19 @@ c');  shapes=@('empty') }
     # Archive bytes are implementation-specific, so this case compares only
     # stdout and the exit code; entry structure is covered by Rust tests.
     @{ cmd='zip';    argv=@('-q','out.zip','source'); shapes=@('ascii','empty'); fixture=$true; ignoreState=$true }
+    # --- P2 batch B: find / grep ---------------------------------------------
+    # Path separators differ on Windows (`source` vs `./source`), so these
+    # cases use single file operands whose output has no separator at all.
+    @{ cmd='find';   argv=@('source','-size','-1c'); shapes=@('ascii','nonutf8','empty'); fixture=$true }
+    @{ cmd='find';   argv=@('source','-mtime','-1'); shapes=@('ascii','empty'); fixture=$true }
+    @{ cmd='find';   argv=@('source','-type','f','-print0'); shapes=@('ascii','nonutf8','empty'); fixture=$true }
+    @{ cmd='find';   argv=@('nonempty','-maxdepth','0'); shapes=@('empty'); fixture=$true }
+    @{ cmd='find';   argv=@('source','-delete'); shapes=@('ascii','empty'); fixture=$true }
+    @{ cmd='grep';   argv=@('-m','1','-c','a','source'); shapes=@('ascii','empty'); fixture=$true }
+    @{ cmd='grep';   argv=@('-z','-c','a','source'); shapes=@('ascii','empty'); fixture=$true }
+    @{ cmd='grep';   argv=@('-L','zzqq','source'); shapes=@('ascii','empty'); fixture=$true }
+    @{ cmd='grep';   argv=@('--include=source','-L','zzqq','source'); shapes=@('ascii'); fixture=$true }
+    @{ cmd='grep';   argv=@('--exclude=source','-c','a','source'); shapes=@('ascii'); fixture=$true }
 )
 
 # ---------------------------------------------------------------------------
