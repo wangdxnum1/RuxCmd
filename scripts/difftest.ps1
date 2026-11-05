@@ -6,6 +6,9 @@ Differential-test RuxCmd commands against the GNU tools shipped with Git.
 Generates deterministic random inputs, runs a matrix of argument cases
 through both the RuxCmd executable and the matching GNU tool from the
 Git for Windows installation, and compares stdout bytes plus exit codes.
+State-changing commands additionally compare the post-run fixture tree
+(path, size, read-only attribute), and tar cases compare the entries
+obtained by unpacking both archives instead of the archive bytes.
 Intentional differences are recorded in the $KnownDifferences table and
 reported as SKIP; anything else that diverges is a FAIL worth triaging.
 .EXAMPLE
@@ -394,6 +397,76 @@ c');  shapes=@('empty') }
     @{ cmd='grep';   argv=@('-L','zzqq','source'); shapes=@('ascii','empty'); fixture=$true }
     @{ cmd='grep';   argv=@('--include=source','-L','zzqq','source'); shapes=@('ascii'); fixture=$true }
     @{ cmd='grep';   argv=@('--exclude=source','-c','a','source'); shapes=@('ascii'); fixture=$true }
+    # --- P2 batch C: state-changing commands --------------------------------
+    # Every case below asserts stdout, exit code and the post-run tree
+    # snapshot (path + size + read-only), so a regression that leaves the
+    # right text but corrupts the tree still fails. The comment on each case
+    # records the specific regression it guards against.
+    # cp: recursive copy must keep nested and empty directories.
+    @{ cmd='cp';  argv=@('-r','tree','copied');     shapes=@('empty'); fixture=$true; stateReadOnly=$true }
+    # cp: -p must carry the read-only attribute of the source.
+    @{ cmd='cp';  argv=@('-p','pinned','p2');       shapes=@('empty'); fixture=$true; stateReadOnly=$true }
+    # cp: -f must overwrite an existing destination instead of refusing.
+    @{ cmd='cp';  argv=@('-f','source','target');   shapes=@('ascii','empty'); fixture=$true; stateReadOnly=$true }
+    # cp: a directory destination must receive the basename, not a concatenation.
+    @{ cmd='cp';  argv=@('source','tree/');         shapes=@('ascii'); fixture=$true; stateReadOnly=$true }
+    # mv: the source must be gone and the content unchanged after a rename.
+    @{ cmd='mv';  argv=@('source','renamed');       shapes=@('ascii','empty'); fixture=$true; stateReadOnly=$true }
+    # mv: -f must replace an existing destination.
+    @{ cmd='mv';  argv=@('-f','source','target');   shapes=@('ascii'); fixture=$true; stateReadOnly=$true }
+    # mv: -n must leave the existing destination untouched.
+    @{ cmd='mv';  argv=@('-n','source','target');   shapes=@('ascii'); fixture=$true; stateReadOnly=$true }
+    # mv: moving into a directory must use the basename and keep the tree intact.
+    @{ cmd='mv';  argv=@('source','tree/');         shapes=@('ascii'); fixture=$true; stateReadOnly=$true }
+    # mv: renaming a whole directory must not drop nested entries.
+    @{ cmd='mv';  argv=@('tree','moved');           shapes=@('empty'); fixture=$true; stateReadOnly=$true }
+    # mv: -v wording differs from GNU (see $KnownDifferences); kept to catch
+    # regressions once the wording is aligned.
+    @{ cmd='mv';  argv=@('-v','source','renamed');  shapes=@('ascii'); fixture=$true }
+    # ls: one-column listing must keep every name in GNU sort order.
+    @{ cmd='ls';  argv=@('-1','tree');              shapes=@('empty'); fixture=$true; normalize='trim-leading-space' }
+    # ls: -A must include dotfiles but not `.` / `..`.
+    @{ cmd='ls';  argv=@('-1A','tree');             shapes=@('empty'); fixture=$true; normalize='trim-leading-space' }
+    # ls: -d must print the directory itself instead of expanding it.
+    @{ cmd='ls';  argv=@('-1d','tree');             shapes=@('empty'); fixture=$true; normalize='trim-leading-space' }
+    # ls: -r must reverse the listing without losing entries.
+    @{ cmd='ls';  argv=@('-1r','tree');             shapes=@('empty'); fixture=$true; normalize='trim-leading-space' }
+    # du: -s over a directory must include nested and empty children.
+    @{ cmd='du';  argv=@('--apparent-size','-s','tree');            shapes=@('empty'); fixture=$true }
+    # du: -b must report bytes, not allocated clusters, for a nested file.
+    @{ cmd='du';  argv=@('-b','-s','tree/nested');                  shapes=@('empty'); fixture=$true }
+    # du: -c must append the total line after the per-operand lines.
+    @{ cmd='du';  argv=@('--apparent-size','-c','tree/a.txt','tree/b.bin'); shapes=@('empty'); fixture=$true }
+    # du: an empty directory must still report a line.
+    @{ cmd='du';  argv=@('--apparent-size','-s','tree/empty2');     shapes=@('empty'); fixture=$true }
+    # find: -type d must walk nested directories, including empty ones.
+    @{ cmd='find'; argv=@('tree','-type','d');      shapes=@('empty'); fixture=$true; normalize='slashes' }
+    # find: -name must filter entries instead of matching everything.
+    @{ cmd='find'; argv=@('tree','-name','a*');     shapes=@('empty'); fixture=$true; normalize='slashes' }
+    # find: -maxdepth 1 must stop before grandchildren.
+    @{ cmd='find'; argv=@('tree','-maxdepth','1');  shapes=@('empty'); fixture=$true; normalize='slashes' }
+    # find: -size +100c must honour the comparison sign.
+    @{ cmd='find'; argv=@('tree','-type','f','-size','+100c'); shapes=@('empty'); fixture=$true; normalize='slashes' }
+    # find: -mindepth must drop the operand itself.
+    @{ cmd='find'; argv=@('tree','-mindepth','1','-maxdepth','1'); shapes=@('empty'); fixture=$true; normalize='slashes' }
+    # find: -print0 must NUL-terminate every path, nested ones included.
+    @{ cmd='find'; argv=@('tree','-type','f','-print0'); shapes=@('empty'); fixture=$true; normalize='slashes' }
+    # tar: -tf must list the same entries (directory flags) as GNU.
+    @{ cmd='tar'; argv=@('-tf','in.tar');           shapes=@('empty'); fixture=$true }
+    # tar: -xOf must stream one member to stdout byte-for-byte.
+    @{ cmd='tar'; argv=@('-xOf','in.tar','bundle/a.txt'); shapes=@('empty'); fixture=$true }
+    # tar: extracting a GNU archive must recreate the whole tree.
+    @{ cmd='tar'; argv=@('-xf','in.tar');           shapes=@('empty'); fixture=$true; stateReadOnly=$true }
+    # tar: -xvf must keep the entry listing while extracting.
+    @{ cmd='tar'; argv=@('-xvf','in.tar');          shapes=@('empty'); fixture=$true; stateReadOnly=$true }
+    # tar: creating an archive must preserve nested and empty directories.
+    # Archive bytes are implementation-specific, so the entries are compared
+    # by unpacking both archives with GNU tar (see `unpack`).
+    @{ cmd='tar'; argv=@('-cf','out.tar','bundle'); shapes=@('empty'); fixture=$true; ignoreState=$true; unpack='out.tar' }
+    # tar: a single nested operand must not pull in unrelated siblings.
+    @{ cmd='tar'; argv=@('-cf','nested.tar','bundle/nested'); shapes=@('empty'); fixture=$true; ignoreState=$true; unpack='nested.tar' }
+    # tar: --exclude must drop the matching subtree from the archive.
+    @{ cmd='tar'; argv=@('-cf','ex.tar','--exclude','nested','bundle'); shapes=@('empty'); fixture=$true; ignoreState=$true; unpack='ex.tar' }
 )
 
 # ---------------------------------------------------------------------------
@@ -417,6 +490,10 @@ $KnownDifferences = @{
     # GetCompressedFileSize, which on this volume returns the logical size.
     'du|-s *'     = 'MSYS GNU estimates 4K clusters; RuxCmd reports GetCompressedFileSize'
     'du|-h -s *'  = 'MSYS GNU estimates 4K clusters; RuxCmd reports GetCompressedFileSize'
+    # GNU mv -v prefixes the move with `renamed`; RuxCmd prints only
+    # `<source> -> <destination>`. Wording only: the resulting tree is also
+    # asserted by the neighbouring non-verbose mv cases.
+    'mv|-v *'     = 'verbose wording differs (GNU prints a "renamed" prefix)'
 }
 
 # ---------------------------------------------------------------------------
@@ -468,6 +545,27 @@ function Invoke-Tool([string]$exe, [string[]]$argv, [string]$stdinPath, [string]
     }
 }
 
+# Shared read-side tar fixture: built once with GNU tar so both sides read
+# exactly the same archive bytes (which embed mtimes and uid/gid).
+$script:tarFixture = $null
+function Get-TarFixture([string]$workRoot) {
+    if ($script:tarFixture) { return $script:tarFixture }
+    $stage = Join-Path $workRoot 'tar-fixture'
+    foreach ($path in @('bundle/nested', 'bundle/empty2')) {
+        [IO.Directory]::CreateDirectory((Join-Path $stage $path)) | Out-Null
+    }
+    [IO.File]::WriteAllText((Join-Path $stage 'bundle/a.txt'), "alpha`n")
+    [IO.File]::WriteAllBytes((Join-Path $stage 'bundle/b.bin'), [byte[]](0..127))
+    [IO.File]::WriteAllText((Join-Path $stage 'bundle/nested/c.txt'), "gamma`n")
+    Push-Location $stage
+    try {
+        $result = & (Join-Path $GnuBin 'tar.exe') -cf fixture.tar bundle 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "GNU tar fixture creation failed: $result" }
+    } finally { Pop-Location }
+    $script:tarFixture = Join-Path $stage 'fixture.tar'
+    return $script:tarFixture
+}
+
 function New-CaseFixture([string]$directory, [string]$inputPath, [string]$command, [bool]$hardlinkTarget) {
     foreach ($path in @('', 'empty', 'chain/a/b', 'nonempty')) {
         [IO.Directory]::CreateDirectory((Join-Path $directory $path)) | Out-Null
@@ -501,6 +599,30 @@ function New-CaseFixture([string]$directory, [string]$inputPath, [string]$comman
         [IO.File]::WriteAllBytes((Join-Path $directory 'one'), [byte[]]@(97,10,120,0,98,0))
         [IO.File]::WriteAllBytes((Join-Path $directory 'two'), [byte[]]@(99,13,0,100,10))
     }
+    if ($command -in @('cp','mv','ls','du','find')) {
+        # Mixed tree: nested content, an empty directory and a dotfile, so
+        # recursive / listing / traversal behaviour has something to get
+        # wrong. `pinned` is read-only to exercise attribute preservation.
+        foreach ($path in @('tree/nested', 'tree/empty2', 'dest')) {
+            [IO.Directory]::CreateDirectory((Join-Path $directory $path)) | Out-Null
+        }
+        [IO.File]::WriteAllText((Join-Path $directory 'tree/a.txt'), "alpha`n")
+        [IO.File]::WriteAllBytes((Join-Path $directory 'tree/b.bin'), [byte[]](0..127))
+        [IO.File]::WriteAllText((Join-Path $directory 'tree/nested/c.txt'), "gamma`n")
+        [IO.File]::WriteAllText((Join-Path $directory 'tree/.hidden'), 'h')
+        $pinned = Join-Path $directory 'pinned'
+        [IO.File]::WriteAllText($pinned, "pinned`n")
+        [IO.File]::SetAttributes($pinned, [IO.FileAttributes]::ReadOnly)
+    }
+    if ($command -eq 'tar') {
+        foreach ($path in @('bundle/nested', 'bundle/empty2')) {
+            [IO.Directory]::CreateDirectory((Join-Path $directory $path)) | Out-Null
+        }
+        [IO.File]::WriteAllText((Join-Path $directory 'bundle/a.txt'), "alpha`n")
+        [IO.File]::WriteAllBytes((Join-Path $directory 'bundle/b.bin'), [byte[]](0..127))
+        [IO.File]::WriteAllText((Join-Path $directory 'bundle/nested/c.txt'), "gamma`n")
+        [IO.File]::Copy((Get-TarFixture $work), (Join-Path $directory 'in.tar'))
+    }
     if ($hardlinkTarget) {
         [IO.File]::WriteAllText((Join-Path $directory 'other'), 'keep other')
         New-Item -ItemType HardLink -Path (Join-Path $directory 'installed') -Target (Join-Path $directory 'other') | Out-Null
@@ -520,12 +642,16 @@ function New-CaseFixture([string]$directory, [string]$inputPath, [string]$comman
     }
 }
 
-function Get-FixtureState([string]$directory) {
+function Get-FixtureState([string]$directory, [switch]$IncludeReadOnly) {
     $records = foreach ($entry in Get-ChildItem -LiteralPath $directory -Recurse -Force) {
         $name = [IO.Path]::GetRelativePath($directory, $entry.FullName).Replace('\','/')
         $name = $name -creplace '^tmp\.[a-zA-Z0-9]{6}(\.txt)?$', 'tmp.RANDOM$1'
         if ($entry.PSIsContainer) { "dir:$name" }
-        else { "file:${name}:$((Get-FileHash -LiteralPath $entry.FullName -Algorithm SHA256).Hash)" }
+        else {
+            $record = "file:${name}:$($entry.Length):$((Get-FileHash -LiteralPath $entry.FullName -Algorithm SHA256).Hash)"
+            if ($IncludeReadOnly) { $record += $(if ($entry.IsReadOnly) { ':ro' } else { ':rw' }) }
+            $record
+        }
     }
     return (@($records | Sort-Object) -join "`n")
 }
@@ -627,7 +753,44 @@ foreach ($case in $selected) {
                     $result.Bytes = [Text.Encoding]::UTF8.GetBytes(($name -creplace 'tmp\.[a-zA-Z0-9]{6}', 'tmp.RANDOM'))
                 }
             }
-            $stateEqual = -not $case.fixture -or $case.ignoreState -or (Get-FixtureState $ruxDirectory) -ceq (Get-FixtureState $gnuDirectory)
+            if ($case.normalize) {
+                # Narrow, per-case transforms for documented formatting gaps;
+                # everything else (order, count, contents) is still compared.
+                foreach ($result in @($rux,$gnu)) {
+                    $text = [Text.Encoding]::UTF8.GetString($result.Bytes)
+                    switch ($case.normalize) {
+                        # ls prefixes every entry with one space in its
+                        # one-column mode; GNU does not.
+                        'trim-leading-space' { $text = (($text -split "`n") | ForEach-Object { $_ -replace '^ ', '' }) -join "`n" }
+                        # RuxCmd emits Windows separators; entries must match.
+                        'slashes' { $text = $text.Replace('\','/') }
+                        default { throw "Unknown normalization: $($case.normalize)" }
+                    }
+                    $result.Bytes = [Text.Encoding]::UTF8.GetBytes($text)
+                }
+            }
+            $archiveError = $null
+            $stateEqual = -not $case.fixture -or $case.ignoreState -or
+                ((Get-FixtureState $ruxDirectory -IncludeReadOnly:([bool]$case.stateReadOnly)) -ceq
+                 (Get-FixtureState $gnuDirectory -IncludeReadOnly:([bool]$case.stateReadOnly)))
+            if ($case.unpack) {
+                # Archive bytes are implementation-specific (blocking, mtime,
+                # uid/gid), so both archives are unpacked with GNU tar and the
+                # resulting trees are compared instead of the raw bytes.
+                $ruxUnpacked = Join-Path $fixtureRoot 'unpacked-rux'
+                $gnuUnpacked = Join-Path $fixtureRoot 'unpacked-gnu'
+                [IO.Directory]::CreateDirectory($ruxUnpacked) | Out-Null
+                [IO.Directory]::CreateDirectory($gnuUnpacked) | Out-Null
+                $unpackRux = Invoke-Tool (Join-Path $GnuBin 'tar.exe') @('-xf', $case.unpack, '-C', '../unpacked-rux') $inputs['empty0'] $ruxDirectory
+                $unpackGnu = Invoke-Tool (Join-Path $GnuBin 'tar.exe') @('-xf', $case.unpack, '-C', '../unpacked-gnu') $inputs['empty0'] $gnuDirectory
+                if ($unpackRux.Code -ne 0 -or $unpackGnu.Code -ne 0) {
+                    $stateEqual = $false
+                    $archiveError = "unpack failed (rux=$($unpackRux.Code), gnu=$($unpackGnu.Code))"
+                } else {
+                    $stateEqual = (Get-FixtureState $ruxUnpacked -IncludeReadOnly) -ceq (Get-FixtureState $gnuUnpacked -IncludeReadOnly)
+                    if (-not $stateEqual) { $archiveError = 'unpacked archive contents differ' }
+                }
+            }
 
             $bytesEqual = ($rux.Bytes.Length -eq $gnu.Bytes.Length) -and
                 (-not (Compare-Object $rux.Bytes $gnu.Bytes -SyncWindow 0 -ErrorAction SilentlyContinue))
@@ -647,7 +810,9 @@ foreach ($case in $selected) {
                 $why = @()
                 if (-not $bytesEqual) { $why += 'stdout' }
                 if (-not $codeEqual) { $why += "exit($($rux.Code) vs $($gnu.Code))" }
-                if (-not $stateEqual) { $why += 'filesystem state' }
+                if (-not $stateEqual) {
+                    $why += $(if ($archiveError) { "filesystem state ($archiveError)" } else { 'filesystem state' })
+                }
                 $failures.Add(("FAIL  {0}  diff: {1}" -f $label, ($why -join ' ')))
                 $failures.Add(("      rux : " + (Show-Bytes $rux.Bytes)))
                 $failures.Add(("      gnu : " + (Show-Bytes $gnu.Bytes)))
