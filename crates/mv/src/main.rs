@@ -73,12 +73,36 @@ fn move_file(source: &Path, dest: &Path, args: &cli::Args) -> Result<(), String>
         dest.to_path_buf()
     };
 
+    // Use symlink_metadata so a symlink to a directory is renamed as a link
+    // (GNU mv does not dereference source symlinks).
+    let source_is_dir = fs::symlink_metadata(source)
+        .map(|m| m.is_dir())
+        .unwrap_or(false);
+
+    if same_file(source, &dest_path) {
+        // GNU reports identical operands instead of replacing the entry; -n
+        // turns the same collision into a silent skip.
+        if args.no_clobber {
+            return Ok(());
+        }
+        return Err(format!(
+            "'{}' and '{}' are the same file",
+            source.display(),
+            dest_path.display()
+        ));
+    }
+
+    if source_is_dir && dest.exists() && dest.is_dir() && same_file(source, dest) {
+        // `mv dir dir` would land inside itself; GNU rejects it before the
+        // rename, and -n does not suppress this diagnostic.
+        return Err(format!(
+            "cannot move '{}' to a subdirectory of itself, '{}'",
+            source.display(),
+            dest_path.display()
+        ));
+    }
+
     if dest_path.exists() {
-        // Use symlink_metadata so a symlink to a directory is renamed as a
-        // link (GNU mv does not dereference source symlinks).
-        let source_is_dir = fs::symlink_metadata(source)
-            .map(|m| m.is_dir())
-            .unwrap_or(false);
         let dest_is_dir = dest_path.is_dir();
 
         if dest_is_dir && !source_is_dir {
@@ -95,25 +119,16 @@ fn move_file(source: &Path, dest: &Path, args: &cli::Args) -> Result<(), String>
             ));
         }
 
+        // GNU overwrites an existing destination by default (no prompt); -n
+        // keeps both operands untouched and still exits successfully.
         if args.no_clobber {
-            return Err(format!(
-                "cannot move '{}' to '{}': File exists",
-                source.display(),
-                dest_path.display()
-            ));
+            return Ok(());
         }
 
-        if !args.force {
-            if args.interactive {
-                if !prompt_yes_no(&format!("mv: overwrite '{}'? ", dest_path.display())) {
-                    return Ok(());
-                }
-            } else {
-                return Err(format!(
-                    "cannot move '{}' to '{}': File exists",
-                    source.display(),
-                    dest_path.display()
-                ));
+        if !args.force && args.interactive {
+            let prompt = format!("mv: overwrite '{}'? ", dest_path.display());
+            if !prompt_yes_no(&prompt) {
+                return Ok(());
             }
         }
 
@@ -213,6 +228,26 @@ fn clear_readonly_recursive(dir: &Path) -> io::Result<()> {
     }
     let _ = clear_readonly(dir);
     Ok(())
+}
+
+/// True when both paths resolve to the same file, matching GNU's
+/// "are the same file" guard. Windows paths compare case-insensitively.
+/// Hard links are not detected: std exposes no stable file id, and canonical
+/// paths cannot tell two names for one file apart.
+fn same_file(a: &Path, b: &Path) -> bool {
+    let (Ok(a), Ok(b)) = (fs::canonicalize(a), fs::canonicalize(b)) else {
+        return false;
+    };
+    #[cfg(windows)]
+    {
+        a.as_os_str()
+            .to_string_lossy()
+            .eq_ignore_ascii_case(&b.as_os_str().to_string_lossy())
+    }
+    #[cfg(not(windows))]
+    {
+        a == b
+    }
 }
 
 /// True when the path's final component is `.` or `..` (e.g. `.`, `./`,

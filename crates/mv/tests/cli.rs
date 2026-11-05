@@ -164,10 +164,8 @@ fn interactive_yes_replaces_readonly_destination() {
 
 #[test]
 fn no_clobber_keeps_readonly_destination() {
-    // `-n` never reaches the delete step, so the read-only bit must survive
-    // untouched along with the source. (This port reports the skip as a
-    // "File exists" error instead of GNU's silent exit 0; that difference is
-    // pre-existing and unrelated to the read-only attribute.)
+    // GNU `mv -n` silently skips an existing destination and exits 0, leaving
+    // both operands (and the read-only attribute) untouched.
     let dir = tempfile::tempdir().unwrap();
     let src = dir.path().join("src.txt");
     let dst = dir.path().join("dst.txt");
@@ -180,9 +178,7 @@ fn no_clobber_keeps_readonly_destination() {
         .arg(&src)
         .arg(&dst)
         .assert()
-        .failure()
-        .code(1)
-        .stderr(predicates::str::contains("File exists"));
+        .success();
 
     assert_eq!(fs::read_to_string(&dst).unwrap(), "OLD");
     assert!(fs::metadata(&dst).unwrap().permissions().readonly());
@@ -190,10 +186,9 @@ fn no_clobber_keeps_readonly_destination() {
 }
 
 #[test]
-fn plain_move_refuses_readonly_destination() {
-    // Without -f this port refuses any existing destination; a read-only one
-    // must give the regular "File exists" report, not an OS error, and must
-    // keep its content and attributes.
+fn plain_move_replaces_readonly_destination() {
+    // GNU overwrites an existing destination by default; only the Windows
+    // read-only attribute stands in the way, so it must be cleared first.
     let dir = tempfile::tempdir().unwrap();
     let src = dir.path().join("src.txt");
     let dst = dir.path().join("dst.txt");
@@ -201,15 +196,183 @@ fn plain_move_refuses_readonly_destination() {
     fs::write(&dst, "OLD").unwrap();
     set_readonly(&dst);
 
+    cargo_bin_cmd!("mv").arg(&src).arg(&dst).assert().success();
+
+    assert_eq!(fs::read_to_string(&dst).unwrap(), "NEW");
+    assert!(
+        !fs::metadata(&dst).unwrap().permissions().readonly(),
+        "the replacement must not inherit the destination's read-only attribute"
+    );
+    assert!(!src.exists());
+}
+
+#[test]
+fn plain_move_overwrites_writable_destination() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.txt");
+    let dst = dir.path().join("dst.txt");
+    fs::write(&src, "NEW").unwrap();
+    fs::write(&dst, "OLD").unwrap();
+
+    cargo_bin_cmd!("mv").arg(&src).arg(&dst).assert().success();
+
+    assert_eq!(fs::read_to_string(&dst).unwrap(), "NEW");
+    assert!(!src.exists());
+}
+
+#[test]
+fn interactive_no_keeps_destination() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.txt");
+    let dst = dir.path().join("dst.txt");
+    fs::write(&src, "NEW").unwrap();
+    fs::write(&dst, "OLD").unwrap();
+
     cargo_bin_cmd!("mv")
+        .arg("-i")
+        .arg(&src)
+        .arg(&dst)
+        .write_stdin("n\n")
+        .assert()
+        .success();
+
+    assert_eq!(fs::read_to_string(&dst).unwrap(), "OLD");
+    assert!(src.exists());
+}
+
+#[test]
+fn no_clobber_wins_when_last() {
+    // GNU resolves -f/-i/-n by order: the last one wins.
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.txt");
+    let dst = dir.path().join("dst.txt");
+    fs::write(&src, "NEW").unwrap();
+    fs::write(&dst, "OLD").unwrap();
+
+    cargo_bin_cmd!("mv")
+        .arg("-i")
+        .arg("-n")
+        .arg(&src)
+        .arg(&dst)
+        .write_stdin("y\n")
+        .assert()
+        .success()
+        .stderr(predicates::str::is_empty());
+
+    assert_eq!(fs::read_to_string(&dst).unwrap(), "OLD");
+    assert!(src.exists());
+}
+
+#[test]
+fn interactive_wins_when_last() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.txt");
+    let dst = dir.path().join("dst.txt");
+    fs::write(&src, "NEW").unwrap();
+    fs::write(&dst, "OLD").unwrap();
+
+    cargo_bin_cmd!("mv")
+        .arg("-n")
+        .arg("-i")
+        .arg(&src)
+        .arg(&dst)
+        .write_stdin("y\n")
+        .assert()
+        .success();
+
+    assert_eq!(fs::read_to_string(&dst).unwrap(), "NEW");
+    assert!(!src.exists());
+}
+
+#[test]
+fn force_wins_when_last_over_no_clobber() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.txt");
+    let dst = dir.path().join("dst.txt");
+    fs::write(&src, "NEW").unwrap();
+    fs::write(&dst, "OLD").unwrap();
+
+    cargo_bin_cmd!("mv")
+        .arg("-n")
+        .arg("-f")
         .arg(&src)
         .arg(&dst)
         .assert()
+        .success();
+
+    assert_eq!(fs::read_to_string(&dst).unwrap(), "NEW");
+    assert!(!src.exists());
+}
+
+#[test]
+fn no_clobber_moves_when_destination_absent() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.txt");
+    let dst = dir.path().join("dst.txt");
+    fs::write(&src, "NEW").unwrap();
+
+    cargo_bin_cmd!("mv")
+        .arg("-n")
+        .arg(&src)
+        .arg(&dst)
+        .assert()
+        .success();
+
+    assert_eq!(fs::read_to_string(&dst).unwrap(), "NEW");
+    assert!(!src.exists());
+}
+
+#[test]
+fn same_path_is_reported_as_same_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("x.txt");
+    fs::write(&src, "X").unwrap();
+
+    cargo_bin_cmd!("mv")
+        .arg(&src)
+        .arg(&src)
+        .assert()
         .failure()
         .code(1)
-        .stderr(predicates::str::contains("File exists"));
+        .stderr(predicates::str::contains("are the same file"));
 
-    assert_eq!(fs::read_to_string(&dst).unwrap(), "OLD");
-    assert!(fs::metadata(&dst).unwrap().permissions().readonly());
-    assert!(src.exists());
+    assert_eq!(fs::read_to_string(&src).unwrap(), "X");
+}
+
+#[test]
+fn no_clobber_same_path_skips_silently() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("x.txt");
+    fs::write(&src, "X").unwrap();
+
+    cargo_bin_cmd!("mv")
+        .arg("-n")
+        .arg(&src)
+        .arg(&src)
+        .assert()
+        .success()
+        .stderr(predicates::str::is_empty());
+
+    assert_eq!(fs::read_to_string(&src).unwrap(), "X");
+}
+
+#[test]
+fn moving_directory_into_itself_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("sub");
+    fs::create_dir_all(&src).unwrap();
+
+    cargo_bin_cmd!("mv")
+        .arg(&src)
+        .arg(&src)
+        .assert()
+        .failure()
+        .code(1)
+        .stderr(predicates::str::contains("subdirectory of itself"));
+
+    assert!(src.is_dir());
+    assert!(
+        !src.join("sub").exists(),
+        "no partial copy may be left behind"
+    );
 }
