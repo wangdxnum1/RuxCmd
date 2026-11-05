@@ -86,7 +86,7 @@ The entry-point tests use isolated temporary Git/Cargo projects and cover parame
 
 ## verify-version-info.ps1
 
-Reads all 125 EXEs without launching them and requires the configured suite version, identity, publisher, description, copyright, numeric versions and build flags. Use -BinDir to choose a directory; use -DebugBuild for debug artifacts. Verify and ZIP packaging invoke this gate automatically. Three real RC build regressions are in scripts/tests/version-resource-tests.ps1.
+Reads every EXE in the selected directory without launching it (142 in the current workspace; `cargo metadata` is the source of truth) and requires the configured suite version, identity, publisher, description, copyright, numeric versions and build flags. Use -BinDir to choose a directory; use -DebugBuild for debug artifacts. Verify and ZIP packaging invoke this gate automatically. Three real RC build regressions are in scripts/tests/version-resource-tests.ps1.
 
 ## ps structure and refactor acceptance
 

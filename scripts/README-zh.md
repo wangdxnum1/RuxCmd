@@ -86,7 +86,7 @@ pwsh -File scripts/tests/package-tests.ps1
 
 ## verify-version-info.ps1
 
-只读检查全部 125 个 EXE，不启动程序；要求套件版本、命令身份、发布者、功能说明、版权、数字版本和构建标记均正确。-BinDir 指定目录，Debug 产物另加 -DebugBuild。Verify 和 ZIP 打包会自动检查；scripts/tests/version-resource-tests.ps1 提供三项真实 RC 编译回归。
+只读检查所选目录内的全部 EXE，不启动程序（当前 workspace 为 142 个；数量以 `cargo metadata` 为准）；要求套件版本、命令身份、发布者、功能说明、版权、数字版本和构建标记均正确。-BinDir 指定目录，Debug 产物另加 -DebugBuild。Verify 和 ZIP 打包会自动检查；scripts/tests/version-resource-tests.ps1 提供三项真实 RC 编译回归。
 
 ## ps 结构与重构验收
 

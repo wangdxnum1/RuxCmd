@@ -1573,9 +1573,8 @@ fn getline_main(vars: &mut HashMap<String, String>) -> (Value, String) {
     }
 }
 
-/// Dispatch one builtin function call. `split` requires arrays, which this
-/// port does not have yet; it evaluates to the empty string (declared
-/// difference).
+/// Dispatch one builtin function call. Array-valued builtins such as `split`
+/// write into the array named by their second argument.
 fn call_builtin(name: &str, args: Vec<Value>, vars: &mut HashMap<String, String>) -> Value {
     let arg = |i: usize| args.get(i).map(Value::to_str).unwrap_or_default();
     match name {

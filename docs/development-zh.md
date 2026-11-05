@@ -52,7 +52,7 @@ Scoop 与 winget 源文件位于 `scripts/packaging/`。`scoop/ruxcmd.json` 使�
 
 - 历史代码含 unused import/variable、dead code 和 Clippy 风格 warning，基线门槛是检查命令成功退出；后续逐步消除。
 - 此次行为测试暴露并修复 cp/mv 的源参数必需性声明和 grep 未匹配退出码；csplit 的溢出检查改为 checked_add。
-- `wc -l` 对 stdin 会带 `<stdin>` 标签，与常见 GNU 输出不同，目前测试保留该行为。
+- `wc` 对 stdin 输出裸计数、不带名称后缀，与 GNU 一致；`<stdin>` 标签只出现在错误信息中。
 - `whereis` 仍含历史固定搜索路径；其业务兼容性需另行修正，构建和发行流程不依赖该路径。
 - 迁移留下的旧各命令 target 缓存不属于发布输入，且被忽略；需要腾空间时可由维护者另行清理。
 - Windows ARM64、x86、最低 Windows 版本和完整 GNU/POSIX 兼容性尚未验证。

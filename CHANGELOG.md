@@ -15,23 +15,17 @@
 - 文档修正：兼容性表把 iostat、mpstat、sar、w、pgrep、pkill、top 的验证状态改为行为测试；README 示例与 tag 引用同步到 0.4.3。
 - 已知限制：awk 输入改为预加载（全量驻留内存），缺失输入文件在首条记录处理前即报错，BEGIN 阶段的 getline 不读主输入，ENDFILE 伪规则未实现；xxd 仍未实现 -C/-t 的 C 头定制、-o、-d、-E、-R 与 postscript，-s 不接受 `16k` 之类后缀；logger 在来源未注册消息 DLL 时无法显示消息正文。
 
-## 0.4.2 — awk getline、tree/envsubst/logger、while/do-while、相邻值拼接(2026-10-31)
+## 0.4.2 — tree/envsubst/logger、awk getline(2026-10-31)
 
 - awk getline：从文件读取行（getline < file、getline var < file），支持 while ((getline ...) > 0) 循环模式；close(file) 重置读取位置。
-- awk 相邻值拼接：print "a" "b" → "ab"（优先级紧于比较、松于加法）。
-- awk while 循环与 do-while 循环。
 - 新增 3 个命令（tree/envsubst/logger），命令总数 137 → 140（143 个包）：tree（目录树，-a/-L/--charset=ascii）、envsubst（$VAR/${VAR} 环境变量替换，SHELL-FORMAT 过滤）、logger（标签消息输出到 stderr）。
-- sed -f FILE：从文件读脚本。dd conv=sync/noerror/ucase/lcase。
 
-## 0.4.1 — awk getline、while/do-while、sed -f、dd conv 扩展(2026-10-31)
+## 0.4.1 — awk while/do-while、sed -f、dd conv 扩展(2026-10-31)
 
-- awk getline:从文件读取行(`getline < file`、`getline var < file`),支持 while ((getline ...) > 0) 循环模式;close(file) 重置读取位置。
-- awk 相邻值拼接:`print "a" "b"` → "ab"(优先级紧于比较、松于加法)。
-- awk while 循环与 do-while 循环。
-- 新增 3 个命令(tree/envsubst/logger),命令总数 137 → 140(143 个包):tree(目录树,-a/-L/--charset=ascii)、envsubst($VAR/${VAR} 环境变量替换,SHELL-FORMAT 过滤)、logger(标签消息输出到 stderr)。
-- sed -f FILE:从文件读脚本。
-- dd conv=sync/noerror/ucase/lcase。
-- 兼容性表双语同步;awk "仍不支持"列表缩减为 getline、协程 (|&)。
+- awk：while 循环、do-while 循环、相邻值字符串拼接（`print "a" "b"` → `ab`，优先级紧于比较、松于加法）。
+- sed：-f FILE 从文件读脚本。
+- dd：conv=sync/noerror/ucase/lcase。
+- 兼容性表双语同步；awk "仍不支持"列表缩减为 getline、协程 (|&)。
 
 ## 0.4.0 — 行为收口、命令扩展与 awk/sed 深化(2026-10-31)
 

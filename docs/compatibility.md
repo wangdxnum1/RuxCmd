@@ -8,16 +8,16 @@
 
 | 命令 | 显式长参数示例（源码） | 当前验证 | Windows 差异 / 限制 |
 | --- | --- | --- | --- |
-| awk | --assign, --field-separator, --file, --version | 冒烟 + 行为测试 | 条件、else/next 与多参数 print 可用；NR 跨文件累计、FNR 按输入文件重置（每个打开成功的输入文件含空文件都会把 FNR 归零），BEGIN/END 各运行一次；NR/FNR 是普通变量，赋值会沿用到后续记录；主输入 getline 与主循环共享同一记录游标，读取成功时同时递增 NR 与 FNR 且可跨文件续读，管道 / 协程 / `getline < file` 不改 NR/FNR，四种读取在返回 0 或 -1 时都不改目标变量与 $0/NF；for/while/do-while 循环与三段式 for（含 i++/i--）可执行。模式与 `~` 使用 ERE（regex crate）。内建：length（含裸形式）、substr（gawk 裁剪语义）、index、sprintf（共享 GNU 格式化器）、toupper、tolower、sub/gsub（& 写回变量或 $0，字段重切分）、split 入数组、close。数组：元素读写、delete arr[k] / delete arr、`k in arr`、for-in（键排序）。用户函数：function name(params) { body }、return 带值、递归（深度上限）、动态局部参数。输出重定向：print/printf > 文件、>> 文件、| 命令（经 cmd /C）、/dev/stdout、/dev/stderr、close()。printf 支持完整指示符集。支持 `cmd | getline` 与 `cmd | getline var`：经 `cmd /C` 启动，同一命令字符串复用同一进程，`close("cmd")` 返回退出码并在下次使用时重启管道（`close()` 无参仍返回 -1）；管道读入按 GNU 不改变 NR/FNR。Windows 差异：`cmd /C` 无法区分未知命令与无输出且退出码 1 的命令，两者都返回 -1 并写入 ERRNO（gawk 5.4.0 实测对未知命令返回 0、ERRNO 为空）；失败的管道会被移除，`close` 返回 -1 而非 shell 的 127。支持 `print |& cmd` 与 `cmd |& getline` / `cmd |& getline var`：同一命令字符串复用同一个 cmd /C 子进程（双向管道），`close()` 同时关闭读写两端并返回退出码，程序结束时统一回收；读入返回 1/0/-1，失败写 ERRNO。Windows 差异：与 GNU 一样原样写入 LF，但 cmd.exe 的原生过滤器（more、find 等）在重定向管道下只把 CRLF 视为完整行，LF-only 输入会缓冲到 EOF，“先写后读”的交互需改用 `printf "...\r\n"` 或选择不依赖行缓冲的命令；cmd 不做行编辑/回显，命令分隔符是 `&` 而不是 `;`，sh 与 cmd 的其它语法差异仍适用。FNR/NR、空文件重置与主输入 getline 行为已用本机 gawk 5.4.0 实测对照。仍不支持：多字符 RS、ENDFILE 伪规则；BEGIN 阶段的 getline 不读取主输入（记录在 BEGIN 之后才载入，gawk 会读第一条）。 |
+| awk | --assign, --field-separator, --file, --version | 冒烟 + 行为测试 | 条件、else/next 与多参数 print 可用；NR 跨文件累计、FNR 按输入文件重置（每个打开成功的输入文件含空文件都会把 FNR 归零），BEGIN/END 各运行一次；NR/FNR 是普通变量，赋值会沿用到后续记录；主输入 getline 与主循环共享同一记录游标，读取成功时同时递增 NR 与 FNR 且可跨文件续读，管道 / 协程 / `getline < file` 不改 NR/FNR，四种读取在返回 0 或 -1 时都不改目标变量与 $0/NF；for/while/do-while 循环与三段式 for（含 i++/i--）可执行。模式与 `~` 使用 ERE（regex crate）。内建：length（含裸形式）、substr（gawk 裁剪语义）、index、sprintf（共享 GNU 格式化器）、toupper、tolower、sub/gsub（& 写回变量或 $0，字段重切分）、split 入数组、close。数组：元素读写、delete arr[k] / delete arr、`k in arr`、for-in（键排序）。用户函数：function name(params) { body }、return 带值、递归（深度上限）、动态局部参数。输出重定向：print/printf > 文件、>> 文件、\| 命令（经 cmd /C）、/dev/stdout、/dev/stderr、close()。printf 支持完整指示符集。支持 `cmd \| getline` 与 `cmd \| getline var`：经 `cmd /C` 启动，同一命令字符串复用同一进程，`close("cmd")` 返回退出码并在下次使用时重启管道（`close()` 无参仍返回 -1）；管道读入按 GNU 不改变 NR/FNR。Windows 差异：`cmd /C` 无法区分未知命令与无输出且退出码 1 的命令，两者都返回 -1 并写入 ERRNO（gawk 5.4.0 实测对未知命令返回 0、ERRNO 为空）；失败的管道会被移除，`close` 返回 -1 而非 shell 的 127。支持 `print \|& cmd` 与 `cmd \|& getline` / `cmd \|& getline var`：同一命令字符串复用同一个 cmd /C 子进程（双向管道），`close()` 同时关闭读写两端并返回退出码，程序结束时统一回收；读入返回 1/0/-1，失败写 ERRNO。Windows 差异：与 GNU 一样原样写入 LF，但 cmd.exe 的原生过滤器（more、find 等）在重定向管道下只把 CRLF 视为完整行，LF-only 输入会缓冲到 EOF，“先写后读”的交互需改用 `printf "...\r\n"` 或选择不依赖行缓冲的命令；cmd 不做行编辑/回显，命令分隔符是 `&` 而不是 `;`，sh 与 cmd 的其它语法差异仍适用。FNR/NR、空文件重置与主输入 getline 行为已用本机 gawk 5.4.0 实测对照。仍不支持：多字符 RS、ENDFILE 伪规则；BEGIN 阶段的 getline 不读取主输入（记录在 BEGIN 之后才载入，gawk 会读第一条）。 |
 | base64 | --decode, --version, --wrap | 冒烟 + 行为测试 | 解码与 GNU 一致地严格：无填充且长度非 4 倍数的输入会输出已解码字节，但报 invalid input 并退出 1。 |
 | base32 | -d, --decode, --ignore-garbage, --wrap | 冒烟 + 行为测试 | 按 GNU 换行语义编解码 RFC 4648 base32（默认 76，0 为不换行）；解码始终容忍换行，-i 跳过其他非法字节；填充结束每组。 |
-| | b2sum | --check, --length, --quiet, --status, --tag | 冒烟 + 行为测试 | BLAKE2b，沿用 sha1sum 家族的输出、--tag 与校验规则；--length 接受 8 的任意倍数且不超过 512。无 -b/-t/-z 标记；GNU (MSYS) 对 stdin 输出二进制标记，本实现从不输出。 |
+| b2sum | --check, --length, --quiet, --status, --tag | 冒烟 + 行为测试 | BLAKE2b，沿用 sha1sum 家族的输出、--tag 与校验规则；--length 接受 8 的任意倍数且不超过 512。无 -b/-t/-z 标记；GNU (MSYS) 对 stdin 输出二进制标记，本实现从不输出。 |
 | basename | --multiple, --suffix, --version, --zero | 冒烟 + 行为测试 | -z/--zero 仅改变输出终止符，不改变输入解析。支持 NAME SUFFIX 和 -a/-s，保留操作数内 LF。Windows 路径解析规则保留：末尾 ./.. 输出 ./..，// 输出 /，盘符根输出 C:。 |
 | bc | --version | 冒烟 + 行为测试 | i128 整数运算，/ 与 % 向零截断（GNU scale=0 默认语义）；支持 + - * / % ^ ( )、变量赋值、; 分隔、# 注释与 quit。无任意精度、scale、ibase/obase 与函数——遇到不支持结构时打印提示并跳过该行。banner 为 bc 0.1.0 (RuxCmd)。 |
 | cal | --version | 冒烟 + 行为测试 | 单参数 1-12 视为月份，100-9999 视为年份；13-99 被拒绝。完整 GNU 行为未验证。 |
 | cat | --number, --number-nonblank, --show-all, --show-ends, --show-nonprinting, --show-tabs, --unbuffered | 冒烟 + 行为测试 | 默认字节透明（CRLF、二进制、非 ASCII 数据原样透传）；-v 使用字节级 ^/M- 记号；-E 不给未结尾的末行补 $。行号与空行压缩状态按文件重置。 |
 | chmod | --recursive, --verbose, --version | 冒烟 + 行为测试 | 符号模式（u/g/o/a 与 +-=rwx）映射到只读位；-R 不再跟随 junction。Windows 权限语义与 Unix mode 不等价。 |
-| | chgrp | --recursive, --silent, --verbose | 冒烟 + 行为测试 | GROUP 通过 LookupAccountNameW 解析（本机账户；数字 GID 不做特殊处理），经 SetNamedSecurityInfoW 应用。改组通常要求目标组在当前令牌中；-R 会跟随 junction（与 chown 相同的限制）。 |
+| chgrp | --recursive, --silent, --verbose | 冒烟 + 行为测试 | GROUP 通过 LookupAccountNameW 解析（本机账户；数字 GID 不做特殊处理），经 SetNamedSecurityInfoW 应用。改组通常要求目标组在当前令牌中；-R 会跟随 junction（与 chown 相同的限制）。 |
 | chown | --user, --group, --recursive, --verbose, --version | 冒烟 + 行为测试 | --user 设 owner、--group 设组（GROUP_SECURITY_INFORMATION），可同时给；任一文件失败退出 1。改 owner 为他人通常需要特权。Unix UID/GID 语义不等价。 |
 | cksum | --algorithm, --version, --zero | 冒烟 + 行为测试 | 仅 POSIX CRC32（-a crc）。-z/--zero 以 NUL 终止输出，隐式 stdin 不带文件名，显式 - 打印 -；读取错误报错。本机 GNU cksum 8.32 无 --zero，仅该差分用例跳过；NUL CRC 有已知向量行为测试。不支持其他算法和校验清单。 |
 | clear | --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
@@ -36,8 +36,8 @@
 | du | -b/--bytes, -c/--total, -h/--human-readable, -s/--summarize, --apparent-size, --version | 冒烟 + 行为测试 | 默认按 1K 块报告实际分配（GetCompressedFileSize，稀疏文件按真实分配），`--apparent-size` 改用逻辑大小，`-b` 输出字节，`-h` 采用 GNU 记法（不足 10 个单位保留一位小数，`1.0K`/`4.9K`/`10K`）；硬链接每次调用只计一次且重复参数行省略；不可读路径报错并退出 1；每个参数输出一行（逐子目录列出仍未实现）。残留差异：MSYS GNU du 按 4K 簇估算分配，在分配粒度等于逻辑大小的文件系统上块数会与之不同（apparent 模式一致）；不支持 `--max-depth`/`-a`/`-x`/`--exclude`。 |
 | echo | --version | 冒烟 + 行为测试 | 未知的前导选项簇按操作数原样输出（含 --）；-e 覆盖 coreutils 全部转义（\c 截断全部输出）；--help/--version 与 coreutils 一致。 |
 | env | --ignore-environment, --unset, --verbose, --version | 冒烟 + 行为测试 | NAME=VAL 赋值并执行命令（-i 清空、-u 移除、透传退出码、spawn 失败 127）；无命令时打印环境。 |
-| expr | See --help | 冒烟 + 行为测试 | 整数四则（i64）、| / &（GNU 左操作数语义）、比较（双方均为整数按数值否则按字符串）、: 与 match 的锚定 BRE 匹配（返回分组 1 或匹配长度）、substr/index/length。BRE 反向引用不支持（报语法错误）；退出码与 GNU 一致（0/1/2）。 |
-| | envsubst | See --help | Smoke + behavior tests | Substitutes $VAR and ${VAR} from the environment. With SHELL-FORMAT, only the listed variables are replaced; others stay verbatim. Unknown variables become empty. | |
+| expr | See --help | 冒烟 + 行为测试 | 整数四则（i64）、\| / &（GNU 左操作数语义）、比较（双方均为整数按数值否则按字符串）、: 与 match 的锚定 BRE 匹配（返回分组 1 或匹配长度）、substr/index/length。BRE 反向引用不支持（报语法错误）；退出码与 GNU 一致（0/1/2）。 |
+| envsubst | See --help | 冒烟 + 行为测试 | 替换 $VAR 和 ${VAR} 环境变量。有 SHELL-FORMAT 参数时仅替换列出的变量，其余保持原文。未知变量替换为空。 |
 | expand | --initial, --tabs, --version | 冒烟 + 行为测试 | 字节安全：CR 字节、非法 UTF-8 与未终止末行原样透传；tab 诊断与 GNU 一致（0 尺寸、升序列表）。 |
 | factor | --version | 冒烟 + 行为测试 | 对 u64 试除（无 Pollard rho，大半素数较慢）；0 和 1 与 GNU 一致输出裸标签。 |
 | false | --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
@@ -98,7 +98,6 @@
 | rmdir | --ignore-fail-on-non-empty, --parents, --verbose | 冒烟 + 行为测试 | 仅删除空目录，`-p` 向上逐级删除；忽略标志仅抑制目录非空错误。受 Windows 文件系统和 ACL 限制。 |
 | sar | 见 --help | 冒烟 + 行为测试（7） | 覆盖带时间戳的 CPU 报告、百分比范围、count 有界、内存报表与默认 CPU+内存输出；不支持 -d 磁盘报表与 -f 历史日志。 |
 | sed | --expression, --regexp-extended, --quiet, --in-place, --separate, --version | 冒烟 + 行为测试 | 默认 POSIX BRE（-E/-r/--regexp-extended 切换 ERE，两种方言均带 GNU \+ \? 扩展）；地址与 s 命令共用方言；替换端支持 & 与 \1-\9、\n/\t/\r 以及 g/N/p/i 标志。模式中的反向引用不支持（启动报错）。非 UTF-8 数据按原始字节匹配并原样透传；行号逐文件重置；缺失的末行换行保留。 -f FILE 从文件读脚本。 |
-
 | seq | --equal-width, --format, --separator, --version | 冒烟 + 行为测试 | 选项之后可接负数操作数；-w 补位含符号（经 GNU 实测核对）。 |
 | sha1sum | --check, --quiet, --status, --tag, --version, --zero | 冒烟 + 行为测试 | 支持 -z/--zero 和 --tag -z，NUL 模式不转义文件名；-z -c 退出 1。普通校验支持 stdin、精确文件名、GNU 转义、BOM、二进制标记和 BSD tag；读取错误不产生部分数据的成功摘要。不支持 -b/-t、strict 或 NUL 清单解析。 |
 | sha256sum | --check, --quiet, --status, --tag, --version, --zero | 冒烟 + 行为测试 | SHA-256，NUL 输出与普通清单校验规则同 sha1sum：-z 禁止文件名转义，-z -c 报错；支持 stdin 清单、精确文件名和读取错误传播。不支持 -b/-t、strict 或 NUL 清单解析。 |
@@ -122,7 +121,7 @@
 | timeout | --kill-after, --version | 冒烟 + 行为测试 | 轮询子进程：正常结束透传退出码，超时返回 124；-k/--kill-after 在宽限期后升级终止。时长支持小数与 s/m/h/d 后缀；子命令允许以 '-' 开头。仅终止直接子进程。 |
 | top | 见 --help | 冒烟 + 行为测试（5 集成 + 2 单元） | 覆盖两帧头部实时 uptime 与 CPU 百分比、单帧块结构、进程行上限 20 与 --version；单元测试验证进程计数减一在 0 时不下溢。进程表 USER/%CPU/%MEM/VIRT/RES/SHR 为固定占位值，无交互模式、排序与按键，不是逐进程实时统计。 |
 | touch | --no-create, --version | 冒烟 + 行为测试 | 经 SetFileTime 更新已存在文件、目录与只读文件的 atime/mtime；-a 与 -m 选择更新的时间。-d/--date、-t、-r/--reference 未实现。 |
-| | tree | -a, --charset, --level | Smoke + behavior tests | Recursive directory listing with Unicode or ASCII tree characters. -a shows hidden files, -L limits depth, --charset=ascii uses | ` -- characters. Directories sort before files, then alphabetical. | |
+| tree | -a, --charset, --level | 冒烟 + 行为测试 | 递归目录列表，Unicode 或 ASCII 树枝字符。-a 显示隐藏文件，-L 限制深度，--charset=ascii 使用 \| ` -- 字符。目录排前，同名按字典序。 |
 | truncate | --no-create, --reference, --size | 冒烟 + 行为测试 | 尺寸支持 +/- 调整与 K/M/G/T/P/E（1024 进制）或 KB/MB/GB（1000 进制）后缀；+ 表示不小于。--io-blocks 不支持。 |
 | tr | --complement, --delete, --squeeze, --version | 冒烟 + 行为测试 | 支持转义（\n、\t、八进制）与 POSIX 字符类（[:alpha:] 等）；-c 作用于替换与挤压；-s 按 SET2 挤压；反序区间报错退出 1。按字符而非字节处理。 |
 | traceroute | --max-hops, --nqueries, --timeout, --version | 冒烟 + 行为测试 | 通过 IcmpSendEcho 发送 IPv4 ICMP 探测，超时单位为毫秒；到达目标、收到不可达状态或达到跳数上限时结束。不支持 IPv6、UDP/TCP 探测和反向 DNS。已测环回和有界 TEST-NET 场景，多路由器网络行为未验证。没有 `tracert` 可执行别名。 |
@@ -153,6 +152,6 @@
 | zip | -r/--recurse, -q/--quiet, --version | 冒烟 + 行为测试 | 原生 Rust 实现（zip crate + deflate），不再依赖 PowerShell；支持递归、静默与指定输出名，目录条目带尾斜杠，不支持的其他 GNU zip 选项由 clap 报错退出 2。残留差异：条目输出没有 GNU 的 `(deflated NN%)` 百分比；归档每次重建（不追加更新已有归档）；时间戳与压缩细节不保证与 GNU zip 逐字节一致。 |
 
 
-Round 15 同时新增 `ls -h`，等价于 `--human-readable`；帮助入口保留 `--help`。Round 16 为上表 15 个已有命令增加 NUL 模式，命令总数仍为 125。 Round 18 新增 9 个命令（base32/expr/hostid/nproc/pathchk/printenv/sum/truncate/tsort），Round 20 新增 b2sum 与 chgrp，Round 22 新增 dd，命令总数 137；iostat、mpstat、sar 与 w 仍为仅冒烟。原型并入 sha3sum 与 xxd 后，命令总数 140 → 142（145 个包），两命令能力范围见上表。
+Round 15 同时新增 `ls -h`，等价于 `--human-readable`；帮助入口保留 `--help`。Round 16 为上表 15 个已有命令增加 NUL 模式，命令总数仍为 125。 Round 18 新增 9 个命令（base32/expr/hostid/nproc/pathchk/printenv/sum/truncate/tsort），Round 20 新增 b2sum 与 chgrp，Round 22 新增 dd，命令总数 137，并补齐 iostat、mpstat、sar 与 w 的行为测试。原型并入 sha3sum 与 xxd 后，命令总数 140 → 142（145 个包），两命令能力范围见上表。
 
 更详细的 ps 参数文档见 [ps README](ps/README-zh.md)。本表由首次源码调查建立，新增或修改命令时需同步更新。

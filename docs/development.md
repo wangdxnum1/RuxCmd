@@ -52,7 +52,7 @@ Scoop and winget sources live in `scripts/packaging/`. `scoop/ruxcmd.json` uses 
 
 - Historical code contains unused imports/variables, dead code, and Clippy style warnings; the baseline gate is that check commands exit successfully, to be cleaned up incrementally.
 - Behavior testing surfaced and fixed the cp/mv source-argument requiredness declarations and grep's no-match exit code; csplit's overflow check was changed to checked_add.
-- `wc -l` reading stdin emits a `<stdin>` label, which differs from common GNU output; tests currently preserve that behavior.
+- `wc` reading stdin prints a bare count with no name suffix, matching GNU; the `<stdin>` label appears only in error messages.
 - `whereis` still contains historical fixed search paths; its behavioral compatibility needs a dedicated fix, and the build/release pipeline does not depend on them.
 - Old per-command target caches left over from the migration are not release inputs and are ignored; maintainers can clean them manually when disk space is needed.
 - Windows ARM64, x86, minimum Windows versions, and full GNU/POSIX compatibility remain unverified.
