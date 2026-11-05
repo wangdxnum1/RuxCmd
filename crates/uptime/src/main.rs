@@ -65,27 +65,37 @@ fn format_default(seconds: u64, now_hms: &str) -> String {
     format!("{} up {}{}, 0 users", now_hms, days_part, hm)
 }
 
+/// GNU/procps style pretty line: `up 1 day, 2 hours, 3 minutes`.
+/// Seconds are omitted, and an uptime below one minute prints just `up`.
 fn format_pretty(seconds: u64) -> String {
     let days = seconds / 86400;
     let hours = (seconds % 86400) / 3600;
     let minutes = (seconds % 3600) / 60;
-    let secs = seconds % 60;
 
     let mut parts = Vec::new();
     if days > 0 {
-        parts.push(format!("{}天", days));
+        parts.push(format!("{} day{}", days, if days == 1 { "" } else { "s" }));
     }
     if hours > 0 {
-        parts.push(format!("{}小时", hours));
+        parts.push(format!(
+            "{} hour{}",
+            hours,
+            if hours == 1 { "" } else { "s" }
+        ));
     }
     if minutes > 0 {
-        parts.push(format!("{}分钟", minutes));
-    }
-    if secs > 0 || parts.is_empty() {
-        parts.push(format!("{}秒", secs));
+        parts.push(format!(
+            "{} minute{}",
+            minutes,
+            if minutes == 1 { "" } else { "s" }
+        ));
     }
 
-    parts.join(" ")
+    if parts.is_empty() {
+        "up".to_string()
+    } else {
+        format!("up {}", parts.join(", "))
+    }
 }
 
 #[cfg(test)]
@@ -93,10 +103,16 @@ mod tests {
     use super::format_pretty;
 
     #[test]
-    fn pretty_format_keeps_chinese_duration() {
-        assert_eq!(format_pretty(90_061), "1天 1小时 1分钟 1秒");
-        assert_eq!(format_pretty(59), "59秒");
-        assert_eq!(format_pretty(3600), "1小时");
-        assert_eq!(format_pretty(0), "0秒");
+    fn pretty_format_uses_gnu_english_wording() {
+        assert_eq!(format_pretty(90_061), "up 1 day, 1 hour, 1 minute");
+        assert_eq!(format_pretty(59), "up");
+        assert_eq!(format_pretty(3600), "up 1 hour");
+        assert_eq!(format_pretty(0), "up");
+        assert_eq!(
+            format_pretty(2 * 86400 + 3 * 3600 + 5 * 60),
+            "up 2 days, 3 hours, 5 minutes"
+        );
+        // Seconds never appear on their own.
+        assert_eq!(format_pretty(61), "up 1 minute");
     }
 }
