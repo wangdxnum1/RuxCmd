@@ -2,7 +2,6 @@ mod cli;
 
 use clap::Parser;
 use cli::Cli;
-use std::process::Command;
 
 fn get_uptime() -> String {
     let uptime_ms = unsafe { windows::Win32::System::SystemInformation::GetTickCount64() };
@@ -115,9 +114,9 @@ fn main() {
 
     if cli.help {
         println!("w 0.1.0 - 显示用户活动");
-        println!("");
+        println!();
         println!("用法: w [选项]");
-        println!("");
+        println!();
         println!("选项:");
         println!("  -h, --header          显示头部信息");
         println!("  -u, --ignore-username 忽略用户名");

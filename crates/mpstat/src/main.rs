@@ -83,11 +83,11 @@ fn main() {
     }
 
     // Only the aggregate row exists: Windows per-CPU counters would need PDH.
-    if let Some(cpu) = &args.cpu {
-        if !cpu.eq_ignore_ascii_case("ALL") {
-            eprintln!("mpstat: per-cpu output is not supported");
-            std::process::exit(1);
-        }
+    if let Some(cpu) = &args.cpu
+        && !cpu.eq_ignore_ascii_case("ALL")
+    {
+        eprintln!("mpstat: per-cpu output is not supported");
+        std::process::exit(1);
     }
 
     // Frames to print: an explicit count, endless sampling when only a delay

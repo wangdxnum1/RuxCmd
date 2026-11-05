@@ -23,17 +23,18 @@ fn main() {
     // Determine interactive-once threshold
     let has_many_files = args.files.len() > 3 || args.recursive;
 
-    if interactive_once && has_many_files {
-        if !prompt_yes_no(
+    if interactive_once
+        && has_many_files
+        && !prompt_yes_no(
             &format!(
                 "rm: remove {} argument(s){}? ",
                 args.files.len(),
                 if args.recursive { " recursively" } else { "" }
             ),
             false,
-        ) {
-            return;
-        }
+        )
+    {
+        return;
     }
 
     for path in &args.files {
@@ -81,12 +82,12 @@ fn is_protected_root(path: &Path, no_preserve_root: bool) -> bool {
     }
 
     // Also check canonical form
-    if let Ok(canonical) = path.canonicalize() {
-        if let Some(canon_str) = canonical.to_str() {
-            let canon_str = canon_str.trim_end_matches(['/', '\\']);
-            if canon_str.len() == 2 && canon_str.as_bytes()[1] == b':' {
-                return true;
-            }
+    if let Ok(canonical) = path.canonicalize()
+        && let Some(canon_str) = canonical.to_str()
+    {
+        let canon_str = canon_str.trim_end_matches(['/', '\\']);
+        if canon_str.len() == 2 && canon_str.as_bytes()[1] == b':' {
+            return true;
         }
     }
 
@@ -132,6 +133,8 @@ fn prompt_yes_no(prompt: &str, default_no: bool) -> bool {
 }
 
 /// Core removal logic.
+// The flags mirror the CLI one-to-one; grouping them would add indirection for no benefit.
+#[allow(clippy::too_many_arguments)]
 fn remove_path(
     path: &Path,
     force: bool,
@@ -224,13 +227,13 @@ fn remove_path(
         }
     } else {
         // It's a file or symlink
-        if interactive {
-            if !prompt_yes_no(
+        if interactive
+            && !prompt_yes_no(
                 &format!("rm: remove regular file '{}'? ", path.display()),
                 false,
-            ) {
-                return Ok(());
-            }
+            )
+        {
+            return Ok(());
         }
 
         // GNU unlink removes read-only files; std's remove_file keeps the
@@ -307,15 +310,13 @@ fn remove_dir_recursive(
         };
 
         // Check one-file-system
-        if one_file_system {
-            if let Some(ref root_dev) = root_device {
-                let entry_device = get_device_id(&path);
-                if entry_device.is_some() && entry_device != Some(*root_dev) {
-                    if verbose {
-                        eprintln!("rm: skipping '{}' (different file system)", path.display());
-                    }
-                    continue;
+        if one_file_system && let Some(ref root_dev) = root_device {
+            let entry_device = get_device_id(&path);
+            if entry_device.is_some() && entry_device != Some(*root_dev) {
+                if verbose {
+                    eprintln!("rm: skipping '{}' (different file system)", path.display());
                 }
+                continue;
             }
         }
 
@@ -330,13 +331,13 @@ fn remove_dir_recursive(
             )?;
         } else {
             // File or symlink
-            if interactive {
-                if !prompt_yes_no(
+            if interactive
+                && !prompt_yes_no(
                     &format!("rm: remove regular file '{}'? ", path.display()),
                     false,
-                ) {
-                    continue;
-                }
+                )
+            {
+                continue;
             }
 
             // Read-only files are removed like at the top level; symlinks

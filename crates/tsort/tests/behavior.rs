@@ -63,5 +63,3 @@ fn duplicate_edges_do_not_double_count() {
         .success()
         .stdout("a\nb\nc\n");
 }
-
-use predicates::prelude::*;

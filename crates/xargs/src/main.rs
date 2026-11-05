@@ -1,6 +1,6 @@
 mod cli;
 
-use std::io::{self, BufRead, Read, Write};
+use std::io::{self, Read, Write};
 use std::process::{Command, Stdio};
 
 fn main() {
@@ -25,8 +25,6 @@ fn main() {
 
     // GNU xargs runs the command once even with empty input; the old
     // built-in -r silently skipped it.
-    let input_args = input_args;
-
     let replace_str = &args.replace;
     let replace_set = args.replace_set;
     let uses_replace = args

@@ -100,8 +100,8 @@ fn main() {
         let path = PathBuf::from(&fname);
         match File::create(&path) {
             Ok(mut f) => {
-                for i in *s..(*e.min(&lines.len())) {
-                    let _ = writeln!(f, "{}", lines[i]);
+                for line in &lines[*s..(*e.min(&lines.len()))] {
+                    let _ = writeln!(f, "{}", line);
                 }
                 let bytes: usize = lines[*s..(*e.min(&lines.len()))]
                     .iter()
@@ -130,7 +130,7 @@ fn main() {
 }
 
 fn read_input(p: &Option<PathBuf>) -> Result<Vec<String>, String> {
-    let mut reader: Box<dyn BufRead> = match p {
+    let reader: Box<dyn BufRead> = match p {
         Some(pp) if pp.to_string_lossy() != "-" => {
             let f = File::open(pp).map_err(|e| format!("{}: {}", pp.display(), e))?;
             Box::new(BufReader::new(f))

@@ -1,5 +1,4 @@
 use assert_cmd::cargo::cargo_bin_cmd;
-use predicates::prelude::*;
 use tempfile::TempDir;
 
 #[test]

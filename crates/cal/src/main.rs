@@ -107,11 +107,11 @@ fn print_month(year: i32, month: u32, julian: bool) {
         } else {
             print!(" {:>2}", day);
         }
-        if (first_weekday + day) % 7 == 0 {
+        if (first_weekday + day).is_multiple_of(7) {
             println!();
         }
     }
-    if (first_weekday + days_in_month) % 7 != 0 {
+    if !(first_weekday + days_in_month).is_multiple_of(7) {
         println!();
     }
     println!();
@@ -165,11 +165,11 @@ fn print_three_months(year: i32, month: u32, julian: bool) {
     }
 
     for week in 0..6 {
-        for m in 0..3usize {
+        for month in month_data.iter().take(3) {
             for day in 0..7usize {
                 let idx = week * 7 + day;
-                if idx < month_data[m].len() {
-                    print!("{}", month_data[m][idx]);
+                if idx < month.len() {
+                    print!("{}", month[idx]);
                 }
             }
             print!("   ");
@@ -221,11 +221,11 @@ fn print_year(year: i32, julian: bool) {
         }
 
         for week in 0..6usize {
-            for m in 0..months_per_row {
+            for month in month_data.iter().take(months_per_row) {
                 for day in 0..7usize {
                     let idx = week * 7 + day;
-                    if idx < month_data[m].len() {
-                        print!("{}", month_data[m][idx]);
+                    if idx < month.len() {
+                        print!("{}", month[idx]);
                     }
                 }
                 print!("   ");

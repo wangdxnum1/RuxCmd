@@ -361,12 +361,16 @@ fn get_udp_connections() -> Result<Vec<(u32, u32)>, String> {
         .collect())
 }
 
+// Field names mirror the Win32 MIB_TCPTABLE2 layout.
+#[allow(non_snake_case)]
 #[repr(C)]
 struct MIB_TCPTABLE2 {
     dwNumEntries: u32,
     table: [MIB_TCPROW2; 1],
 }
 
+// Field names mirror the Win32 MIB_UDPTABLE layout.
+#[allow(non_snake_case)]
 #[repr(C)]
 struct MIB_UDPTABLE {
     dwNumEntries: u32,

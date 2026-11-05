@@ -104,7 +104,7 @@ pub fn parse_args() -> Args {
 
     let files: Vec<PathBuf> = matches
         .get_many::<String>("FILE")
-        .map(|v| v.map(|s| PathBuf::from(s)).collect())
+        .map(|v| v.map(PathBuf::from).collect())
         .unwrap_or_default();
 
     Args {

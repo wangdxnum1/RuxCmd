@@ -57,7 +57,7 @@ impl FileEntry {
         // On Windows, the actual allocated size is not directly exposed via std.
         // We approximate: file size / 512 rounded up (standard block size).
         let size = self.size();
-        (size + 511) / 512
+        size.div_ceil(512)
     }
 
     /// File index (inode number on Windows via file index).
@@ -139,10 +139,8 @@ pub fn collect_entries(path: &Path, args: &Args) -> std::io::Result<Vec<FileEntr
         }
 
         // Handle --almost-all: show . files but not . and ..
-        if args.almost_all && !args.all {
-            if file_name == "." || file_name == ".." {
-                continue;
-            }
+        if args.almost_all && !args.all && (file_name == "." || file_name == "..") {
+            continue;
         }
 
         // Handle --ignore-backups: skip files ending with ~

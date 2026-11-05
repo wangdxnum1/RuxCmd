@@ -88,13 +88,13 @@ fn get_kernel_release() -> String {
         let output = Command::new("cmd").arg("/c").arg("ver").output().ok();
         if let Some(out) = output {
             let ver = String::from_utf8_lossy(&out.stdout);
-            if let Some(start) = ver.find('[') {
-                if let Some(end) = ver.find(']') {
-                    let version_str = &ver[start + 1..end];
-                    let parts: Vec<&str> = version_str.split_whitespace().collect();
-                    if let Some(version) = parts.last() {
-                        return version.to_string();
-                    }
+            if let Some(start) = ver.find('[')
+                && let Some(end) = ver.find(']')
+            {
+                let version_str = &ver[start + 1..end];
+                let parts: Vec<&str> = version_str.split_whitespace().collect();
+                if let Some(version) = parts.last() {
+                    return version.to_string();
                 }
             }
             "10.0".to_string()

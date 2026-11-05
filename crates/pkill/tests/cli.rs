@@ -62,7 +62,6 @@ fn flipped_case(name: &str) -> String {
 
 struct Out {
     code: Option<i32>,
-    stdout: String,
     stderr: String,
 }
 
@@ -73,7 +72,6 @@ fn run(args: &[&str]) -> Out {
         .expect("run pkill");
     Out {
         code: out.status.code(),
-        stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
         stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
     }
 }
@@ -109,14 +107,14 @@ fn exact_name_kill_terminates_spawned_process() {
 #[test]
 fn case_insensitive_default_and_ignore_case_flag() {
     let _g = lock();
-    let mut child = spawn_ping();
+    let child = spawn_ping();
     let flipped = flipped_case(&ping_image());
 
     let out = run(&["-x", &flipped]);
     assert_eq!(out.code, Some(0), "stderr: {}", out.stderr);
     assert_dies_quickly(child, Duration::from_secs(5));
 
-    let mut child = spawn_ping();
+    let child = spawn_ping();
     let out = run(&["-x", "-i", &flipped]);
     assert_eq!(out.code, Some(0), "stderr: {}", out.stderr);
     assert_dies_quickly(child, Duration::from_secs(5));
@@ -138,7 +136,7 @@ fn no_match_exits_1() {
 #[ignore = "CI self-exclusion depends on process tree; covered by behavior tests"]
 fn excludes_its_own_pid() {
     let _g = lock();
-    let mut child = Command::new(env!("CARGO_BIN_EXE_pkill"))
+    let child = Command::new(env!("CARGO_BIN_EXE_pkill"))
         .args(["-x", "pkill.exe"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

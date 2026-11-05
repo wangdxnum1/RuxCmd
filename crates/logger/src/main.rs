@@ -37,7 +37,7 @@ pub struct Args {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum EventType {
+pub enum EventType {
     Error,
     Warning,
     Information,

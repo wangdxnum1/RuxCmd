@@ -534,7 +534,7 @@ fn revert_dump(input: &[u8], offset: usize) -> Vec<u8> {
         let body = &trimmed[colon + 1..];
         let nibbles = hex_nibbles(body);
         let mut bytes = Vec::with_capacity(nibbles.len() / 2);
-        for pair in nibbles.chunks_exact(2) {
+        for pair in nibbles.as_chunks::<2>().0 {
             bytes.push((pair[0] << 4) | pair[1]);
         }
         if address > out.len() {

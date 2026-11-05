@@ -1,5 +1,5 @@
 use assert_cmd::cargo::cargo_bin_cmd;
-use std::process::{Child, Command, Stdio};
+use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 #[test]

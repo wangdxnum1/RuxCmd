@@ -64,13 +64,6 @@ pub fn usage_between(prev: &CpuTimes, cur: &CpuTimes) -> Option<(f64, f64, f64)>
 mod tests {
     use super::*;
 
-    fn ft(v: u64) -> FILETIME {
-        FILETIME {
-            dwLowDateTime: v as u32,
-            dwHighDateTime: (v >> 32) as u32,
-        }
-    }
-
     #[test]
     fn live_sample_has_positive_total() {
         let s = sample().expect("GetSystemTimes works");

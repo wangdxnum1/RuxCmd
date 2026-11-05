@@ -106,10 +106,10 @@ fn signal_exit_code(signal: &str) -> Result<u32, ()> {
             return Ok(*code);
         }
     }
-    if let Ok(n) = signal.parse::<u32>() {
-        if n <= 31 {
-            return Ok(n);
-        }
+    if let Ok(n) = signal.parse::<u32>()
+        && n <= 31
+    {
+        return Ok(n);
     }
     Err(())
 }
@@ -122,10 +122,8 @@ fn list_signals() {
 
 #[cfg(windows)]
 fn kill_process(pid: i32, exit_code: u32) -> Result<(), String> {
-    use std::ptr;
-
     let handle: HANDLE = unsafe { OpenProcess(PROCESS_TERMINATE, 0, pid as u32) };
-    if handle == ptr::null_mut() {
+    if handle.is_null() {
         return Err("cannot open process".to_string());
     }
     if exit_code == 0 {

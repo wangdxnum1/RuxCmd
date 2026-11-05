@@ -1,5 +1,4 @@
 use assert_cmd::cargo::cargo_bin_cmd;
-use predicates::prelude::*;
 
 #[test]
 fn substitutes_dollar_var() {

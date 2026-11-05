@@ -58,13 +58,13 @@ fn factor_one(raw: &str) -> Result<(), String> {
     }
     let mut factors: Vec<u64> = Vec::new();
     let mut x = n;
-    while x % 2 == 0 {
+    while x.is_multiple_of(2) {
         factors.push(2);
         x /= 2;
     }
     let mut d: u64 = 3;
     while d.saturating_mul(d) <= x {
-        while x % d == 0 {
+        while x.is_multiple_of(d) {
             factors.push(d);
             x /= d;
         }

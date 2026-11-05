@@ -17,7 +17,7 @@
 
 按变化目的组织提交。功能修复附复现输入与回归测试，纯格式化避免与功能重写混合。保持现有依赖版本范围；升级依赖单独说明理由。
 
-提交前执行 `pwsh -File scripts/build.ps1 -Task Verify`。涉及发行脚本时运行完整本地发布打包并检查解压后的产物。Clippy 历史 warning 暂不统一提升为错误；不要批量用 allow 隐藏问题。
+提交前执行 `pwsh -File scripts/build.ps1 -Task Verify`。涉及发行脚本时运行完整本地发布打包并检查解压后的产物。Clippy warning 视为错误（`-D warnings`）；不要批量用 allow 隐藏问题，确需保留的局部 allow 要注明原因。
 
 PR 说明具体行为变化、验证命令与结果、未验证的平台或条件。无关日志和个人配置不进入 PR。
 

@@ -142,9 +142,8 @@ fn print_terse_status(path: &Path, meta: &std::fs::Metadata) {
         .as_secs();
 
     println!(
-        "{} {} {} {} {} {} {} {}",
+        "{} rwxrwxrwx {} {} {} {} {} {}",
         file_type,
-        "rwxrwxrwx",
         1,
         0,
         0,

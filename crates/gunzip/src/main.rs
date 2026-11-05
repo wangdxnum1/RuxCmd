@@ -17,7 +17,7 @@ fn main() -> io::Result<()> {
         std::process::exit(1);
     }
 
-    if !gz_path.extension().map_or(false, |ext| ext == "gz") {
+    if !gz_path.extension().is_some_and(|ext| ext == "gz") {
         eprintln!("gunzip: {}: not in gzip format", args.file);
         std::process::exit(1);
     }

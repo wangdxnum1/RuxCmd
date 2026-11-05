@@ -80,7 +80,7 @@ fn format_sequence(sequence: &[f64], args: &cli::Args) -> String {
             .map(|n| format_number_equal_width(n, max_width))
             .collect()
     } else {
-        sequence.iter().map(|n| format_number_default(n)).collect()
+        sequence.iter().map(format_number_default).collect()
     };
 
     // GNU seq terminates every output with a newline, even with a custom

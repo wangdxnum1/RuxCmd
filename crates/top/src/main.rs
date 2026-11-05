@@ -129,8 +129,8 @@ fn print_header(prev: &CpuTimes) {
 
 fn print_process_header() {
     println!(
-        "{:<6} {:<12} {:>6} {:>6} {:>10} {:>10} {:>6} {:<4} {}",
-        "PID", "USER", "%CPU", "%MEM", "VIRT", "RES", "SHR", "S", "COMMAND"
+        "{:<6} {:<12} {:>6} {:>6} {:>10} {:>10} {:>6} {:<4} COMMAND",
+        "PID", "USER", "%CPU", "%MEM", "VIRT", "RES", "SHR", "S"
     );
 }
 

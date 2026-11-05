@@ -6,7 +6,10 @@ use ruxcmd_core::cpu;
 
 const VERSION: &str = "vmstat 0.1.0";
 
+// Field names and the typedef name mirror the Win32 MEMORYSTATUSEX layout.
 #[cfg(windows)]
+#[allow(non_snake_case)]
+#[allow(clippy::upper_case_acronyms)]
 #[repr(C)]
 struct MEMORYSTATUSEX {
     dwLength: u32,
@@ -29,6 +32,8 @@ struct MemoryInfo {
     avail_phys: u64,
     total_pagefile: u64,
     avail_pagefile: u64,
+    // Read by the test that checks the Win32 MEMORYSTATUSEX mapping.
+    #[allow(dead_code)]
     memory_load: u32,
 }
 

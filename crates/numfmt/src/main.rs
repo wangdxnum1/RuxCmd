@@ -233,7 +233,7 @@ fn parse_suffix(s: &str, binary: bool) -> (f64, &str) {
         _ => return (1.0, s),
     };
     let byte_end: usize = chars[..n - skip].iter().map(|c| c.len_utf8()).sum();
-    (base.powi(i as i32), &s[..byte_end])
+    (base.powi(i), &s[..byte_end])
 }
 
 fn format_numeric(
@@ -343,7 +343,7 @@ fn apply_padding(s: &str, padding: isize) -> String {
     if padding == 0 {
         return s.to_string();
     }
-    let n = padding.unsigned_abs() as usize;
+    let n = padding.unsigned_abs();
     if s.len() >= n {
         return s.to_string();
     }

@@ -2,7 +2,7 @@ use crate::cli::Args;
 use crate::entry::{FileEntry, TimeField};
 
 /// Sort entries based on the provided CLI arguments.
-pub fn sort_entries(entries: &mut Vec<FileEntry>, args: &Args) {
+pub fn sort_entries(entries: &mut [FileEntry], args: &Args) {
     if args.unsorted {
         return; // Keep filesystem order
     }
@@ -18,13 +18,13 @@ pub fn sort_entries(entries: &mut Vec<FileEntry>, args: &Args) {
 
     // Primary sort
     if args.sort_size {
-        entries.sort_by(|a, b| a.size().cmp(&b.size()));
+        entries.sort_by_key(|a| a.size());
     } else if args.sort_time {
         sort_by_time(entries, time_field);
     } else if args.sort_extension {
         entries.sort_by(|a, b| {
             ext(a.name.as_str())
-                .cmp(&ext(b.name.as_str()))
+                .cmp(ext(b.name.as_str()))
                 .then_with(|| compare_names(&a.name, &b.name))
         });
     } else if args.version_sort {
@@ -48,7 +48,7 @@ pub fn sort_entries(entries: &mut Vec<FileEntry>, args: &Args) {
     }
 }
 
-fn sort_by_time(entries: &mut Vec<FileEntry>, time_field: TimeField) {
+fn sort_by_time(entries: &mut [FileEntry], time_field: TimeField) {
     entries.sort_by(|a, b| {
         let ta = get_time(a, time_field);
         let tb = get_time(b, time_field);

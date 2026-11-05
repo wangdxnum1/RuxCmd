@@ -43,6 +43,8 @@ fn main() {
     println!("\n{} directories, {} files", dirs, files);
 }
 
+// The parameters mirror the traversal state and CLI flags one-to-one.
+#[allow(clippy::too_many_arguments)]
 fn list_dir(
     dir: &Path,
     prefix: &str,

@@ -117,9 +117,7 @@ fn verbose_prints_removal_line_for_each_directory() {
         .current_dir(dir.path())
         .assert()
         .success()
-        .stdout(format!(
-            "rmdir: removing directory, 'x/y'\nrmdir: removing directory, 'x'\n"
-        ));
+        .stdout("rmdir: removing directory, 'x/y'\nrmdir: removing directory, 'x'\n".to_string());
     assert!(!dir.path().join("x").exists());
 }
 

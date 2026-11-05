@@ -135,11 +135,10 @@ fn install_file(
         dest.to_path_buf()
     };
 
-    if create_parents {
-        if let Some(parent) = dest_path.parent().filter(|p| !p.as_os_str().is_empty()) {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("cannot create directory '{}': {}", parent.display(), e))?;
-        }
+    if create_parents && let Some(parent) = dest_path.parent().filter(|p| !p.as_os_str().is_empty())
+    {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("cannot create directory '{}': {}", parent.display(), e))?;
     }
 
     // Replace the directory entry rather than modifying an aliased file.

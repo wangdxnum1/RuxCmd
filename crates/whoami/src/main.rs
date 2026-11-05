@@ -11,12 +11,6 @@ fn main() {
         } else {
             println!("localhost");
         }
-    } else if args.username {
-        if let Ok(username) = std::env::var("USERNAME") {
-            println!("{}", username);
-        } else {
-            println!("unknown");
-        }
     } else {
         if let Ok(username) = std::env::var("USERNAME") {
             println!("{}", username);

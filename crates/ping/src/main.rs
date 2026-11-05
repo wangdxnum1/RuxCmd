@@ -153,13 +153,11 @@ fn main() {
         }
     );
 
-    if received > 0 {
+    if let Some(average_ms) = total_ms.checked_div(received) {
         println!("Approximate round trip times in milli-seconds:");
         println!(
             "    Minimum = {}ms, Maximum = {}ms, Average = {}ms",
-            min_ms,
-            max_ms,
-            total_ms / received
+            min_ms, max_ms, average_ms
         );
     }
 
@@ -253,6 +251,8 @@ fn status_message(status: u32) -> String {
     }
 }
 
+// Field names mirror the Win32 ICMP_ECHO_REPLY layout.
+#[allow(non_snake_case)]
 #[repr(C)]
 struct ICMP_ECHO_REPLY {
     Address: u32,
@@ -264,6 +264,8 @@ struct ICMP_ECHO_REPLY {
     Options: IP_OPTION_INFORMATION,
 }
 
+// Field names mirror the Win32 IP_OPTION_INFORMATION layout.
+#[allow(non_snake_case)]
 #[repr(C)]
 struct IP_OPTION_INFORMATION {
     Ttl: u8,

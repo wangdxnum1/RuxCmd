@@ -53,10 +53,6 @@ pub fn format_permissions(
         result.push('r');
         result.push('-');
         result.push('x');
-    } else if is_readonly {
-        result.push('r');
-        result.push('-');
-        result.push(if is_exe { 'x' } else { '-' });
     } else {
         result.push('r');
         result.push('-');

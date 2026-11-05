@@ -24,11 +24,7 @@ fn header_has_real_uptime_and_cpu_percentages() {
 fn assert_cpu_percentages(cpu: &str) {
     let nums: Vec<f64> = cpu
         .split(',')
-        .filter_map(|part| {
-            part.trim()
-                .split_whitespace()
-                .find_map(|v| v.parse::<f64>().ok())
-        })
+        .filter_map(|part| part.split_whitespace().find_map(|v| v.parse::<f64>().ok()))
         .collect();
     // User, system, and idle together cover the scale, regardless of host load.
     assert_eq!(nums.len(), 8, "cpu line: {}", cpu);

@@ -3,7 +3,6 @@ mod cli;
 use clap::Parser;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
-use std::path::PathBuf;
 
 fn main() {
     let args = cli::Args::parse();
@@ -65,7 +64,7 @@ fn process<R: BufRead>(reader: R, n: usize, all: bool) -> Result<(), std::io::Er
                         // GNU unexpand converts a run of blanks to a tab only
                         // when the run reaches a tab stop AND spans at least
                         // two blanks; a single space stays a space.
-                        if next_col % n == 0 && space_run >= 2 {
+                        if next_col.is_multiple_of(n) && space_run >= 2 {
                             out.write_all(b"\t")?;
                             col = next_col;
                             space_run = 0;

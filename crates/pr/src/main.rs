@@ -5,7 +5,6 @@ use clap::Parser;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
-use std::path::PathBuf;
 
 fn main() {
     let argv: Vec<OsString> = std::env::args_os().collect();
@@ -185,7 +184,7 @@ fn read_lines<R: BufRead>(r: &mut R, out: &mut Vec<String>) -> Result<(), std::i
 fn preprocess(lines: &[String], args: &cli::Args) -> Vec<String> {
     if args.two_column {
         let n = lines.len();
-        let half = (n + 1) / 2;
+        let half = n.div_ceil(2);
         let col_w = (args.page_width / 2).saturating_sub(1);
         let mut out = Vec::with_capacity(half);
         for i in 0..half {
@@ -258,8 +257,8 @@ fn write_header<W: Write>(
         sep.push('=');
     }
     writeln!(out, "{}", sep)?;
-    writeln!(out, "")?;
-    writeln!(out, "")?;
+    writeln!(out)?;
+    writeln!(out)?;
     Ok(())
 }
 

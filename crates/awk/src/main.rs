@@ -88,6 +88,9 @@ enum RedirectMode {
     CoProcess,
 }
 
+/// User-defined function: parameter names plus the body tokens.
+type UserFunction = (Vec<String>, Vec<Token>);
+
 thread_local! {
     /// Open print-redirection targets by destination name (GNU semantics:
     /// a target opened once stays open and subsequent writes append).
@@ -95,7 +98,7 @@ thread_local! {
         std::cell::RefCell::new(HashMap::new());
     /// User-defined functions: name -> (parameters, body tokens).
     /// Installed once at parse time; fixed for the program duration.
-    static FUNCTIONS: std::cell::RefCell<HashMap<String, (Vec<String>, Vec<Token>)>> =
+    static FUNCTIONS: std::cell::RefCell<HashMap<String, UserFunction>> =
         std::cell::RefCell::new(HashMap::new());
     /// The value of the most recent `return` inside a user function body.
     static GETLINE_SOURCES: GetlineSources =
@@ -208,10 +211,8 @@ fn collect_print_args(
 }
 
 fn dest_mode(dest: &PrintDest) -> RedirectMode {
-    match dest {
-        PrintDest::Target(_, mode) => *mode,
-        _ => RedirectMode::Truncate,
-    }
+    let PrintDest::Target(_, mode) = dest;
+    *mode
 }
 
 /// Write one print/printf result to the resolved destination.
@@ -376,9 +377,7 @@ fn coprocess_getline(cmd: &str) -> (Value, String, Option<String>) {
                 if let Some(pipe) = map.get_mut(cmd) {
                     pipe.lines_read += 1;
                 }
-                let text = line
-                    .trim_end_matches(|c: char| c == '\r' || c == '\n')
-                    .to_string();
+                let text = line.trim_end_matches(['\r', '\n']).to_string();
                 (Value::Num(1.0), text, None)
             }
             Err(e) => {
@@ -748,9 +747,7 @@ fn tokenize(s: &str) -> Vec<Token> {
                 let mut op = String::new();
                 op.push(c);
                 while let Some(&next) = chars.peek() {
-                    if next == '=' || next == '&' || next == '|' {
-                        op.push(chars.next().unwrap());
-                    } else if op == ">" && next == '>' {
+                    if next == '=' || next == '&' || next == '|' || (op == ">" && next == '>') {
                         op.push(chars.next().unwrap());
                     } else {
                         break;
@@ -915,10 +912,10 @@ fn parse_program(tokens: &[Token]) -> Result<ParsedProgram, String> {
                 };
                 let mut params = Vec::new();
                 for t in &tokens[i + 3..close] {
-                    if let Token::Var(v) = t {
-                        if !v.starts_with('$') {
-                            params.push(v.clone());
-                        }
+                    if let Token::Var(v) = t
+                        && !v.starts_with('$')
+                    {
+                        params.push(v.clone());
                     }
                 }
                 let Some(Token::Action(body)) = tokens.get(close + 1) else {
@@ -1299,11 +1296,12 @@ fn eval_tokens(tokens: &[Token], vars: &mut HashMap<String, String>) -> Value {
             }
             Token::Getline => {
                 let mut target: Option<String> = None;
-                if let Some(Token::Var(v)) = tokens.get(index + 1) {
-                    if !v.starts_with('$') && v != "in" {
-                        target = Some(v.clone());
-                        index += 1;
-                    }
+                if let Some(Token::Var(v)) = tokens.get(index + 1)
+                    && !v.starts_with('$')
+                    && v != "in"
+                {
+                    target = Some(v.clone());
+                    index += 1;
                 }
                 index += 1;
                 let (result, line) = if matches!(tokens.get(index), Some(Token::Op(op)) if op == "<")
@@ -1500,9 +1498,7 @@ fn getline_from_cmd(cmd: &str) -> (Value, String, Option<String>) {
                 if let Some(pipe) = map.get_mut(cmd) {
                     pipe.lines_read += 1;
                 }
-                let text = line
-                    .trim_end_matches(|c: char| c == '\r' || c == '\n')
-                    .to_string();
+                let text = line.trim_end_matches(['\r', '\n']).to_string();
                 (Value::Num(1.0), text, None)
             }
             Err(e) => {

@@ -8,7 +8,6 @@ fn main() {
 
     #[cfg(windows)]
     {
-        use std::ptr;
         use winapi::um::consoleapi::SetConsoleMode;
         use winapi::um::processenv::GetStdHandle;
         use winapi::um::winbase::STD_INPUT_HANDLE;
@@ -19,7 +18,7 @@ fn main() {
 
         unsafe {
             let h_stdin = GetStdHandle(STD_INPUT_HANDLE);
-            if h_stdin != ptr::null_mut() {
+            if !h_stdin.is_null() {
                 let default_mode = ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT;
                 SetConsoleMode(h_stdin, default_mode);
             }

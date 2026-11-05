@@ -17,7 +17,7 @@ Start with the [development notes](docs/development.md) and the [command compati
 
 Organize commits by purpose. Bug fixes come with a reproducing input and a regression test; do not mix pure formatting with functional rewrites. Keep the existing dependency version ranges; explain dependency upgrades separately.
 
-Run `pwsh -File scripts/build.ps1 -Task Verify` before submitting. When release scripts change, run a full local release package and inspect the extracted artifacts. Historical Clippy warnings are not currently promoted to errors; do not hide problems with bulk `allow` attributes.
+Run `pwsh -File scripts/build.ps1 -Task Verify` before submitting. When release scripts change, run a full local release package and inspect the extracted artifacts. Clippy warnings are errors (`-D warnings`); do not hide problems with bulk `allow` attributes, and document any narrowly scoped `allow` that is genuinely required.
 
 The PR description states the concrete behavior change, the verification commands and their results, and any unverified platforms or conditions. Unrelated logs and personal configuration do not go into PRs.
 

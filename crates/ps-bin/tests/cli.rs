@@ -1,9 +1,9 @@
-use assert_cmd::Command;
+use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::prelude::*;
 
 #[test]
 fn shows_help() {
-    let mut cmd = Command::cargo_bin("ps").unwrap();
+    let mut cmd = cargo_bin_cmd!("ps");
     cmd.arg("--help");
     cmd.assert()
         .success()
@@ -12,7 +12,7 @@ fn shows_help() {
 
 #[test]
 fn shows_version() {
-    let mut cmd = Command::cargo_bin("ps").unwrap();
+    let mut cmd = cargo_bin_cmd!("ps");
     cmd.arg("--version");
     cmd.assert()
         .success()
@@ -21,7 +21,7 @@ fn shows_version() {
 
 #[test]
 fn runs_default() {
-    let mut cmd = Command::cargo_bin("ps").unwrap();
+    let mut cmd = cargo_bin_cmd!("ps");
     cmd.assert()
         .success()
         .stdout(predicate::str::contains("PID"));
@@ -29,7 +29,7 @@ fn runs_default() {
 
 #[test]
 fn custom_columns() {
-    let mut cmd = Command::cargo_bin("ps").unwrap();
+    let mut cmd = cargo_bin_cmd!("ps");
     cmd.args(["-o", "pid,ppid,comm"]);
     cmd.assert()
         .success()
@@ -40,7 +40,7 @@ fn custom_columns() {
 
 #[test]
 fn no_headers() {
-    let mut cmd = Command::cargo_bin("ps").unwrap();
+    let mut cmd = cargo_bin_cmd!("ps");
     cmd.args(["--no-headers", "-o", "pid,comm"]);
     cmd.assert()
         .success()
@@ -49,14 +49,14 @@ fn no_headers() {
 
 #[test]
 fn forest_renders() {
-    let mut cmd = Command::cargo_bin("ps").unwrap();
+    let mut cmd = cargo_bin_cmd!("ps");
     cmd.args(["--forest", "-e", "-o", "pid,comm"]);
     cmd.assert().success();
 }
 
 #[test]
 fn unknown_column_warns() {
-    let mut cmd = Command::cargo_bin("ps").unwrap();
+    let mut cmd = cargo_bin_cmd!("ps");
     cmd.args(["-o", "pid,nonsense"]);
     cmd.assert()
         .success()
@@ -65,7 +65,7 @@ fn unknown_column_warns() {
 
 #[test]
 fn list_columns_works() {
-    let mut cmd = Command::cargo_bin("ps").unwrap();
+    let mut cmd = cargo_bin_cmd!("ps");
     cmd.arg("--list-columns");
     cmd.assert()
         .success()
@@ -79,7 +79,7 @@ fn extra_full_and_long_stderr_is_clean() {
     // -l requested `wchan`, so every run printed "ps: warning: unknown
     // column ..." to stderr and silently dropped those columns.
     for flag in ["-F", "-l"] {
-        let mut cmd = Command::cargo_bin("ps").unwrap();
+        let mut cmd = cargo_bin_cmd!("ps");
         cmd.arg(flag);
         cmd.assert()
             .success()
@@ -95,7 +95,7 @@ fn pmem_values_are_bounded_by_total_memory() {
     // the sum of all working sets cannot exceed total physical memory. With
     // the old 8 GB denominator this summed to well over 100% on machines
     // with more than 8 GB of RAM and busy working sets.
-    let mut cmd = Command::cargo_bin("ps").unwrap();
+    let mut cmd = cargo_bin_cmd!("ps");
     cmd.args(["-o", "pid,pmem"]);
     let out = cmd.assert().success();
     let text = String::from_utf8(out.get_output().stdout.clone()).unwrap();
@@ -140,8 +140,7 @@ fn pcpu_shows_numbers_for_queryable_processes() {
     // Round 12 C2: %CPU was permanently "?" because the prev-sample pipeline
     // was never wired. It is now a lifetime average and numeric for any
     // process whose times are readable.
-    let output = Command::cargo_bin("ps")
-        .unwrap()
+    let output = cargo_bin_cmd!("ps")
         .args(["-o", "pid,pcpu", "--sort=-pcpu"])
         .output()
         .unwrap();
@@ -164,8 +163,7 @@ fn pcpu_shows_numbers_for_queryable_processes() {
 
 #[test]
 fn stat_column_reports_sleeping_not_running() {
-    let output = Command::cargo_bin("ps")
-        .unwrap()
+    let output = cargo_bin_cmd!("ps")
         .args(["-o", "pid,stat"])
         .output()
         .unwrap();
@@ -186,8 +184,7 @@ fn stat_column_reports_sleeping_not_running() {
 #[test]
 fn headers_repeat_is_rejected() {
     // Round 12 C2: the never-implemented --headers-repeat was removed.
-    Command::cargo_bin("ps")
-        .unwrap()
+    cargo_bin_cmd!("ps")
         .arg("--headers-repeat=2")
         .assert()
         .failure();

@@ -239,6 +239,6 @@ fn split_by_number(
         return Err("cannot split into 0 pieces".to_string());
     }
 
-    let chunk_size = (file_size + num_pieces as u64 - 1) / num_pieces as u64;
+    let chunk_size = file_size.div_ceil(num_pieces as u64);
     split_by_bytes(path, chunk_size, prefix, numeric, suffix_len)
 }

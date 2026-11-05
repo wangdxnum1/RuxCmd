@@ -1,5 +1,4 @@
 use assert_cmd::cargo::cargo_bin_cmd;
-use predicates::prelude::*;
 
 #[test]
 fn prints_cpu_header_and_rows() {

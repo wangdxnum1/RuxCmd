@@ -145,7 +145,7 @@ fn no_match_exits_1() {
 #[test]
 fn excludes_its_own_pid() {
     let _g = lock();
-    let mut child = Command::new(env!("CARGO_BIN_EXE_pgrep"))
+    let child = Command::new(env!("CARGO_BIN_EXE_pgrep"))
         .args(["-x", "-i", "pgrep.exe"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

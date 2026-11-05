@@ -2,13 +2,13 @@ use assert_cmd::cargo::cargo_bin_cmd;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-/// Run the timeout binary with null stdio and return (exit code, elapsed).
-///
-/// The null stdio is deliberate: assert_cmd always pipes stdout, and a
-/// `cmd /c <grandchild>` inherits that pipe write end (CreateProcess with
-/// handle inheritance), so the harness would keep waiting for pipe EOF until
-/// the orphaned grandchild exits even though timeout itself exited 124 long
-/// before. Waiting on the process handle measures timeout's own exit.
+// Run the timeout binary with null stdio and return (exit code, elapsed).
+//
+// The null stdio is deliberate: assert_cmd always pipes stdout, and a
+// `cmd /c <grandchild>` inherits that pipe write end (CreateProcess with
+// handle inheritance), so the harness would keep waiting for pipe EOF until
+// the orphaned grandchild exits even though timeout itself exited 124 long
+// before. Waiting on the process handle measures timeout's own exit.
 
 /// Absolute path to the system ping: cargo test puts target/debug on PATH,
 /// and our own ping.exe would shadow the system one without -n support.

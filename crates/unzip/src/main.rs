@@ -22,12 +22,7 @@ fn list_archive(cli: &Cli) -> io::Result<()> {
         let size = file.size();
         let is_dir = file.is_dir();
 
-        println!(
-            "{} {} {}",
-            if is_dir { "d" } else { "-" },
-            format!("{:>12}", size),
-            path
-        );
+        println!("{} {:>12} {}", if is_dir { "d" } else { "-" }, size, path);
     }
 
     Ok(())

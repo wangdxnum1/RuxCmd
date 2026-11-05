@@ -62,7 +62,7 @@ try {
         if (-not $selection.Count) { $format = @('fmt', '--all', '--check') }
         Invoke-CargoStep 'Formatting' $format
         Invoke-CargoStep 'Check' (@('check') + $scope + @('--all-targets') + $targetOptions + $options)
-        Invoke-CargoStep 'Clippy' (@('clippy') + $scope + @('--all-targets') + $targetOptions + $options)
+        Invoke-CargoStep 'Clippy' (@('clippy') + $scope + @('--all-targets') + $targetOptions + $options + @('--', '-D', 'warnings'))
     }
     if ($Task -in @('Test', 'Verify')) {
         Invoke-CargoStep 'Tests' (@('test') + $scope + @('--all-targets') + $targetOptions + $options)

@@ -19,7 +19,7 @@ fn main() {
             eprintln!("error: the following required arguments were not provided:");
             eprintln!("  <FILE1>");
             eprintln!("  <FILE2>");
-            eprintln!("");
+            eprintln!();
             eprintln!("Usage: diff [OPTIONS] <FILE1> <FILE2>");
             process::exit(1);
         }
@@ -30,7 +30,7 @@ fn main() {
         None => {
             eprintln!("error: the following required arguments were not provided:");
             eprintln!("  <FILE2>");
-            eprintln!("");
+            eprintln!();
             eprintln!("Usage: diff [OPTIONS] <FILE1> <FILE2>");
             process::exit(1);
         }
@@ -99,8 +99,8 @@ fn print_normal_diff(lines1: &[String], lines2: &[String], cli: &Cli) -> bool {
 
     for i in 1..=n {
         for j in 1..=m {
-            let line1 = normalize_line(&lines1[i - 1], &cli);
-            let line2 = normalize_line(&lines2[j - 1], &cli);
+            let line1 = normalize_line(&lines1[i - 1], cli);
+            let line2 = normalize_line(&lines2[j - 1], cli);
 
             let skip1 = cli.ignore_blank_lines && lines1[i - 1].trim().is_empty();
             let skip2 = cli.ignore_blank_lines && lines2[j - 1].trim().is_empty();
@@ -121,8 +121,8 @@ fn print_normal_diff(lines1: &[String], lines2: &[String], cli: &Cli) -> bool {
 
     while i > 0 || j > 0 {
         if i > 0 && j > 0 {
-            let line1 = normalize_line(&lines1[i - 1], &cli);
-            let line2 = normalize_line(&lines2[j - 1], &cli);
+            let line1 = normalize_line(&lines1[i - 1], cli);
+            let line2 = normalize_line(&lines2[j - 1], cli);
 
             let skip1 = cli.ignore_blank_lines && lines1[i - 1].trim().is_empty();
             let skip2 = cli.ignore_blank_lines && lines2[j - 1].trim().is_empty();
@@ -214,8 +214,8 @@ fn print_unified_diff(
 
     for i in 1..=n {
         for j in 1..=m {
-            let line1 = normalize_line(&lines1[i - 1], &cli);
-            let line2 = normalize_line(&lines2[j - 1], &cli);
+            let line1 = normalize_line(&lines1[i - 1], cli);
+            let line2 = normalize_line(&lines2[j - 1], cli);
 
             let skip1 = cli.ignore_blank_lines && lines1[i - 1].trim().is_empty();
             let skip2 = cli.ignore_blank_lines && lines2[j - 1].trim().is_empty();
@@ -236,8 +236,8 @@ fn print_unified_diff(
 
     while i > 0 || j > 0 {
         if i > 0 && j > 0 {
-            let line1 = normalize_line(&lines1[i - 1], &cli);
-            let line2 = normalize_line(&lines2[j - 1], &cli);
+            let line1 = normalize_line(&lines1[i - 1], cli);
+            let line2 = normalize_line(&lines2[j - 1], cli);
 
             let skip1 = cli.ignore_blank_lines && lines1[i - 1].trim().is_empty();
             let skip2 = cli.ignore_blank_lines && lines2[j - 1].trim().is_empty();

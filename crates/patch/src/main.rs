@@ -18,7 +18,7 @@ fn main() {
         None => {
             eprintln!("error: the following required arguments were not provided:");
             eprintln!("  <PATCH_FILE>");
-            eprintln!("");
+            eprintln!();
             eprintln!("Usage: patch [OPTIONS] <PATCH_FILE> [TARGET_FILE]");
             process::exit(1);
         }
@@ -72,7 +72,7 @@ fn main() {
 
         if target_file.is_empty() {
             eprintln!("error: no target file specified and cannot extract from patch");
-            eprintln!("");
+            eprintln!();
             eprintln!("Usage: patch [OPTIONS] <PATCH_FILE> [TARGET_FILE]");
             process::exit(1);
         }

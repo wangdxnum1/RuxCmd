@@ -42,19 +42,19 @@ pub fn print_entries(entries: &[FileEntry], args: &Args) {
         let dirs: Vec<&FileEntry> = filtered.iter().filter(|e| e.is_dir).copied().collect();
         for dir in dirs {
             println!();
-            if let Ok(sub_entries) = crate::entry::collect_entries(&dir.path, args) {
-                if !sub_entries.is_empty() {
-                    println!("{}:", dir.path.display());
-                    let total_blocks: u64 = sub_entries
-                        .iter()
-                        .filter(|e| args.show_hidden() || !e.name.starts_with('.'))
-                        .map(|e| e.block_count() * 512 / 1024)
-                        .sum();
-                    if args.long {
-                        println!("total {}", total_blocks);
-                    }
-                    print_entries(&sub_entries, args);
+            if let Ok(sub_entries) = crate::entry::collect_entries(&dir.path, args)
+                && !sub_entries.is_empty()
+            {
+                println!("{}:", dir.path.display());
+                let total_blocks: u64 = sub_entries
+                    .iter()
+                    .filter(|e| args.show_hidden() || !e.name.starts_with('.'))
+                    .map(|e| e.block_count() * 512 / 1024)
+                    .sum();
+                if args.long {
+                    println!("total {}", total_blocks);
                 }
+                print_entries(&sub_entries, args);
             }
         }
     }
@@ -89,7 +89,7 @@ fn print_columns(entries: &[&FileEntry], args: &Args) {
     }
 
     let num_cols = (term_width / col_width).max(1);
-    let num_rows = (entries.len() + num_cols - 1) / num_cols;
+    let num_rows = entries.len().div_ceil(num_cols);
 
     // Standard column layout (going down then across)
     for row in 0..num_rows {
@@ -515,8 +515,12 @@ fn term_size() -> Option<usize> {
     #[cfg(windows)]
     {
         const STD_OUTPUT_HANDLE: u32 = 0xFFFFFFF5u32;
+        // Win32 typedef names, kept verbatim to match the FFI signatures below.
+        #[allow(clippy::upper_case_acronyms)]
         type DWORD = u32;
+        #[allow(clippy::upper_case_acronyms)]
         type BOOL = i32;
+        #[allow(clippy::upper_case_acronyms)]
         type HANDLE = isize;
 
         #[repr(C)]

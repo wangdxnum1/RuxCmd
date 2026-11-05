@@ -121,7 +121,7 @@ fn back_reference_pattern_is_rejected_clearly() {
 fn non_utf8_bytes_survive_substitution() {
     let out = cargo_bin_cmd!("sed")
         .arg("s/b/X/")
-        .write_stdin(&[0x61, 0xFF, 0x62, 0x63, b'\n'])
+        .write_stdin([0x61, 0xFF, 0x62, 0x63, b'\n'])
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(0));
@@ -143,8 +143,6 @@ fn escaped_delimiter_in_pattern() {
     assert_eq!(code, Some(0));
     assert_eq!(out, "x\ny\n");
 }
-
-use predicates::prelude::*;
 
 #[test]
 fn ere_mode_alternation_and_intervals() {

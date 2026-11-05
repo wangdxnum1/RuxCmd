@@ -3,7 +3,6 @@ mod cli;
 use clap::Parser;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
-use std::path::PathBuf;
 
 fn main() {
     let args = cli::Args::parse();
@@ -104,18 +103,19 @@ fn main() {
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
     for (ridx, r) in rows.iter().enumerate() {
-        if let Some(h) = args.header {
-            if ridx > 0 && ridx % h == 0 {
-                let header_row = rows[0].clone();
-                let _ = write_row(
-                    &mut out,
-                    &header_row,
-                    &widths,
-                    &args.output_separator,
-                    &right_cols,
-                );
-                let _ = out.write_all(b"\n");
-            }
+        if let Some(h) = args.header
+            && ridx > 0
+            && ridx % h == 0
+        {
+            let header_row = rows[0].clone();
+            let _ = write_row(
+                &mut out,
+                &header_row,
+                &widths,
+                &args.output_separator,
+                &right_cols,
+            );
+            let _ = out.write_all(b"\n");
         }
         let _ = write_row(&mut out, r, &widths, &args.output_separator, &right_cols);
         let _ = out.write_all(b"\n");
@@ -188,7 +188,7 @@ fn write_row<W: Write>(
     for (i, cell) in r.iter().enumerate() {
         let w = *widths.get(i).unwrap_or(&0);
         let dw = display_width(cell);
-        let pad = if dw < w { w - dw } else { 0 };
+        let pad = w.saturating_sub(dw);
         let is_right = right.contains(&i);
         if is_right {
             for _ in 0..pad {

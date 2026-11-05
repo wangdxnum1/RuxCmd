@@ -3,7 +3,10 @@ mod cli;
 use clap::Parser;
 use cli::{Args, Unit};
 
+// Field names and the typedef name mirror the Win32 MEMORYSTATUSEX layout.
 #[cfg(windows)]
+#[allow(non_snake_case)]
+#[allow(clippy::upper_case_acronyms)]
 #[repr(C)]
 struct MEMORYSTATUSEX {
     dwLength: u32,
