@@ -9,7 +9,11 @@ Linux-style command-line tools for Windows, written in Rust. RuxCmd currently bu
 
 The project is under active development. Familiar command names and options do not imply full GNU/POSIX compatibility. See the [command compatibility table](docs/compatibility.md) for supported options and known differences.
 
-## Use the tools
+## Download and install
+
+RuxCmd ships as a ZIP of standalone executables for Windows x64. There are three ways to get it.
+
+### Manual ZIP
 
 Download `ruxcmd-0.4.3-x86_64-pc-windows-msvc.zip` from the latest [GitHub Release](https://github.com/wangdxnum1/RuxCmd/releases) and extract it. Alternatively, open a successful [CI run](https://github.com/wangdxnum1/RuxCmd/actions/workflows/ci.yml) and download the `ruxcmd-windows-x64-ci` artifact (7-day retention); extract the Actions download, then extract the `ruxcmd-<version>-x86_64-pc-windows-msvc.zip` inside it.
 
@@ -21,7 +25,27 @@ Run the executables directly, or add the extracted `bin` directory to your user 
 .\bin\ps.exe --list-columns
 ```
 
-PowerShell defines aliases such as `cat`, `ls`, `cp`, and `rm`. Use the `.exe` suffix or a full path to call RuxCmd explicitly.
+### Installer script
+
+`scripts/install.ps1` verifies the archive, installs it, and creates the prefixed entry points in one step:
+
+```powershell
+# From a downloaded ZIP (uses the companion .zip.sha256 file):
+pwsh -File scripts/install.ps1 -Source .\ruxcmd-0.4.3-x86_64-pc-windows-msvc.zip
+
+# Or let the script download a published version:
+pwsh -File scripts/install.ps1 -Source 0.4.3
+```
+
+The installer verifies SHA256 before writing anything, places the executables in `C:\Users\Tim\Develop\RuxCmd\bin` by default (`-InstallDir` overrides it), puts documentation and the build manifest in `<InstallDir>\share`, creates the `rux-` shims described below, and appends the directory to your user `PATH` after showing the exact before/after value (`-Force` skips the confirmation). Running it again with the same version changes nothing. An upgrade copies the previous executables to `<InstallDir>.old-<version>` first. `-Uninstall` removes the shims and the PATH entry; add `-RemoveInstallDir` to delete the recorded files too. Only the user-level PATH is changed; the machine PATH is never touched.
+
+### Why the `rux-` prefix
+
+`C:\Windows\System32` is ahead of the user `PATH`, so bare `find.exe`, `sort.exe`, and `where.exe` always run the Windows tools. PowerShell also defines aliases for `cat`, `ls`, `cp`, `mv`, `rm`, `echo`, `pwd`, `ps`, `kill`, `sleep`, `tee`, `clear`, `curl`, and `wget`. The installer therefore writes `rux-<command>.cmd` shims such as `rux-find`, `rux-sort`, and `rux-cat`, which call the RuxCmd executable in the same directory with the original arguments. Bare executables remain in the install directory and can be called by full path. `rux` itself is reserved for a future multi-call entry point.
+
+### Scoop and winget
+
+Manifest sources are kept in `scripts/packaging/` but are not published yet: the Scoop manifest must be added to a bucket, and the winget manifests require a pull request to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) after validation. Both expose the conflicting commands only as `rux-*`. See [release and installation](docs/development.md#release-and-installation) for the submission steps.
 
 Packages contain a source/build manifest, per-file SHA256 checksums, and documentation. Compare the ZIP checksum in the companion `.zip.sha256` file with:
 

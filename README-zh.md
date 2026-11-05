@@ -9,7 +9,11 @@
 
 项目仍在开发中。命令名称和参数沿用 Linux 风格，但不保证完整 GNU/POSIX 兼容性。支持的选项及已知差异见[命令兼容性表](docs/compatibility-zh.md)。
 
-## 使用命令
+## 下载与安装
+
+RuxCmd 以独立可执行文件 ZIP 的形式发布，面向 Windows x64。有三种获取方式。
+
+### 手动解压 ZIP
 
 从最新的 [GitHub Release](https://github.com/wangdxnum1/RuxCmd/releases) 下载 `ruxcmd-0.4.3-x86_64-pc-windows-msvc.zip` 并解压。也可以打开一次成功的 [CI 运行](https://github.com/wangdxnum1/RuxCmd/actions/workflows/ci.yml)下载 `ruxcmd-windows-x64-ci` artifact（保留 7 天）；先解压 Actions 下载的文件，再解压其中的 `ruxcmd-<版本>-x86_64-pc-windows-msvc.zip`。
 
@@ -21,7 +25,27 @@
 .\bin\ps.exe --list-columns
 ```
 
-PowerShell 为 `cat`、`ls`、`cp`、`rm` 等名称定义了别名。使用 `.exe` 后缀或完整路径，可明确调用 RuxCmd。
+### 安装脚本
+
+`scripts/install.ps1` 会校验、安装并生成带前缀的入口：
+
+```powershell
+# 使用已下载的 ZIP（读取旁边的 .zip.sha256）：
+pwsh -File scripts/install.ps1 -Source .\ruxcmd-0.4.3-x86_64-pc-windows-msvc.zip
+
+# 或让脚本下载已发布的版本：
+pwsh -File scripts/install.ps1 -Source 0.4.3
+```
+
+安装器在写入任何内容之前校验 SHA256，默认把可执行文件放到 `C:\Users\Tim\Develop\RuxCmd\bin`（可用 `-InstallDir` 覆盖），把文档与构建清单放到 `<InstallDir>\share`，生成下述 `rux-` shim，并在显示变更前后的用户 `PATH` 后追加该目录（`-Force` 跳过确认）。相同版本重复执行不会改动任何文件；升级会先把旧可执行文件复制到 `<InstallDir>.old-<版本>`。`-Uninstall` 移除 shim 和 PATH 项，加 `-RemoveInstallDir` 还会删除已记录的文件。脚本只改用户级 PATH，绝不改机器级 PATH。
+
+### 为什么需要 `rux-` 前缀
+
+`C:\Windows\System32` 排在用户 `PATH` 之前，因此裸名 `find.exe`、`sort.exe`、`where.exe` 永远先命中 Windows 自带工具。PowerShell 还为 `cat`、`ls`、`cp`、`mv`、`rm`、`echo`、`pwd`、`ps`、`kill`、`sleep`、`tee`、`clear`、`curl`、`wget` 定义了别名。安装器因此生成 `rux-<命令>.cmd` shim（如 `rux-find`、`rux-sort`、`rux-cat`），调用同目录下的 RuxCmd 可执行文件并原样传递参数。裸名可执行文件仍保留在安装目录中，可用完整路径调用。`rux` 本身预留给未来的多路复用入口。
+
+### Scoop 与 winget
+
+manifest 源文件保存在 `scripts/packaging/`，但尚未发布：Scoop manifest 需要提交到某个 bucket，winget manifest 需要在通过校验后向 [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) 提交 PR。两者对冲突命令都只暴露 `rux-*`。提交步骤见[发布与安装](docs/development-zh.md#发布与安装)。
 
 包内包含源码与构建清单、逐文件 SHA256 校验和及说明文档。将旁边 `.zip.sha256` 文件中的 ZIP 校验和与以下结果比较：
 

@@ -32,6 +32,22 @@ Cargo 命令可在根使用 `--workspace`，也可在单个 crate 目录运行�
 
 相同版本的包已存在时不会覆盖。脚本默认仅清理本次创建的暂存目录和失败的本次归档，不删除历史发行文件。
 
+## 发布与安装
+
+`scripts/release.ps1` 产出 `dist/ruxcmd-<版本>-x86_64-pc-windows-msvc.zip` 及内容为 `<sha256>  <文件名>` 的 `.zip.sha256`。安装侧不改变发布纪律：显式 `-Tag` 必须等于套件版本并指向当前 checkout，正式打包要求工作区干净。
+
+`scripts/install.ps1` 是安装经过校验的发布包的用户入口，脚本自包含，不加载 `scripts/common.ps1`。输入可以是 ZIP 路径（读取旁边的 `.sha256`，或用 `-Sha256` 显式指定），也可以是 `0.4.3` 这样的版本号（从 GitHub Release 下载）。SHA256 在创建任何目录之前校验；解压到同级的暂存目录，检查路径穿越与重复条目，并验证包内 `SHA256SUMS`，之后才写入目标位置。
+
+布局：可执行文件直接进入 `-InstallDir`（默认 `C:\Users\Tim\Develop\RuxCmd\bin`，相当于归档中的 `bin/`），其余文件进入 `<InstallDir>\share`。`.ruxcmd-install.json` 记录版本、校验和、可执行文件名、shim 名称及旧版本备份，供重复执行与卸载使用。
+
+Windows 先搜索 `C:\Windows\System32`，再搜索用户 `PATH`；PowerShell 别名又会遮蔽许多命令名。因此裸名 `find`、`sort`、`where`、`cat`、`ls`、`cp`、`mv`、`rm`、`echo`、`pwd`、`ps`、`kill`、`sleep`、`tee`、`clear`、`curl`、`wget` 不能可靠地命中 RuxCmd。安装器只为包内实际存在的命令生成 `rux-<命令>.cmd` shim（`@echo off` 与 `"%~dp0<命令>.exe" %*`）；套件不含 `where.exe`，因此不会生成 `rux-where`。`%*` 在常规用法下保留调用方引号；需要让字面引号穿过多层 cmd.exe 的情形仍受 cmd.exe 限制。`rux` 预留给未来的多路复用入口。
+
+升级会先把现有可执行文件、`share` 目录和状态文件复制到 `<InstallDir>.old-<版本>`（无状态文件时使用带时间戳的名称），再替换文件；替换中途失败会从该副本恢复。相同版本与校验和重复执行不会改动任何文件，shim 也只在缺失或内容不同时重写。脚本只通过 `[Environment]::SetEnvironmentVariable(..., 'User')` 修改用户 PATH，并在修改前打印变更前后的完整值；`-Force` 跳过确认。绝不写机器级 PATH 或其他注册表值。测试通过 `RUXCMD_INSTALL_USER_PATH_FILE` 重定向 PATH，不接触真实用户配置。
+
+Scoop 与 winget 源文件位于 `scripts/packaging/`。`scoop/ruxcmd.json` 使用 `extract_dir: "bin"`，并把冲突命令别名到 `rux-*`；只有把它复制到某个 bucket 仓库后，`scoop install ruxcmd` 才能解析。`packaging/winget/` 下的三个文件是 `microsoft/winget-pkgs` 的生成模板；本地 `winget validate --manifest scripts/packaging/winget` 已通过，但正式发布仍需 fork、按版本目录放置并提交 PR。winget 接受未签名的 ZIP 配合 `NestedInstallerType: portable`，首次运行仍可能触发 SmartScreen 警告。由于 winget 对每个可执行文件只能创建一个命令别名，冲突命令只暴露 `rux-*`。
+
+`scripts/tests/install-tests.ps1` 覆盖：校验失败且不写任何文件、首次安装生成 shim 并追加 PATH、幂等（文件时间戳与 PATH 不变）、升级保留旧版本目录，以及带/不带 `-RemoveInstallDir` 的卸载；全部在临时目录中执行。
+
 ## 当前已知问题
 
 - 历史代码含 unused import/variable、dead code 和 Clippy 风格 warning，基线门槛是检查命令成功退出；后续逐步消除。

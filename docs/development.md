@@ -32,6 +32,22 @@ The manifest contains suiteVersion, target, rustcVersion, sourceCommit, dirty, b
 
 Existing packages of the same version are never overwritten. By default the scripts only clean staging directories created by the current run and failed archives of the current run; historical release files are not deleted.
 
+## Release and installation
+
+`scripts/release.ps1` produces `dist/ruxcmd-<version>-x86_64-pc-windows-msvc.zip` plus a `.zip.sha256` sidecar containing `<sha256>  <filename>`. The release discipline is unchanged by the installer: an explicit `-Tag` must equal the suite version and point at the checked-out commit, and a formal package requires a clean tree.
+
+`scripts/install.ps1` is the user entry point for installing a verified package; it is self-contained and does not load `scripts/common.ps1`. It accepts a ZIP path (with its `.sha256` sidecar or an explicit `-Sha256`) or a version such as `0.4.3`, which is downloaded from the GitHub Release. The SHA256 is checked before any directory is created. Extraction goes to a sibling staging directory with zip-slip and duplicate-entry checks, the package's internal `SHA256SUMS` is verified, and only then are files moved into place.
+
+Layout: executables land directly in `-InstallDir` (default `C:\Users\Tim\Develop\RuxCmd\bin`, the equivalent of the archive's `bin/`), and the remaining package files go to `<InstallDir>\share`. `.ruxcmd-install.json` records the version, checksum, executable names, shim names and the previous backup so repeated runs and uninstall are predictable.
+
+Windows searches `C:\Windows\System32` before the user `PATH`, and PowerShell aliases shadow many command names, so bare `find`, `sort`, `where`, `cat`, `ls`, `cp`, `mv`, `rm`, `echo`, `pwd`, `ps`, `kill`, `sleep`, `tee`, `clear`, `curl` and `wget` do not reliably reach RuxCmd. The installer writes `rux-<command>.cmd` shims (`@echo off` and `"%~dp0<command>.exe" %*`) for the commands the package actually contains; `where.exe` is not part of the suite, so no `rux-where` is created. `%*` preserves the caller's quoting for ordinary use; arguments whose literal quotes must survive several cmd.exe layers remain a cmd.exe limitation. `rux` is reserved for a future multi-call entry point.
+
+Upgrades copy the existing executables, `share` directory and state to `<InstallDir>.old-<version>` (or to a timestamped name when no state exists) before replacing files; a failure while replacing restores that copy. Re-running the same version and checksum changes nothing, and shims are only rewritten when missing or different. Only the user PATH is edited, through `[Environment]::SetEnvironmentVariable(..., 'User')`, after printing the exact before/after value; `-Force` skips the prompt. The machine PATH and other registry values are never written. The tests redirect PATH through `RUXCMD_INSTALL_USER_PATH_FILE` so they never touch a real profile.
+
+Scoop and winget sources live in `scripts/packaging/`. `scoop/ruxcmd.json` uses `extract_dir: "bin"` and aliases conflicting commands to `rux-*`; it must be copied into a bucket repository before `scoop install ruxcmd` resolves. The three files in `packaging/winget/` are generated templates for `microsoft/winget-pkgs`; `winget validate --manifest scripts/packaging/winget` succeeds locally, but publication still requires a fork, the versioned directory layout and a pull request. winget accepts the unsigned ZIP with `NestedInstallerType: portable`; SmartScreen may still warn on first use. Because winget creates one command alias per executable, conflicting commands are exposed as `rux-*` only.
+
+`scripts/tests/install-tests.ps1` covers checksum failure before any write, first installation with shims and PATH, idempotence (file timestamps and PATH unchanged), upgrade backup, and uninstall with and without `-RemoveInstallDir`, all in temporary directories.
+
 ## Known issues
 
 - Historical code contains unused imports/variables, dead code, and Clippy style warnings; the baseline gate is that check commands exit successfully, to be cleaned up incrementally.
