@@ -37,6 +37,26 @@ fn main() {
     std::process::exit(exit_code);
 }
 
+/// How an existing destination is treated. GNU cp overwrites by default; -n
+/// and -i share one interactive setting and the last one on the command line
+/// wins, while -f is an independent switch that does not settle that race.
+#[derive(Clone, Copy)]
+enum Overwrite {
+    Allow,
+    Prompt,
+    Skip,
+}
+
+fn overwrite_decision(args: &cli::Args) -> Overwrite {
+    if args.no_clobber {
+        Overwrite::Skip
+    } else if args.interactive {
+        Overwrite::Prompt
+    } else {
+        Overwrite::Allow
+    }
+}
+
 fn copy_file(source: &Path, dest: &Path, args: &cli::Args) -> Result<(), String> {
     if !source.exists() {
         return Err(format!(
@@ -68,22 +88,21 @@ fn copy_file(source: &Path, dest: &Path, args: &cli::Args) -> Result<(), String>
             dest.to_path_buf()
         };
 
-        if dest_path.exists() && !args.force {
-            if args.interactive {
-                if !prompt_yes_no(&format!("cp: overwrite '{}'? ", dest_path.display())) {
-                    return Ok(());
+        if dest_path.exists() {
+            match overwrite_decision(args) {
+                Overwrite::Skip => return Ok(()),
+                Overwrite::Prompt => {
+                    if !prompt_yes_no(&format!("cp: overwrite '{}'? ", dest_path.display())) {
+                        return Ok(());
+                    }
                 }
-            } else {
-                return Err(format!(
-                    "cannot create regular file '{}': File exists",
-                    dest_path.display()
-                ));
+                Overwrite::Allow => {}
             }
         }
 
         if dest_path.exists() {
-            // -f must be able to overwrite a Windows read-only destination
-            // (fs::copy would fail with "Access is denied").
+            // fs::copy cannot replace a Windows read-only destination
+            // ("Access is denied"), so the read-only bit is cleared first.
             let _ = ruxcmd_core::fsutil::clear_readonly(&dest_path);
         }
 
@@ -166,23 +185,24 @@ fn copy_directory(source: &Path, dest: &Path, args: &cli::Args) -> Result<(), St
         if entry_metadata.is_dir() {
             copy_directory(&entry_path, &dest_entry_path, args)?;
         } else {
-            if dest_entry_path.exists() && !args.force {
-                if args.interactive {
-                    if !prompt_yes_no(&format!("cp: overwrite '{}'? ", dest_entry_path.display())) {
-                        continue;
+            if dest_entry_path.exists() {
+                match overwrite_decision(args) {
+                    Overwrite::Skip => continue,
+                    Overwrite::Prompt => {
+                        if !prompt_yes_no(&format!(
+                            "cp: overwrite '{}'? ",
+                            dest_entry_path.display()
+                        )) {
+                            continue;
+                        }
                     }
-                } else {
-                    eprintln!(
-                        "cp: cannot create regular file '{}': File exists",
-                        dest_entry_path.display()
-                    );
-                    continue;
+                    Overwrite::Allow => {}
                 }
             }
 
             if dest_entry_path.exists() {
-                // Overwrite may proceed (-f or interactive yes): clear the
-                // read-only bit first so fs::copy can replace the file.
+                // Clear the read-only bit first so fs::copy can replace the
+                // file instead of failing with "Access is denied".
                 let _ = ruxcmd_core::fsutil::clear_readonly(&dest_entry_path);
             }
 

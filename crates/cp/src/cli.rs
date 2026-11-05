@@ -14,8 +14,12 @@ pub struct Args {
     pub force: bool,
 
     /// Prompt before overwrite
-    #[arg(short = 'i', long = "interactive")]
+    #[arg(short = 'i', long = "interactive", overrides_with = "no_clobber")]
     pub interactive: bool,
+
+    /// Do not overwrite an existing file
+    #[arg(short = 'n', long = "no-clobber", overrides_with = "interactive")]
+    pub no_clobber: bool,
 
     /// Preserve file attributes
     #[arg(short = 'p', long = "preserve")]

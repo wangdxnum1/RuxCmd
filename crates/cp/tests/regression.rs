@@ -161,7 +161,20 @@ fn recursive_copy_into_existing_dir_keeps_source_name() {
 }
 
 #[test]
-fn default_refuses_overwriting_existing_file() {
+fn default_overwrites_existing_file() {
+    let tmp = tempfile::tempdir().unwrap();
+    let a = tmp.path().join("a.txt");
+    let b = tmp.path().join("b.txt");
+    fs::write(&a, "A").unwrap();
+    fs::write(&b, "B").unwrap();
+
+    // GNU cp overwrites an existing destination by default.
+    cargo_bin_cmd!("cp").arg(&a).arg(&b).assert().success();
+    assert_eq!(fs::read_to_string(&b).unwrap(), "A");
+}
+
+#[test]
+fn no_clobber_skips_existing_file() {
     let tmp = tempfile::tempdir().unwrap();
     let a = tmp.path().join("a.txt");
     let b = tmp.path().join("b.txt");
@@ -169,10 +182,68 @@ fn default_refuses_overwriting_existing_file() {
     fs::write(&b, "B").unwrap();
 
     cargo_bin_cmd!("cp")
+        .arg("-n")
         .arg(&a)
         .arg(&b)
         .assert()
-        .failure()
-        .code(1);
+        .success();
+    assert_eq!(fs::read_to_string(&a).unwrap(), "A", "source must survive");
+    assert_eq!(
+        fs::read_to_string(&b).unwrap(),
+        "B",
+        "destination must survive"
+    );
+}
+
+#[test]
+fn no_clobber_wins_over_force_in_both_orders() {
+    let tmp = tempfile::tempdir().unwrap();
+    let a = tmp.path().join("a.txt");
+    let b = tmp.path().join("b.txt");
+    fs::write(&a, "A").unwrap();
+
+    for flags in [["-n", "-f"], ["-f", "-n"]] {
+        fs::write(&b, "B").unwrap();
+        cargo_bin_cmd!("cp")
+            .args(flags)
+            .arg(&a)
+            .arg(&b)
+            .assert()
+            .success();
+        assert_eq!(
+            fs::read_to_string(&b).unwrap(),
+            "B",
+            "-n must win over -f in order {flags:?}"
+        );
+    }
+}
+
+#[test]
+fn last_interactive_flag_wins() {
+    let tmp = tempfile::tempdir().unwrap();
+    let a = tmp.path().join("a.txt");
+    let b = tmp.path().join("b.txt");
+    fs::write(&a, "A").unwrap();
+
+    // -i comes last: prompt, answer y, overwrite.
+    fs::write(&b, "B").unwrap();
+    cargo_bin_cmd!("cp")
+        .args(["-n", "-i"])
+        .arg(&a)
+        .arg(&b)
+        .write_stdin("y\n")
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(&b).unwrap(), "A");
+
+    // -n comes last: skip silently, stdin is not consumed.
+    fs::write(&b, "B").unwrap();
+    cargo_bin_cmd!("cp")
+        .args(["-i", "-n"])
+        .arg(&a)
+        .arg(&b)
+        .write_stdin("y\n")
+        .assert()
+        .success();
     assert_eq!(fs::read_to_string(&b).unwrap(), "B");
 }

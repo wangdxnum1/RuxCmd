@@ -24,7 +24,7 @@
 | cmp | --silent, --verbose, --version | 冒烟 + 行为测试 | GNU 退出码（0/1/2），differ 消息走 stdout（char N、line M），带引号的 EOF 消息含字节/行上下文，-l 八进制清单，单操作数与 stdin 比较，-l/-s 互斥拒绝。 |
 | column | --output-separator, --separator, --table, --table-header-repeat, --table-right, --version | 冒烟 + 行为测试 | -t 模式未给 -s 时连续空白折叠为单一分隔符；显式 -s 按字符切分不折叠。默认 fill 模式未实现。 |
 | comm | --version, --zero-terminated | 冒烟 + 行为测试 | 支持 -z NUL 记录及原始字节比较；-1/-2/-3 隐藏列后压缩剩余列的 TAB 前缀。要求两个文件操作数，输入已按相同字节顺序排序；不支持 stdin 操作数、GNU 排序校验诊断和 --total。 |
-| cp | --force, --interactive, --preserve, --recursive, --symbolic-link, --verbose | 冒烟 + 行为测试 | -f 覆盖前清除目标的只读属性。以 `.`/`..` 结尾的源将内容并入已存在的目标目录（目标不存在时报错）；多源时目标必须是已存在目录。 |
+| cp | --force, --interactive, --no-clobber, --preserve, --recursive, --symbolic-link, --verbose | 冒烟 + 行为测试 | 默认覆盖已存在的可写目标（对齐 GNU）；`-n` 静默跳过并退出 0；`-n` 与 `-i` 以最后出现者为准，`-f` 为独立开关。`-f` 覆盖前清除目标的只读属性。以 `.`/`..` 结尾的源将内容并入已存在的目标目录（目标不存在时报错）；多源时目标必须是已存在目录。 |
 | csplit | --digits, --elide-empty-files, --keep-files, --prefix, --quiet | 冒烟 + 行为测试 | 行号须 >0、升序且不超过文件末尾，否则退出 1。模式仅支持子串与行号；/re/+N、{N} 等 GNU 语法报错退出 1；模式不匹配退出 1（无 -k 时删除输出文件）。--suffix-format 已移除。 |
 | curl | --data, --header, --output, --request, --silent, --version, --include, --head, --fail, --location | 冒烟 + 行为测试 | 默认仅输出 body（-i 加响应头）；-d 隐含 POST；重定向默认关闭（-L 手动跟随，最多 10 次）；-f 对 HTTP >= 400 退出 22。HTTPS/TLS 与联网行为尚未验证。 |
 | cut | --bytes, --characters, --delimiter, --fields, --only-delimited, --output-delimiter, --zero-terminated | 冒烟 + 行为测试 | 支持 -z NUL 记录；字节和字段选择保持原始数据，-c 对合法 UTF-8 记录按字符选择，非法输入回退为字节。NUL 模式保留 CR/LF，默认 LF 模式仍剥 CRLF。无字段分隔符的记录默认透传，-s 时抑制；本端既有 -s 也作用于 -b/-c（与 GNU 不同）。不支持 -n/--complement。 |
