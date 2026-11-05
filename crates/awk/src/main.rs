@@ -11,7 +11,15 @@ use std::io::{BufRead, BufReader, Read};
 /// store, so arrays cannot collide with scalar variables.
 const ARRAY_SEP: &str = "\u{1}";
 
-type GetlineSources = std::cell::RefCell<HashMap<String, (Vec<String>, usize)>>;
+/// An open `getline < file` source. GNU awk keeps the descriptor open until
+/// `close(file)`, so records are pulled on demand instead of preloading the
+/// whole file; memory stays bounded by one line.
+struct GetlineSource {
+    reader: BufReader<File>,
+    buffer: String,
+}
+
+type GetlineSources = std::cell::RefCell<HashMap<String, GetlineSource>>;
 
 enum OutHandle {
     File(std::fs::File),
@@ -537,11 +545,9 @@ fn main() {
         execute_block(action, &mut vars);
     }
 
-    let mut exit_code = 0i32;
-    MAIN_INPUT_ITEMS.with(|items| {
-        *items.borrow_mut() = load_main_input(&args, &mut exit_code);
+    MAIN_INPUT.with(|input| {
+        *input.borrow_mut() = MainInput::new(&args);
     });
-    MAIN_INPUT_POS.set(0);
 
     // The record cursor is shared with `getline` from the main input, so a
     // getline consumes the next record of the same file and can cross into the
@@ -570,62 +576,86 @@ fn main() {
     PIPE_INPUTS.with(|p| close_pipe_inputs(&mut p.borrow_mut()));
     COPROCESSES.with(|p| close_coprocesses(&mut p.borrow_mut()));
 
+    let exit_code = MAIN_INPUT.with(|input| input.borrow().exit_code);
     std::process::exit(exit_code);
 }
 
-/// One event of the main input stream. `Open` marks the start of an input
-/// file so `FNR` can be reset even when the file is empty; `Record` carries a
-/// line. `getline` skips `Open` events transparently.
-enum InputItem {
-    Open,
-    Record(String),
+/// One operand of the main input stream.
+enum MainSource {
+    Stdin,
+    File(std::path::PathBuf),
 }
 
-/// Read every input source up front so the main loop and main-input `getline`
-/// share one cursor and can cross file boundaries like gawk.
-fn load_main_input(args: &cli::Args, exit_code: &mut i32) -> Vec<InputItem> {
-    let mut items = Vec::new();
-    if args.files.is_empty() {
-        let stdin = std::io::stdin();
-        if let Err(e) = push_reader_items(&mut items, stdin.lock()) {
-            eprintln!("awk: error reading stdin: {}", e);
-            *exit_code = 1;
+/// Lazily opened main input: only the current file is open and only one record
+/// is buffered, so peak memory does not grow with the input size. The main loop
+/// and main-input `getline` share this cursor, so `getline` consumes the same
+/// records and can cross into the following file, exactly like gawk.
+struct MainInput {
+    sources: Vec<MainSource>,
+    next_source: usize,
+    reader: Option<Box<dyn BufRead>>,
+    buffer: String,
+    exit_code: i32,
+}
+
+impl MainInput {
+    fn empty() -> Self {
+        Self {
+            sources: Vec::new(),
+            next_source: 0,
+            reader: None,
+            buffer: String::new(),
+            exit_code: 0,
         }
-    } else {
-        for path in &args.files {
-            if path.to_string_lossy() == "-" {
-                let stdin = std::io::stdin();
-                if let Err(e) = push_reader_items(&mut items, stdin.lock()) {
-                    eprintln!("awk: error reading stdin: {}", e);
-                    *exit_code = 1;
-                }
-            } else {
-                match File::open(path) {
-                    Ok(file) => {
-                        if let Err(e) = push_reader_items(&mut items, BufReader::new(file)) {
-                            eprintln!("awk: {}: {}", path.display(), e);
-                            *exit_code = 1;
-                        }
+    }
+
+    fn new(args: &cli::Args) -> Self {
+        let sources = if args.files.is_empty() {
+            vec![MainSource::Stdin]
+        } else {
+            args.files
+                .iter()
+                .map(|path| {
+                    if path.to_string_lossy() == "-" {
+                        MainSource::Stdin
+                    } else {
+                        MainSource::File(path.clone())
                     }
+                })
+                .collect()
+        };
+        Self {
+            sources,
+            ..Self::empty()
+        }
+    }
+
+    /// Open the next operand, resetting `FNR` when the open succeeds (an empty
+    /// file still resets it, like gawk). A missing file is reported in input
+    /// order and the stream continues with the following operand.
+    fn advance(&mut self, vars: &mut HashMap<String, String>) -> bool {
+        while self.next_source < self.sources.len() {
+            let source = &self.sources[self.next_source];
+            self.next_source += 1;
+            let opened: Option<Box<dyn BufRead>> = match source {
+                MainSource::Stdin => Some(Box::new(BufReader::new(std::io::stdin()))),
+                MainSource::File(path) => match File::open(path) {
+                    Ok(file) => Some(Box::new(BufReader::new(file))),
                     Err(e) => {
                         eprintln!("awk: {}: {}", path.display(), e);
-                        *exit_code = 1;
+                        self.exit_code = 1;
+                        None
                     }
-                }
+                },
+            };
+            if let Some(reader) = opened {
+                self.reader = Some(reader);
+                vars.insert("FNR".to_string(), "0".to_string());
+                return true;
             }
         }
+        false
     }
-    items
-}
-
-fn push_reader_items<R: BufRead>(items: &mut Vec<InputItem>, mut reader: R) -> std::io::Result<()> {
-    items.push(InputItem::Open);
-    let mut line = String::new();
-    while reader.read_line(&mut line)? > 0 {
-        items.push(InputItem::Record(line.trim_end().to_string()));
-        line.clear();
-    }
-    Ok(())
 }
 
 /// Advance `NR` and `FNR` by one record. The variables are the source of truth
@@ -645,20 +675,28 @@ fn account_record(vars: &mut HashMap<String, String>) {
 /// Pull the next main-input record, applying the per-file `FNR` reset and the
 /// `NR`/`FNR` increments. Returns `None` once every input file is exhausted.
 fn next_main_record(vars: &mut HashMap<String, String>) -> Option<String> {
-    MAIN_INPUT_ITEMS.with(|items| {
-        let items = items.borrow();
+    MAIN_INPUT.with(|input| {
+        let mut input = input.borrow_mut();
         loop {
-            let pos = MAIN_INPUT_POS.get();
-            match items.get(pos)? {
-                InputItem::Open => {
-                    MAIN_INPUT_POS.set(pos + 1);
-                    vars.insert("FNR".to_string(), "0".to_string());
-                }
-                InputItem::Record(line) => {
-                    MAIN_INPUT_POS.set(pos + 1);
-                    let line = line.clone();
+            if input.reader.is_none() && !input.advance(vars) {
+                return None;
+            }
+            // Take the reader out so the shared buffer can be borrowed
+            // alongside it; it is put back after a successful read.
+            let mut reader = input.reader.take()?;
+            input.buffer.clear();
+            match reader.read_line(&mut input.buffer) {
+                Ok(0) => continue,
+                Ok(_) => {
+                    input.reader = Some(reader);
+                    let line = input.buffer.trim_end().to_string();
                     account_record(vars);
                     return Some(line);
+                }
+                Err(e) => {
+                    eprintln!("awk: {}", e);
+                    input.exit_code = 1;
+                    continue;
                 }
             }
         }
@@ -1535,29 +1573,48 @@ fn getline_from_file(path: &str) -> (Value, String) {
     GETLINE_SOURCES.with(|src| {
         let mut map = src.borrow_mut();
         if !map.contains_key(path) {
-            match std::fs::read_to_string(path) {
-                Ok(content) => {
-                    let lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
-                    map.insert(path.to_string(), (lines, 0));
+            match File::open(path) {
+                Ok(file) => {
+                    map.insert(
+                        path.to_string(),
+                        GetlineSource {
+                            reader: BufReader::new(file),
+                            buffer: String::new(),
+                        },
+                    );
                 }
                 Err(_) => return (Value::Num(-1.0), String::new()),
             }
         }
-        let (lines, pos) = map.get_mut(path).unwrap();
-        if *pos < lines.len() {
-            let line = lines[*pos].clone();
-            *pos += 1;
-            (Value::Num(1.0), line)
-        } else {
-            (Value::Num(0.0), String::new())
+        // Records share the `str::lines` result GNU gives: a trailing `\r` is
+        // stripped but interior/trailing spaces are kept.
+        let outcome = {
+            let source = map.get_mut(path).expect("source inserted above");
+            source.buffer.clear();
+            match source.reader.read_line(&mut source.buffer) {
+                Ok(0) => Ok(None),
+                Ok(_) => Ok(Some(
+                    source.buffer.trim_end_matches(['\r', '\n']).to_string(),
+                )),
+                Err(_) => Err(()),
+            }
+        };
+        match outcome {
+            Ok(Some(line)) => (Value::Num(1.0), line),
+            Ok(None) => (Value::Num(0.0), String::new()),
+            Err(()) => {
+                map.remove(path);
+                (Value::Num(-1.0), String::new())
+            }
         }
     })
 }
 
 thread_local! {
-    static MAIN_INPUT_ITEMS: std::cell::RefCell<Vec<InputItem>> =
-        const { std::cell::RefCell::new(Vec::new()) };
-    static MAIN_INPUT_POS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Main input cursor, created after BEGIN so a BEGIN-stage `getline`
+    /// cannot consume main input.
+    static MAIN_INPUT: std::cell::RefCell<MainInput> =
+        std::cell::RefCell::new(MainInput::empty());
 }
 
 /// `getline` from the main input: shares the main loop's cursor, so it consumes
