@@ -75,6 +75,14 @@ fn max_count_caps_the_count_output() {
 }
 
 #[test]
+fn max_count_still_prints_the_trailing_context() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("m.txt"), "x\nhit\ntail1\ntail2\n").unwrap();
+    let out = stdout_of(dir.path(), &["-m", "1", "-A", "1", "hit", "m.txt"]);
+    assert_eq!(out, "hit\ntail1\n");
+}
+
+#[test]
 fn max_count_zero_matches_nothing() {
     let dir = tree();
     cargo_bin_cmd!("grep")

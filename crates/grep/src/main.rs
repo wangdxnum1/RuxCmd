@@ -322,6 +322,7 @@ fn grep_reader<R: BufRead>(
     let mut pending: VecDeque<(u64, Vec<u8>)> = VecDeque::new();
     let mut after_remaining = 0usize;
     let mut last_printed: Option<u64> = None;
+    let mut limit_reached = false;
 
     for line in ByteLines::with_separator(reader, record_separator(args)) {
         let raw = match line {
@@ -333,10 +334,15 @@ fn grep_reader<R: BufRead>(
         };
         line_num += 1;
 
+        // After -m's quota is filled, only the trailing context still prints.
+        if limit_reached && after_remaining == 0 {
+            break;
+        }
+
         let hay = String::from_utf8_lossy(&raw);
         let selected = matcher.is_match(&hay) != args.invert_match;
 
-        if selected {
+        if selected && !limit_reached {
             count += 1;
             if args.quiet {
                 break;
@@ -377,9 +383,10 @@ fn grep_reader<R: BufRead>(
                 last_printed = Some(line_num);
             }
             after_remaining = after;
-            // GNU stops reading a file at the NUMth match (-m 0 never reads).
+            // GNU stops counting at the NUMth match (-m 0 never reads) but
+            // still prints the trailing context it owes for that match.
             if args.max_count.is_some_and(|max| count >= max) {
-                break;
+                limit_reached = true;
             }
         } else if after_remaining > 0 {
             after_remaining -= 1;
