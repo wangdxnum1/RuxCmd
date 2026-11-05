@@ -79,6 +79,7 @@ try {
         & (Join-Path $PSScriptRoot 'tests/version-resource-tests.ps1')
         & (Join-Path $PSScriptRoot 'tests/package-tests.ps1') -BinDir $binaryDirectory -DebugBuild:($Configuration -eq 'Debug')
         & (Join-Path $PSScriptRoot 'tests/entrypoint-tests.ps1')
+        & (Join-Path $PSScriptRoot 'tests/install-tests.ps1')
     }
     if ($Task -eq 'Clean') {
         $cleanProfile = if ($Configuration -eq 'Release') { 'release' } else { 'dev' }
