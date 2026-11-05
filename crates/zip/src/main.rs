@@ -2,101 +2,127 @@ mod cli;
 
 use clap::Parser;
 use cli::Args;
-use std::process::Command;
-
-/// Quotes `s` for safe embedding in a PowerShell command string: wraps it in
-/// single quotes and doubles any embedded single quote. Inside single quotes
-/// PowerShell performs no interpolation, so spaces, `;`, `$()`, `&`, `%`, `"`
-/// and non-ASCII characters all stay literal.
-fn escape_ps_single_quote(s: &str) -> String {
-    format!("'{}'", s.replace('\'', "''"))
-}
+use std::fs::{self, File};
+use std::io;
+use std::path::{Path, PathBuf};
+use zip::write::SimpleFileOptions;
+use zip::{CompressionMethod, ZipWriter};
 
 fn main() {
     let args = Args::parse();
-
-    let zipfile = escape_ps_single_quote(&args.zipfile.to_string_lossy());
-    let files: Vec<String> = args
-        .files
-        .iter()
-        .map(|p| escape_ps_single_quote(p.to_str().unwrap_or("")))
-        .collect();
-
-    let recurse_flag = if args.recurse { "-r" } else { "" };
-
-    let result = Command::new("powershell")
-        .args([
-            "-Command",
-            &format!(
-                "Compress-Archive {} -Path {} -DestinationPath {} -Force",
-                recurse_flag,
-                files.join(", "),
-                zipfile
-            ),
-        ])
-        .output();
-
-    match result {
-        Ok(output) => {
-            if !output.stdout.is_empty() {
-                print!("{}", String::from_utf8_lossy(&output.stdout));
-            }
-            if !output.stderr.is_empty() {
-                eprint!("{}", String::from_utf8_lossy(&output.stderr));
-            }
-            std::process::exit(output.status.code().unwrap_or(1));
-        }
-        Err(e) => {
-            eprintln!("zip: {}", e);
-            std::process::exit(1);
-        }
+    if let Err(e) = run(&args) {
+        eprintln!("zip: {}", e);
+        std::process::exit(1);
     }
+}
+
+fn run(args: &Args) -> Result<(), String> {
+    let file = File::create(&args.zipfile)
+        .map_err(|e| format!("cannot create '{}': {}", args.zipfile.display(), e))?;
+    let mut writer = ZipWriter::new(file);
+
+    for path in &args.files {
+        add_path(&mut writer, path, args)?;
+    }
+
+    writer
+        .finish()
+        .map_err(|e| format!("failed to finish archive: {e}"))?;
+    Ok(())
+}
+
+fn add_path<W: io::Write + io::Seek>(
+    writer: &mut ZipWriter<W>,
+    path: &Path,
+    args: &Args,
+) -> Result<(), String> {
+    let metadata = fs::metadata(path).map_err(|e| format!("{}: {}", path.display(), e))?;
+
+    if metadata.is_dir() {
+        add_directory(writer, path, args)?;
+        if !args.recurse {
+            return Ok(());
+        }
+        let mut children: Vec<PathBuf> = fs::read_dir(path)
+            .map_err(|e| format!("cannot read directory '{}': {}", path.display(), e))?
+            .flatten()
+            .map(|entry| entry.path())
+            .collect();
+        children.sort();
+        for child in children {
+            add_path(writer, &child, args)?;
+        }
+        return Ok(());
+    }
+
+    add_file(writer, path, args)
+}
+
+fn add_directory<W: io::Write + io::Seek>(
+    writer: &mut ZipWriter<W>,
+    path: &Path,
+    args: &Args,
+) -> Result<(), String> {
+    let name = archive_name(path, true);
+    let options = SimpleFileOptions::default()
+        .compression_method(CompressionMethod::Stored)
+        .unix_permissions(0o755);
+    writer
+        .add_directory(name.as_str(), options)
+        .map_err(|e| format!("cannot add '{}': {}", path.display(), e))?;
+    if !args.quiet {
+        println!("  adding: {name}");
+    }
+    Ok(())
+}
+
+fn add_file<W: io::Write + io::Seek>(
+    writer: &mut ZipWriter<W>,
+    path: &Path,
+    args: &Args,
+) -> Result<(), String> {
+    let name = archive_name(path, false);
+    let options = SimpleFileOptions::default()
+        .compression_method(CompressionMethod::Deflated)
+        .unix_permissions(0o644);
+    writer
+        .start_file(name.as_str(), options)
+        .map_err(|e| format!("cannot add '{}': {}", path.display(), e))?;
+    let mut source = File::open(path).map_err(|e| format!("{}: {}", path.display(), e))?;
+    io::copy(&mut source, writer).map_err(|e| format!("cannot add '{}': {}", path.display(), e))?;
+    if !args.quiet {
+        println!("  adding: {name}");
+    }
+    Ok(())
+}
+
+/// Archive names use forward slashes and keep the path as the user typed it,
+/// minus a leading `./`; directories get a trailing slash.
+fn archive_name(path: &Path, is_dir: bool) -> String {
+    let mut name = path.to_string_lossy().replace('\\', "/");
+    while let Some(stripped) = name.strip_prefix("./") {
+        name = stripped.to_string();
+    }
+    if is_dir && !name.ends_with('/') {
+        name.push('/');
+    }
+    name
 }
 
 #[cfg(test)]
 mod tests {
-    use super::escape_ps_single_quote;
+    use super::archive_name;
+    use std::path::Path;
 
     #[test]
-    fn wraps_plain_name_in_single_quotes() {
-        assert_eq!(escape_ps_single_quote("file.txt"), "'file.txt'");
+    fn archive_names_use_forward_slashes() {
+        assert_eq!(archive_name(Path::new("a\\b.txt"), false), "a/b.txt");
+        assert_eq!(archive_name(Path::new("./a.txt"), false), "a.txt");
     }
 
     #[test]
-    fn keeps_spaces_literal() {
-        assert_eq!(escape_ps_single_quote("my file.txt"), "'my file.txt'");
-        assert_eq!(escape_ps_single_quote("my out.zip"), "'my out.zip'");
-    }
-
-    #[test]
-    fn doubles_embedded_single_quotes() {
-        assert_eq!(escape_ps_single_quote("it's.txt"), "'it''s.txt'");
-        assert_eq!(escape_ps_single_quote("a'b'c.txt"), "'a''b''c.txt'");
-    }
-
-    #[test]
-    fn keeps_metacharacters_literal() {
-        // Before the fix each of these could terminate or inject into the
-        // unquoted command string; inside single quotes they are inert.
-        assert_eq!(escape_ps_single_quote("a;b.txt"), "'a;b.txt'");
-        assert_eq!(escape_ps_single_quote("$(calc).txt"), "'$(calc).txt'");
-        assert_eq!(escape_ps_single_quote("a&b.txt"), "'a&b.txt'");
-        assert_eq!(escape_ps_single_quote("a%b.txt"), "'a%b.txt'");
-        // `"` needs no doubling inside a single-quoted string (and is illegal
-        // in NTFS file names anyway); it must stay a literal character.
-        assert_eq!(escape_ps_single_quote("a\"b.txt"), "'a\"b.txt'");
-    }
-
-    #[test]
-    fn keeps_non_ascii_literal() {
-        assert_eq!(escape_ps_single_quote("文件 名.txt"), "'文件 名.txt'");
-    }
-
-    #[test]
-    fn combines_all_hostile_characters() {
-        assert_eq!(
-            escape_ps_single_quote("it's; $(calc) & 100%.txt"),
-            "'it''s; $(calc) & 100%.txt'"
-        );
+    fn directories_get_a_trailing_slash() {
+        assert_eq!(archive_name(Path::new("dir"), true), "dir/");
+        assert_eq!(archive_name(Path::new("dir/"), true), "dir/");
     }
 }
