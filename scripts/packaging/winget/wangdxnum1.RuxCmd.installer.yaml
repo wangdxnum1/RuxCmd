@@ -1,0 +1,178 @@
+# Generated from the verified release package; regenerate for every version.
+# This directory is a source template, not a published manifest. To submit,
+# copy the three files to manifests/w/wangdxnum1/RuxCmd/<version>/ in a fork of
+# microsoft/winget-pkgs, run `winget validate --manifest <dir>`, commit and open
+# a pull request. The ZIP contains unsigned executables: winget accepts
+# zip/nested-portable installers without Authenticode signing, but Windows
+# SmartScreen may still warn on first use. Aliases starting with rux- are used
+# for names that Windows or PowerShell already shadows; winget creates one
+# alias per file, so those commands are not exposed without the prefix.
+PackageIdentifier: wangdxnum1.RuxCmd
+PackageVersion: 0.4.3
+InstallerType: zip
+NestedInstallerType: portable
+NestedInstallerFiles:
+  - RelativeFilePath: bin\awk.exe
+  - RelativeFilePath: bin\b2sum.exe
+  - RelativeFilePath: bin\base32.exe
+  - RelativeFilePath: bin\base64.exe
+  - RelativeFilePath: bin\basename.exe
+  - RelativeFilePath: bin\bc.exe
+  - RelativeFilePath: bin\cal.exe
+  - RelativeFilePath: bin\cat.exe
+    PortableCommandAlias: rux-cat
+  - RelativeFilePath: bin\chgrp.exe
+  - RelativeFilePath: bin\chmod.exe
+  - RelativeFilePath: bin\chown.exe
+  - RelativeFilePath: bin\cksum.exe
+  - RelativeFilePath: bin\clear.exe
+    PortableCommandAlias: rux-clear
+  - RelativeFilePath: bin\cmp.exe
+  - RelativeFilePath: bin\column.exe
+  - RelativeFilePath: bin\comm.exe
+  - RelativeFilePath: bin\cp.exe
+    PortableCommandAlias: rux-cp
+  - RelativeFilePath: bin\csplit.exe
+  - RelativeFilePath: bin\curl.exe
+    PortableCommandAlias: rux-curl
+  - RelativeFilePath: bin\cut.exe
+  - RelativeFilePath: bin\date.exe
+  - RelativeFilePath: bin\dd.exe
+  - RelativeFilePath: bin\df.exe
+  - RelativeFilePath: bin\diff.exe
+  - RelativeFilePath: bin\dirname.exe
+  - RelativeFilePath: bin\du.exe
+  - RelativeFilePath: bin\echo.exe
+    PortableCommandAlias: rux-echo
+  - RelativeFilePath: bin\env.exe
+  - RelativeFilePath: bin\envsubst.exe
+  - RelativeFilePath: bin\expand.exe
+  - RelativeFilePath: bin\expr.exe
+  - RelativeFilePath: bin\factor.exe
+  - RelativeFilePath: bin\false.exe
+  - RelativeFilePath: bin\file.exe
+  - RelativeFilePath: bin\find.exe
+    PortableCommandAlias: rux-find
+  - RelativeFilePath: bin\fmt.exe
+  - RelativeFilePath: bin\fold.exe
+  - RelativeFilePath: bin\free.exe
+  - RelativeFilePath: bin\grep.exe
+  - RelativeFilePath: bin\groups.exe
+  - RelativeFilePath: bin\gunzip.exe
+  - RelativeFilePath: bin\head.exe
+  - RelativeFilePath: bin\hexdump.exe
+  - RelativeFilePath: bin\hostid.exe
+  - RelativeFilePath: bin\hostname.exe
+  - RelativeFilePath: bin\iconv.exe
+  - RelativeFilePath: bin\id.exe
+  - RelativeFilePath: bin\install.exe
+  - RelativeFilePath: bin\iostat.exe
+  - RelativeFilePath: bin\join.exe
+  - RelativeFilePath: bin\kill.exe
+    PortableCommandAlias: rux-kill
+  - RelativeFilePath: bin\link.exe
+  - RelativeFilePath: bin\ln.exe
+  - RelativeFilePath: bin\logger.exe
+  - RelativeFilePath: bin\logname.exe
+  - RelativeFilePath: bin\ls.exe
+    PortableCommandAlias: rux-ls
+  - RelativeFilePath: bin\md5sum.exe
+  - RelativeFilePath: bin\mkdir.exe
+  - RelativeFilePath: bin\mkfifo.exe
+  - RelativeFilePath: bin\mktemp.exe
+  - RelativeFilePath: bin\mpstat.exe
+  - RelativeFilePath: bin\mv.exe
+    PortableCommandAlias: rux-mv
+  - RelativeFilePath: bin\netstat.exe
+  - RelativeFilePath: bin\nice.exe
+  - RelativeFilePath: bin\nl.exe
+  - RelativeFilePath: bin\nohup.exe
+  - RelativeFilePath: bin\nproc.exe
+  - RelativeFilePath: bin\nslookup.exe
+  - RelativeFilePath: bin\numfmt.exe
+  - RelativeFilePath: bin\od.exe
+  - RelativeFilePath: bin\open.exe
+  - RelativeFilePath: bin\paste.exe
+  - RelativeFilePath: bin\patch.exe
+  - RelativeFilePath: bin\pathchk.exe
+  - RelativeFilePath: bin\pgrep.exe
+  - RelativeFilePath: bin\ping.exe
+  - RelativeFilePath: bin\pkill.exe
+  - RelativeFilePath: bin\pr.exe
+  - RelativeFilePath: bin\printenv.exe
+  - RelativeFilePath: bin\printf.exe
+  - RelativeFilePath: bin\ps.exe
+    PortableCommandAlias: rux-ps
+  - RelativeFilePath: bin\pwd.exe
+    PortableCommandAlias: rux-pwd
+  - RelativeFilePath: bin\readlink.exe
+  - RelativeFilePath: bin\realpath.exe
+  - RelativeFilePath: bin\reset.exe
+  - RelativeFilePath: bin\rev.exe
+  - RelativeFilePath: bin\rm.exe
+    PortableCommandAlias: rux-rm
+  - RelativeFilePath: bin\rmdir.exe
+  - RelativeFilePath: bin\sar.exe
+  - RelativeFilePath: bin\sed.exe
+  - RelativeFilePath: bin\seq.exe
+  - RelativeFilePath: bin\sha1sum.exe
+  - RelativeFilePath: bin\sha256sum.exe
+  - RelativeFilePath: bin\sha3sum.exe
+  - RelativeFilePath: bin\sha512sum.exe
+  - RelativeFilePath: bin\shred.exe
+  - RelativeFilePath: bin\shuf.exe
+  - RelativeFilePath: bin\sleep.exe
+    PortableCommandAlias: rux-sleep
+  - RelativeFilePath: bin\sort.exe
+    PortableCommandAlias: rux-sort
+  - RelativeFilePath: bin\split.exe
+  - RelativeFilePath: bin\stat.exe
+  - RelativeFilePath: bin\strings.exe
+  - RelativeFilePath: bin\sum.exe
+  - RelativeFilePath: bin\sync.exe
+  - RelativeFilePath: bin\tac.exe
+  - RelativeFilePath: bin\tail.exe
+  - RelativeFilePath: bin\tar.exe
+  - RelativeFilePath: bin\tee.exe
+    PortableCommandAlias: rux-tee
+  - RelativeFilePath: bin\test.exe
+  - RelativeFilePath: bin\time.exe
+  - RelativeFilePath: bin\timeout.exe
+  - RelativeFilePath: bin\top.exe
+  - RelativeFilePath: bin\touch.exe
+  - RelativeFilePath: bin\tr.exe
+  - RelativeFilePath: bin\traceroute.exe
+  - RelativeFilePath: bin\tree.exe
+  - RelativeFilePath: bin\true.exe
+  - RelativeFilePath: bin\truncate.exe
+  - RelativeFilePath: bin\tsort.exe
+  - RelativeFilePath: bin\tty.exe
+  - RelativeFilePath: bin\uname.exe
+  - RelativeFilePath: bin\unexpand.exe
+  - RelativeFilePath: bin\uniq.exe
+  - RelativeFilePath: bin\unlink.exe
+  - RelativeFilePath: bin\unzip.exe
+  - RelativeFilePath: bin\uptime.exe
+  - RelativeFilePath: bin\users.exe
+  - RelativeFilePath: bin\vdir.exe
+  - RelativeFilePath: bin\vmstat.exe
+  - RelativeFilePath: bin\w.exe
+  - RelativeFilePath: bin\watch.exe
+  - RelativeFilePath: bin\wc.exe
+  - RelativeFilePath: bin\wget.exe
+    PortableCommandAlias: rux-wget
+  - RelativeFilePath: bin\whereis.exe
+  - RelativeFilePath: bin\which.exe
+  - RelativeFilePath: bin\who.exe
+  - RelativeFilePath: bin\whoami.exe
+  - RelativeFilePath: bin\xargs.exe
+  - RelativeFilePath: bin\xxd.exe
+  - RelativeFilePath: bin\yes.exe
+  - RelativeFilePath: bin\zcat.exe
+  - RelativeFilePath: bin\zip.exe
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/wangdxnum1/RuxCmd/releases/download/v0.4.3/ruxcmd-0.4.3-x86_64-pc-windows-msvc.zip
+    InstallerSha256: A8290B352E0FD8A6EF5A0CFE7D3E3AA1FF81215F69C705FB300704E6698301ED
+ManifestType: installer
+ManifestVersion: 1.6.0

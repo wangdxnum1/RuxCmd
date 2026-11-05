@@ -1,0 +1,21 @@
+# Generated source template for microsoft/winget-pkgs; submit via pull request.
+PackageIdentifier: wangdxnum1.RuxCmd
+PackageVersion: 0.4.3
+PackageLocale: en-US
+Publisher: Tim and RuxCmd contributors
+PublisherUrl: https://github.com/wangdxnum1
+PackageName: RuxCmd
+PackageUrl: https://github.com/wangdxnum1/RuxCmd
+License: MIT
+LicenseUrl: https://github.com/wangdxnum1/RuxCmd/blob/main/LICENSE
+ShortDescription: Linux-style command-line tools for Windows, written in Rust.
+Description: RuxCmd provides 142 standalone Linux-style utilities for Windows x64, covering files, text, processes, networking and system information. Commands whose names are shadowed by Windows or PowerShell are exposed with a rux- prefix.
+Moniker: ruxcmd
+Tags:
+  - cli
+  - coreutils
+  - gnu
+  - utilities
+  - windows
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0
