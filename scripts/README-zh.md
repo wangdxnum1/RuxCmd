@@ -73,7 +73,7 @@ Round 16 为专属用例增加 NUL、未终止 NUL、二进制 NUL 和连续空�
 
 默认使用当前 release 二进制（缺失时回退 debug）和 Git for Windows 自带 GNU 工具；请先构建或显式指定 `-BinDir`。所选 RuxCmd 二进制必须存在；缺失 GNU 参照及声明的平台差异计为跳过。比较原始 stdout 和退出码；修改文件的命令使用两份独立 fixture，另比较文件内容与目录状态。仅 mktemp 随机名作规范化，需要正常 Windows 硬链接支持。SHA 校验模式会实际验证清单，不受 MSYS 二进制生成格式豁免影响。不声明文件系统 stderr 文案、ACL、WTS/utmp 身份及长列表格式逐字节等价。
 
-CI workflow 调用 `build.ps1 -Task Verify` 和 `release.ps1`。Release workflow 检出已存在的版本 tag，调用相同 Verify 入口，再运行 `release.ps1 -Tag <tag> -RequireClean`；它仅上传 Actions artifact，不执行 `-Publish`。远程发布需要维护者明确运行本地发布命令。
+CI workflow 调用 `build.ps1 -Task Verify`、`compat-check.ps1` 和 `release.ps1`。Release workflow 检出已存在的版本 tag，调用相同 Verify 入口，再运行 `release.ps1 -Tag <tag> -RequireClean`；它仅上传 Actions artifact，不执行 `-Publish`。远程发布需要维护者明确运行本地发布命令。
 
 脚本测试：
 
@@ -83,6 +83,10 @@ pwsh -File scripts/tests/package-tests.ps1
 ```
 
 入口测试使用隔离的临时 Git/Cargo 工程，覆盖参数、编译失败、实际 Debug 编译、只读预览、tag/仓库/清单校验等，不联系 GitHub 也不实际发布。
+
+## compat-check.ps1
+
+用 `cargo metadata` 与已构建二进制校验兼容表：检查表格列数、重复/空命令行、空行断表、中英两版行数一致、每个 workspace 二进制恰好一行，以及 `docs/compatibility*.md` 的选项清单是否与各命令 `--help` 一致（“表里有、help 没有”和“help 有、表里没写”都算失败）。同时校验中英 README、中英 development、中英兼容表、中英 scripts README 中引用的命令数与包数。选项解析依赖已构建二进制，默认使用 Cargo metadata 报告的 release 目录，可用 `-BinDir` 覆盖。help 不能可靠反映选项的命令会显式跳过并打印原因，部分检查的结果不会被当作全部通过。
 
 ## verify-version-info.ps1
 

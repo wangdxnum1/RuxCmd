@@ -20,6 +20,8 @@ The five `open` desktop integration checks are marked `#[ignore]`: they launch E
 
 Paths are resolved against the PowerShell current directory, so relative BinDir/OutputDir values keep working even after Set-Location when the .NET process directory has not been synced. Process waits, stdin writes, and output pipes share a common deadline; a Windows Job Object owns the lifetime of the spawned child tree, including descendants that outlive a parent already exited while still holding output pipes.
 
+CI additionally runs `scripts/compat-check.ps1`: it compares the compatibility tables with `cargo metadata` and each command's `--help`, and checks the command/package counts quoted in the READMEs and development pages. Table structure damage, a missing or duplicate row, an option that exists in only one place, or a stale count fails the job. Commands whose help text is not a reliable option inventory are skipped explicitly and the reasons are printed.
+
 The 21 tests in `scripts/tests/package-tests.ps1` cover failure conditions such as paths containing spaces, relative paths after Set-Location, arguments, timeouts, descendants inheriting output pipes, blocking stdin, large outputs, ps-bin/ps naming, manifest omissions, stale artifacts, checksum tampering, release tags, and refusing overwrites.
 
 ## Packaging implementation

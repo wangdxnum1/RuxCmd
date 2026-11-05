@@ -20,6 +20,8 @@ Cargo 命令可在根使用 `--workspace`，也可在单个 crate 目录运行�
 
 路径按 PowerShell 当前目录解析，即使执行过 Set-Location 而 .NET 进程目录未同步，也可正确使用相对 BinDir/OutputDir。进程等待、stdin 写入和输出管道共用截止时间；Windows Job Object 负责本次子进程及其后代的生命周期，包括父进程先退出而后代仍持有输出管道的情况。
 
+CI 还会运行 `scripts/compat-check.ps1`：把兼容表与 `cargo metadata`、各命令 `--help` 对照，并校验 README 与 development 页面引用的命令数/包数。表格结构损坏、缺行或重复行、选项只在一侧存在、计数过期都会让 job 失败。help 不能可靠反映选项的命令会显式跳过并打印原因。
+
 `scripts/tests/package-tests.ps1` 的 21 个测试检查含空格路径、Set-Location 后的相对路径、参数、超时、继承输出管道的后代、阻塞 stdin、大输出、ps-bin/ps 名称、清单遗漏、旧产物、校验篡改、发行标签和拒绝覆盖等失败条件。
 
 ## 打包实现

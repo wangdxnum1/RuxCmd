@@ -37,6 +37,8 @@ jobs:
           key: ${{ runner.os }}-msvc-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', '.cargo/config.toml') }}
       - name: Verify workspace and build release binaries
         run: ./scripts/build.ps1 -Task Verify
+      - name: Check compatibility tables and documented counts
+        run: ./scripts/compat-check.ps1
       - name: Build and verify ZIP
         run: ./scripts/release.ps1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

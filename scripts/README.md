@@ -73,7 +73,7 @@ Round 16 adds dedicated NUL, unterminated NUL, binary NUL and consecutive-empty-
 
 The default uses current release binaries (debug fallback) and Git for Windows GNU tools. Build first, or pass `-BinDir` explicitly. Each selected RuxCmd binary must exist; missing GNU tools and declared platform differences are reported as skips. Comparisons cover raw stdout bytes and exit codes; mutating commands use separate fixtures and compare file contents/directory state. Only mktemp's random name is normalized. Native Windows hardlink support is required. SHA check mode runs against real manifests even though MSYS binary-mode generation is exempted. Filesystem stderr wording, ACL equivalence, WTS/utmp identities and long-list formatting are not bytewise compatibility claims.
 
-The CI workflow calls `build.ps1 -Task Verify` and `release.ps1`. The Release workflow checks out an existing version tag, runs the same Verify entry point, then `release.ps1 -Tag <tag> -RequireClean`; it only uploads Actions artifacts and does not perform `-Publish`. Remote publishing requires the maintainer to explicitly run the local publish command.
+The CI workflow calls `build.ps1 -Task Verify`, `compat-check.ps1` and `release.ps1`. The Release workflow checks out an existing version tag, runs the same Verify entry point, then `release.ps1 -Tag <tag> -RequireClean`; it only uploads Actions artifacts and does not perform `-Publish`. Remote publishing requires the maintainer to explicitly run the local publish command.
 
 Script tests:
 
@@ -83,6 +83,10 @@ pwsh -File scripts/tests/package-tests.ps1
 ```
 
 The entry-point tests use isolated temporary Git/Cargo projects and cover parameters, compilation failures, real Debug builds, read-only previews, and tag/repository/manifest validation, without contacting GitHub or publishing anything.
+
+## compat-check.ps1
+
+Validates the compatibility tables against `cargo metadata` and the built binaries. It checks table columns, duplicate and empty rows, blank-line table splits, bilingual row parity, that every workspace binary has exactly one row, and that the option lists in `docs/compatibility*.md` match each command's `--help` (declared-but-absent and present-but-undeclared are both failures). It also verifies the command/package counts quoted in both READMEs, both development pages, both compatibility pages and both scripts READMEs. Option parsing needs built binaries; the default directory is the release output reported by Cargo metadata, override with `-BinDir`. Commands whose help is not a reliable option inventory are skipped explicitly and the skip reasons are printed, so a partial run is never reported as a full pass.
 
 ## verify-version-info.ps1
 
