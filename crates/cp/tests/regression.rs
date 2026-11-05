@@ -7,6 +7,7 @@
 
 use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
+use std::time::{Duration, SystemTime};
 
 #[test]
 fn dot_source_merges_contents_into_existing_dir() {
@@ -343,4 +344,95 @@ fn recursive_conflict_exits_one_and_continues() {
         fs::read_to_string(out.join("src").join("plain.txt")).unwrap(),
         "NEW2"
     );
+}
+
+/// -p copies the read-only attribute and the modification timestamp.
+#[test]
+fn preserve_keeps_read_only_attribute_and_timestamp() {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = tmp.path().join("src.txt");
+    let dst = tmp.path().join("dst.txt");
+    fs::write(&src, "CONTENT").unwrap();
+
+    let when = SystemTime::UNIX_EPOCH + Duration::from_secs(1_600_000_000);
+    fs::OpenOptions::new()
+        .write(true)
+        .open(&src)
+        .unwrap()
+        .set_times(fs::FileTimes::new().set_modified(when).set_accessed(when))
+        .unwrap();
+    let mut perm = fs::metadata(&src).unwrap().permissions();
+    perm.set_readonly(true);
+    fs::set_permissions(&src, perm).unwrap();
+
+    cargo_bin_cmd!("cp")
+        .arg("-p")
+        .arg(&src)
+        .arg(&dst)
+        .assert()
+        .success();
+
+    assert!(fs::metadata(&dst).unwrap().permissions().readonly());
+    assert_eq!(fs::metadata(&dst).unwrap().modified().unwrap(), when);
+}
+
+/// -p -r stamps the directory itself after its children are copied.
+#[test]
+fn preserve_recursive_keeps_directory_timestamp() {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = tmp.path().join("srcdir");
+    fs::create_dir(&src).unwrap();
+    fs::write(src.join("f.txt"), "X").unwrap();
+
+    let when = SystemTime::UNIX_EPOCH + Duration::from_secs(1_600_000_000);
+    set_dir_modified(&src, when);
+
+    cargo_bin_cmd!("cp")
+        .args(["-p", "-r"])
+        .arg(&src)
+        .arg(tmp.path().join("copy"))
+        .assert()
+        .success();
+
+    assert_eq!(
+        fs::metadata(tmp.path().join("copy"))
+            .unwrap()
+            .modified()
+            .unwrap(),
+        when
+    );
+}
+
+/// std cannot open a directory for writing, so the test uses the same
+/// FILE_WRITE_ATTRIBUTES + FILE_FLAG_BACKUP_SEMANTICS route as cp itself.
+#[cfg(windows)]
+fn set_dir_modified(path: &std::path::Path, when: SystemTime) {
+    use std::os::windows::ffi::OsStrExt;
+    use std::time::UNIX_EPOCH;
+    use windows::Win32::Foundation::{CloseHandle, FILETIME};
+    use windows::Win32::Storage::FileSystem::{
+        CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, FILE_SHARE_READ, FILE_SHARE_WRITE,
+        FILE_WRITE_ATTRIBUTES, OPEN_EXISTING, SetFileTime,
+    };
+
+    let ticks = when.duration_since(UNIX_EPOCH).unwrap().as_nanos() / 100 + 116_444_736_000_000_000;
+    let stamp = FILETIME {
+        dwLowDateTime: (ticks & 0xFFFF_FFFF) as u32,
+        dwHighDateTime: (ticks >> 32) as u32,
+    };
+    let wide: Vec<u16> = path.as_os_str().encode_wide().chain([0]).collect();
+    unsafe {
+        let handle = CreateFileW(
+            windows::core::PCWSTR(wide.as_ptr()),
+            FILE_WRITE_ATTRIBUTES.0,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            None,
+            OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS,
+            None,
+        )
+        .unwrap();
+        SetFileTime(handle, None, None, Some(&stamp as *const FILETIME)).unwrap();
+        let _ = CloseHandle(handle);
+    }
 }

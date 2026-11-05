@@ -165,6 +165,10 @@ fn copy_file(
             println!("'{}' -> '{}'", source.display(), dest_path.display());
         }
 
+        if args.preserve {
+            preserve_metadata(source, &dest_path)?;
+        }
+
         Ok(())
     }
 }
@@ -198,7 +202,107 @@ fn copy_entry_file(source: &Path, dest_path: &Path, args: &cli::Args) -> Result<
         println!("'{}' -> '{}'", source.display(), dest_path.display());
     }
 
+    if args.preserve {
+        preserve_metadata(source, dest_path)?;
+    }
+
     Ok(())
+}
+
+/// Apply the mappable parts of GNU `cp -p`: the read-only attribute and the
+/// access/modification timestamps. NTFS has no equivalent for the remaining
+/// POSIX mode bits or for owner/group, which are reported as unmappable in
+/// docs/compatibility.md.
+fn preserve_metadata(source: &Path, dest: &Path) -> Result<(), String> {
+    let source_meta =
+        fs::metadata(source).map_err(|e| format!("cannot stat '{}': {}", source.display(), e))?;
+
+    let mut permissions = fs::metadata(dest)
+        .map_err(|e| format!("cannot stat '{}': {}", dest.display(), e))?
+        .permissions();
+    permissions.set_readonly(source_meta.permissions().readonly());
+    fs::set_permissions(dest, permissions)
+        .map_err(|e| format!("failed to preserve mode of '{}': {}", dest.display(), e))?;
+
+    set_timestamps(dest, &source_meta)?;
+    Ok(())
+}
+
+#[cfg(windows)]
+fn set_timestamps(dest: &Path, source_meta: &fs::Metadata) -> Result<(), String> {
+    use std::os::windows::ffi::OsStrExt;
+    use std::time::{SystemTime, UNIX_EPOCH};
+    use windows::Win32::Foundation::{CloseHandle, FILETIME};
+    use windows::Win32::Storage::FileSystem::{
+        CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, FILE_SHARE_READ, FILE_SHARE_WRITE,
+        FILE_WRITE_ATTRIBUTES, OPEN_EXISTING, SetFileTime,
+    };
+
+    fn to_filetime(time: SystemTime) -> FILETIME {
+        // FILETIME counts 100ns ticks since 1601-01-01.
+        let ticks = time
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos() / 100)
+            .unwrap_or(0)
+            + 116_444_736_000_000_000;
+        FILETIME {
+            dwLowDateTime: (ticks & 0xFFFF_FFFF) as u32,
+            dwHighDateTime: (ticks >> 32) as u32,
+        }
+    }
+
+    let wide: Vec<u16> = dest.as_os_str().encode_wide().chain([0]).collect();
+    // FILE_FLAG_BACKUP_SEMANTICS makes the same call work for directories.
+    let handle = unsafe {
+        CreateFileW(
+            windows::core::PCWSTR(wide.as_ptr()),
+            FILE_WRITE_ATTRIBUTES.0,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            None,
+            OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS,
+            None,
+        )
+    }
+    .map_err(|e| format!("cannot open '{}': {}", dest.display(), e))?;
+
+    let accessed = source_meta.accessed().ok().map(to_filetime);
+    let modified = source_meta.modified().ok().map(to_filetime);
+    let accessed_ptr = accessed.as_ref().map(|t| t as *const FILETIME);
+    let modified_ptr = modified.as_ref().map(|t| t as *const FILETIME);
+    let result = unsafe { SetFileTime(handle, None, accessed_ptr, modified_ptr) };
+    unsafe {
+        let _ = CloseHandle(handle);
+    }
+    result.map_err(|e| {
+        format!(
+            "failed to preserve timestamps of '{}': {}",
+            dest.display(),
+            e
+        )
+    })
+}
+
+#[cfg(not(windows))]
+fn set_timestamps(dest: &Path, source_meta: &fs::Metadata) -> Result<(), String> {
+    let mut times = fs::FileTimes::new();
+    if let Ok(accessed) = source_meta.accessed() {
+        times = times.set_accessed(accessed);
+    }
+    if let Ok(modified) = source_meta.modified() {
+        times = times.set_modified(modified);
+    }
+    fs::OpenOptions::new()
+        .write(true)
+        .open(dest)
+        .and_then(|file| file.set_times(times))
+        .map_err(|e| {
+            format!(
+                "failed to preserve timestamps of '{}': {}",
+                dest.display(),
+                e
+            )
+        })
 }
 
 fn copy_directory(
@@ -257,6 +361,12 @@ fn copy_directory(
             eprintln!("cp: {}", e);
             *had_error = true;
         }
+    }
+
+    // -p also stamps the directory itself; do it after the children so copying
+    // them does not bump the timestamps again.
+    if args.preserve {
+        preserve_metadata(source, &dest_path)?;
     }
 
     Ok(())
