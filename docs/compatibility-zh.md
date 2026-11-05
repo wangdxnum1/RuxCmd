@@ -24,7 +24,7 @@
 | cmp | --silent, --verbose, --version | 冒烟 + 行为测试 | GNU 退出码（0/1/2），differ 消息走 stdout（char N、line M），带引号的 EOF 消息含字节/行上下文，-l 八进制清单，单操作数与 stdin 比较，-l/-s 互斥拒绝。 |
 | column | --output-separator, --separator, --table, --table-header-repeat, --table-right, --version | 冒烟 + 行为测试 | -t 模式未给 -s 时连续空白折叠为单一分隔符；显式 -s 按字符切分不折叠。默认 fill 模式未实现。 |
 | comm | --version, --zero-terminated | 冒烟 + 行为测试 | 支持 -z NUL 记录及原始字节比较；-1/-2/-3 隐藏列后压缩剩余列的 TAB 前缀。要求两个文件操作数，输入已按相同字节顺序排序；不支持 stdin 操作数、GNU 排序校验诊断和 --total。 |
-| cp | --force, --interactive, --no-clobber, --preserve, --recursive, --symbolic-link, --verbose | 冒烟 + 行为测试 | 默认覆盖已存在的可写目标（对齐 GNU）；`-n` 静默跳过并退出 0；`-n` 与 `-i` 以最后出现者为准，`-f` 为独立开关（`-n` 恒压过 `-f`）。覆盖只读目标必须带 `-f`：无 `-f` 时即使 `-i` 答 y 也报 "Permission denied" 退出 1；`-i` 提示写 stderr；递归复制单条失败不中断其余条目，但整体退出 1。以 `.`/`..` 结尾的源将内容并入已存在的目标目录（目标不存在时报错）；多源时目标必须是已存在目录。残留差异：不支持 `-a`/`-u`/`-t`/`-T`/`-l`/`-b`，`-p` 仅接受参数未真正保留属性，`cp src/. missing` 不创建目标目录（GNU 会创建）。 |
+| cp | --force, --interactive, --no-clobber, --preserve, --recursive, --symbolic-link, --verbose | 冒烟 + 行为测试 | 默认覆盖已存在的可写目标（对齐 GNU）；`-n` 静默跳过并退出 0；`-n` 与 `-i` 以最后出现者为准，`-f` 为独立开关（`-n` 恒压过 `-f`）。覆盖只读目标必须带 `-f`：无 `-f` 时即使 `-i` 答 y 也报 "Permission denied" 退出 1；`-i` 提示写 stderr；递归复制单条失败不中断其余条目，但整体退出 1。以 `.`/`..` 结尾的源将内容并入已存在的目标目录（目标不存在时报错）；多源时目标必须是已存在目录。残留差异：不支持 `-a`/`-u`/`-t`/`-T`/`-l`/`-b`，`-p` 仅实现可映射部分（只读属性 + 访问/修改时间；其余 POSIX mode 位与 owner/group 在 NTFS 无对应，不可映射），`cp src/. missing` 不创建目标目录（GNU 会创建）。 |
 | csplit | --digits, --elide-empty-files, --keep-files, --prefix, --quiet | 冒烟 + 行为测试 | 行号须 >0、升序且不超过文件末尾，否则退出 1。模式仅支持子串与行号；/re/+N、{N} 等 GNU 语法报错退出 1；模式不匹配退出 1（无 -k 时删除输出文件）。--suffix-format 已移除。 |
 | curl | --data, --header, --output, --request, --silent, --version, --include, --head, --fail, --location | 冒烟 + 行为测试 | 默认仅输出 body（-i 加响应头）；-d 隐含 POST；重定向默认关闭（-L 手动跟随，最多 10 次）；-f 对 HTTP >= 400 退出 22。HTTPS/TLS 与联网行为尚未验证。 |
 | cut | --bytes, --characters, --delimiter, --fields, --only-delimited, --output-delimiter, --zero-terminated | 冒烟 + 行为测试 | 支持 -z NUL 记录；字节和字段选择保持原始数据，-c 对合法 UTF-8 记录按字符选择，非法输入回退为字节。NUL 模式保留 CR/LF，默认 LF 模式仍剥 CRLF。无字段分隔符的记录默认透传，-s 时抑制；本端既有 -s 也作用于 -b/-c（与 GNU 不同）。不支持 -n/--complement。 |
@@ -33,7 +33,7 @@
 | df | --human-readable, --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
 | diff | --unified, --ignore-case, --ignore-whitespace, --ignore-blank-lines, --version | 冒烟 + 行为测试 | 退出码遵循 GNU（0/1/2）。普通格式输出未合并的 d/a 命令，行号锚点与 GNU 一致；c 合并与区间折叠未实现。 |
 | dirname | --version, --zero | 冒烟 + 行为测试 | -z/--zero 仅改变输出终止符，路径仍作为命令行操作数传入。路径输出正斜杠；仅根 / 或 // 输出 /，裸盘符前缀输出 .。Windows 路径与 UNC 近似保持不变。 |
-| du | --human-readable, --summarize, --total, --version | 冒烟 + 行为测试 | -s 与默认模式都递归求 apparent-size 合计、每个参数输出一行（逐子目录列出仍未实现）；不可读路径报错并退出 1。 |
+| du | -b/--bytes, -c/--total, -h/--human-readable, -s/--summarize, --apparent-size, --version | 冒烟 + 行为测试 | 默认按 1K 块报告实际分配（GetCompressedFileSize，稀疏文件按真实分配），`--apparent-size` 改用逻辑大小，`-b` 输出字节，`-h` 采用 GNU 记法（不足 10 个单位保留一位小数，`1.0K`/`4.9K`/`10K`）；硬链接每次调用只计一次且重复参数行省略；不可读路径报错并退出 1；每个参数输出一行（逐子目录列出仍未实现）。残留差异：MSYS GNU du 按 4K 簇估算分配，在分配粒度等于逻辑大小的文件系统上块数会与之不同（apparent 模式一致）；不支持 `--max-depth`/`-a`/`-x`/`--exclude`。 |
 | echo | --version | 冒烟 + 行为测试 | 未知的前导选项簇按操作数原样输出（含 --）；-e 覆盖 coreutils 全部转义（\c 截断全部输出）；--help/--version 与 coreutils 一致。 |
 | env | --ignore-environment, --unset, --verbose, --version | 冒烟 + 行为测试 | NAME=VAL 赋值并执行命令（-i 清空、-u 移除、透传退出码、spawn 失败 127）；无命令时打印环境。 |
 | expr | See --help | 冒烟 + 行为测试 | 整数四则（i64）、| / &（GNU 左操作数语义）、比较（双方均为整数按数值否则按字符串）、: 与 match 的锚定 BRE 匹配（返回分组 1 或匹配长度）、substr/index/length。BRE 反向引用不支持（报语法错误）；退出码与 GNU 一致（0/1/2）。 |
@@ -136,7 +136,7 @@
 | uniq | --count, --ignore-case, --repeated, --skip-fields, --unique, --version, --zero-terminated | 冒烟 + 行为测试 | 支持 -z NUL 记录，-c/-d/-u/-i/-f 保留分组首条原始记录。跳过字段时以 space/TAB/LF 分界，剩余字节不归一化，CR 保留为内容；非法 UTF-8 记录不混同。有效 UTF-8 的 -i 保留 Unicode 小写规则；不支持输出文件操作数及其他分组扩展。 |
 | unlink | （仅自动 help/version） | 冒烟 + 行为测试 | 删除一个文件或文件符号链接条目；拒绝目录，保留符号链接目标。受 Windows ACL 和共享访问规则限制。 |
 | unzip | --directory, --list, --overwrite, --quiet, --version | 冒烟 + 行为测试 | 条目流式解压不再整体缓存；-o 覆盖前清除只读位。不安全条目路径（`..`、绝对路径、盘符/UNC 前缀）被拒并警告、跳过；发生拒绝时退出码 2。不恢复条目 mtime。 |
-| uptime | 见 --help | 冒烟 + 行为测试 | 经 GetTickCount64 报告开机以来的秒数；-p 输出中文时长。 |
+| uptime | 见 --help | 冒烟 + 行为测试 | 经 GetTickCount64 报告开机以来的秒数；-p 采用 GNU/procps 英文措辞（up 1 day, 2 hours, 3 minutes；不足 1 分钟输出 up）。 |
 | users | --count, --version | 冒烟 + 行为测试 | 枚举 WTS 会话用户名，按首次出现顺序去重；失败回退 USERNAME（或 unknown）。`-q/--count` 为扩展，与 GNU utmp 排序和重复会话输出不同；不支持 utmp FILE 操作数。 |
 | vdir | 同 ls | 冒烟 + 行为测试 | 注入 `ls -l` 的薄别名，支持 `-h`；继承 ls 格式、权限和所有者近似，GNU 长格式的逐字节对比豁免。 |
 | vmstat | 见 --help | 冒烟 + 行为测试 | swpd/free 逐帧采样；-h 短名为 help（长名 --header-once 保留）。完整 GNU 行为未验证。 |
@@ -152,7 +152,7 @@
 | xxd | --autoskip, --binary, --cols, --group, --include, --len, --little-endian, --name, --plain, --revert, --seek, --uppercase | 冒烟 + 行为测试 | 已实现 GNU 兼容的 -c / -g（含 0=不分组）/ -l / -s（绝对、+N 相对、-N 从末尾；支持十进制与 0x）/ -u / -p / -i / -e / -b / -a / -n；各模式默认列数为 16、-i 12、-p 30、-b 6，默认分组 2（-e 为 4）。选项冲突（-p 与 -b/-e/-i、-e 与 -b/-i）按 GNU 报错；-i 的变量名默认由输入路径净化得到，`-n NAME` 可显式覆盖：两者都把非字母数字字节替换为 `_`，首位为数字时前缀 `__`，GNU 不校验、非法标识符也不报错；显式 `-n` 在 stdin 输入时仍输出声明与长度行，无 `-i` 时被忽略；-b 可与 -i 组合输出 0b 字面量。-a 只折叠按 `-c` 列宽判定的全零行：连续 ≥3 行输出首行与 `*`，输入结尾的零行按 GNU 规则保留最后一行（故 EOF 处恰好 3 行零时仍原样输出 3 行），不完整尾行不参与折叠；`-p`/`-i` 下 -a 被忽略，-b/-e 下同样生效，重复 -a 与 GNU 一样切回关闭。逆向 -r 只解析地址后的十六进制主体（ASCII 列不参与），支持地址空洞零填充、`*` 折叠行忽略、`-` 分组符、奇数半字节丢弃与 CRLF 输入；`-r -s` 仅接受非负绝对偏移。未实现：-C/-t 的 C 头定制、-o 偏移显示、-d 十进制地址、-E EBCDIC、-R 着色与 postscript（-ps）；-s 不接受 GNU 的尾随后缀（如 `16k` 在本实现中拒绝），多文件按顺序拼接（GNU 仅接受一个输入）。地址、十六进制、-a 折叠与 -n 命名输出已与本机 GNU xxd 2026-06-16 逐字节比对一致。 |
 | yes | --version | 冒烟 + 行为测试 | 多操作数以空格拼接输出；管道关闭静默退出 0。 |
 | zcat | --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
-| zip | --recurse, --version | 冒烟 + 行为测试 | PowerShell 5.1 Compress-Archive 外壳；文件与目标参数经单引号转义（内部引号加倍，防注入）。其余 GNU zip 参数不支持。 |
+| zip | -r/--recurse, -q/--quiet, --version | 冒烟 + 行为测试 | 原生 Rust 实现（zip crate + deflate），不再依赖 PowerShell；支持递归、静默与指定输出名，目录条目带尾斜杠，不支持的其他 GNU zip 选项由 clap 报错退出 2。残留差异：条目输出没有 GNU 的 `(deflated NN%)` 百分比；归档每次重建（不追加更新已有归档）；时间戳与压缩细节不保证与 GNU zip 逐字节一致。 |
 
 
 Round 15 同时新增 `ls -h`，等价于 `--human-readable`；帮助入口保留 `--help`。Round 16 为上表 15 个已有命令增加 NUL 模式，命令总数仍为 125。 Round 18 新增 9 个命令（base32/expr/hostid/nproc/pathchk/printenv/sum/truncate/tsort），Round 20 新增 b2sum 与 chgrp，Round 22 新增 dd，命令总数 137；iostat、mpstat、sar 与 w 仍为仅冒烟。原型并入 sha3sum 与 xxd 后，命令总数 140 → 142（145 个包），两命令能力范围见上表。

@@ -362,6 +362,25 @@ c');  shapes=@('empty') }
     @{ cmd='sha256sum'; argv=@('--check','bad.sum'); shapes=@('ascii'); fixture=$true }
     @{ cmd='sha256sum'; argv=@('--check'); shapes=@('ascii'); fixture=$true; stdinFile='good.sum' }
     @{ cmd='cksum'; argv=@('-z','source'); shapes=@('ascii','nonutf8','empty'); fixture=$true; requiresOption='--zero' }
+    # --- P2 semantic rounds: du / cp / zip -----------------------------------
+    # apparent-size and byte cases are comparable across implementations;
+    # allocated-size cases land in $KnownDifferences (cluster estimation).
+    @{ cmd='du';     argv=@('--apparent-size','-s','source'); shapes=@('ascii','empty','nonutf8','notrail'); fixture=$true }
+    @{ cmd='du';     argv=@('-b','-s','source'); shapes=@('ascii','empty'); fixture=$true }
+    @{ cmd='du';     argv=@('-h','--apparent-size','-s','source'); shapes=@('ascii','empty'); fixture=$true }
+    @{ cmd='du';     argv=@('--apparent-size','-s','nonempty'); shapes=@('empty'); fixture=$true }
+    @{ cmd='du';     argv=@('--apparent-size','-c','source','nonempty'); shapes=@('empty'); fixture=$true }
+    @{ cmd='du';     argv=@('--apparent-size','other','installed'); shapes=@('empty'); fixture=$true; hardlinkTarget=$true }
+    @{ cmd='du';     argv=@('-s','source'); shapes=@('ascii'); fixture=$true }
+    @{ cmd='du';     argv=@('-h','-s','source'); shapes=@('ascii'); fixture=$true }
+    @{ cmd='cp';     argv=@('source','target'); shapes=@('ascii','empty'); fixture=$true }
+    @{ cmd='cp';     argv=@('-n','source','target'); shapes=@('ascii','empty'); fixture=$true }
+    @{ cmd='cp';     argv=@('-p','source','target'); shapes=@('ascii'); fixture=$true }
+    @{ cmd='cp';     argv=@('-r','nonempty','copied'); shapes=@('empty'); fixture=$true }
+    @{ cmd='cp';     argv=@('missing','target'); shapes=@('empty'); fixture=$true }
+    # Archive bytes are implementation-specific, so this case compares only
+    # stdout and the exit code; entry structure is covered by Rust tests.
+    @{ cmd='zip';    argv=@('-q','out.zip','source'); shapes=@('ascii','empty'); fixture=$true; ignoreState=$true }
 )
 
 # ---------------------------------------------------------------------------
@@ -381,6 +400,10 @@ $KnownDifferences = @{
     # GNU users reads utmp, which does not exist in an MSYS session, so the
     # reference tool prints nothing here. RuxCmd enumerates TS sessions.
     'users|*'     = 'MSYS utmp unavailable; reference prints empty'
+    # GNU du (MSYS) reports st_blocks rounded up to 4K clusters; RuxCmd uses
+    # GetCompressedFileSize, which on this volume returns the logical size.
+    'du|-s *'     = 'MSYS GNU estimates 4K clusters; RuxCmd reports GetCompressedFileSize'
+    'du|-h -s *'  = 'MSYS GNU estimates 4K clusters; RuxCmd reports GetCompressedFileSize'
 }
 
 # ---------------------------------------------------------------------------
@@ -441,6 +464,10 @@ function New-CaseFixture([string]$directory, [string]$inputPath, [string]$comman
     if ($command -eq 'tsort') {
         [IO.File]::WriteAllText((Join-Path $directory 'edges'), "n1 n2`nn2 n3`nn3 n4`n")
         [IO.File]::WriteAllText((Join-Path $directory 'cyc'), "a b`nb a`n")
+    }
+    if ($command -eq 'cp') {
+        # A pre-existing destination so overwrite / no-clobber are exercised.
+        [IO.File]::WriteAllText((Join-Path $directory 'target'), 'old')
     }
     if ($command -eq 'cmp') {
         # one is a copy of the input; two differs from it when non-empty.
@@ -587,7 +614,7 @@ foreach ($case in $selected) {
                     $result.Bytes = [Text.Encoding]::UTF8.GetBytes(($name -creplace 'tmp\.[a-zA-Z0-9]{6}', 'tmp.RANDOM'))
                 }
             }
-            $stateEqual = -not $case.fixture -or (Get-FixtureState $ruxDirectory) -ceq (Get-FixtureState $gnuDirectory)
+            $stateEqual = -not $case.fixture -or $case.ignoreState -or (Get-FixtureState $ruxDirectory) -ceq (Get-FixtureState $gnuDirectory)
 
             $bytesEqual = ($rux.Bytes.Length -eq $gnu.Bytes.Length) -and
                 (-not (Compare-Object $rux.Bytes $gnu.Bytes -SyncWindow 0 -ErrorAction SilentlyContinue))
