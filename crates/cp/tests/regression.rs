@@ -247,3 +247,100 @@ fn last_interactive_flag_wins() {
         .success();
     assert_eq!(fs::read_to_string(&b).unwrap(), "B");
 }
+
+#[test]
+fn read_only_destination_requires_force() {
+    let tmp = tempfile::tempdir().unwrap();
+    let a = tmp.path().join("a.txt");
+    let b = tmp.path().join("b.txt");
+    fs::write(&a, "A").unwrap();
+    fs::write(&b, "B").unwrap();
+    let mut perm = fs::metadata(&b).unwrap().permissions();
+    perm.set_readonly(true);
+    fs::set_permissions(&b, perm).unwrap();
+
+    // GNU cp needs -f to replace an unwritable destination.
+    cargo_bin_cmd!("cp")
+        .arg(&a)
+        .arg(&b)
+        .assert()
+        .failure()
+        .code(1)
+        .stderr(predicates::str::contains("Permission denied"));
+    assert_eq!(fs::read_to_string(&b).unwrap(), "B");
+
+    // Answering y at the -i prompt does not substitute for -f.
+    cargo_bin_cmd!("cp")
+        .arg("-i")
+        .arg(&a)
+        .arg(&b)
+        .write_stdin("y\n")
+        .assert()
+        .failure()
+        .code(1)
+        .stderr(predicates::str::contains("Permission denied"));
+    assert_eq!(fs::read_to_string(&b).unwrap(), "B");
+
+    // -f clears the read-only bit and replaces the file.
+    cargo_bin_cmd!("cp")
+        .arg("-f")
+        .arg(&a)
+        .arg(&b)
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(&b).unwrap(), "A");
+}
+
+#[test]
+fn interactive_prompt_is_written_to_stderr() {
+    let tmp = tempfile::tempdir().unwrap();
+    let a = tmp.path().join("a.txt");
+    let b = tmp.path().join("b.txt");
+    fs::write(&a, "A").unwrap();
+    fs::write(&b, "B").unwrap();
+
+    cargo_bin_cmd!("cp")
+        .arg("-i")
+        .arg(&a)
+        .arg(&b)
+        .write_stdin("y\n")
+        .assert()
+        .success()
+        .stdout(predicates::str::is_empty())
+        .stderr(predicates::str::contains("overwrite '"));
+    assert_eq!(fs::read_to_string(&b).unwrap(), "A");
+}
+
+#[test]
+fn recursive_conflict_exits_one_and_continues() {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = tmp.path().join("src");
+    fs::create_dir(&src).unwrap();
+    fs::write(src.join("locked.txt"), "NEW").unwrap();
+    fs::write(src.join("plain.txt"), "NEW2").unwrap();
+
+    let out = tmp.path().join("out");
+    fs::create_dir(&out).unwrap();
+    fs::create_dir(out.join("src")).unwrap();
+    let locked = out.join("src").join("locked.txt");
+    fs::write(&locked, "OLD").unwrap();
+    let mut perm = fs::metadata(&locked).unwrap().permissions();
+    perm.set_readonly(true);
+    fs::set_permissions(&locked, perm).unwrap();
+
+    cargo_bin_cmd!("cp")
+        .arg("-r")
+        .arg(&src)
+        .arg(&out)
+        .assert()
+        .failure()
+        .code(1)
+        .stderr(predicates::str::contains("Permission denied"));
+
+    // The failing entry is reported, but the rest of the tree still copies.
+    assert_eq!(fs::read_to_string(&locked).unwrap(), "OLD");
+    assert_eq!(
+        fs::read_to_string(out.join("src").join("plain.txt")).unwrap(),
+        "NEW2"
+    );
+}

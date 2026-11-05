@@ -26,12 +26,17 @@ fn main() {
     }
 
     let mut exit_code = 0i32;
+    let mut had_error = false;
 
     for source in &args.sources {
-        if let Err(e) = copy_file(source, &args.destination, &args) {
+        if let Err(e) = copy_file(source, &args.destination, &args, &mut had_error) {
             eprintln!("cp: {}", e);
             exit_code = 1;
         }
+    }
+
+    if had_error {
+        exit_code = 1;
     }
 
     std::process::exit(exit_code);
@@ -57,7 +62,31 @@ fn overwrite_decision(args: &cli::Args) -> Overwrite {
     }
 }
 
-fn copy_file(source: &Path, dest: &Path, args: &cli::Args) -> Result<(), String> {
+/// GNU cp can only replace an unwritable destination when -f is in effect;
+/// without it the copy fails with "Permission denied". On Windows the
+/// equivalent of "unwritable" is the read-only attribute.
+fn ensure_replaceable(path: &Path, force: bool) -> Result<(), String> {
+    let metadata =
+        fs::metadata(path).map_err(|e| format!("cannot stat '{}': {}", path.display(), e))?;
+    if !metadata.permissions().readonly() {
+        return Ok(());
+    }
+    if !force {
+        return Err(format!(
+            "cannot create regular file '{}': Permission denied",
+            path.display()
+        ));
+    }
+    let _ = ruxcmd_core::fsutil::clear_readonly(path);
+    Ok(())
+}
+
+fn copy_file(
+    source: &Path,
+    dest: &Path,
+    args: &cli::Args,
+    had_error: &mut bool,
+) -> Result<(), String> {
     if !source.exists() {
         return Err(format!(
             "cannot stat '{}': No such file or directory",
@@ -72,7 +101,7 @@ fn copy_file(source: &Path, dest: &Path, args: &cli::Args) -> Result<(), String>
         if !args.recursive {
             return Err(format!("omitting directory '{}'", source.display()));
         }
-        copy_directory(source, dest, args)
+        copy_directory(source, dest, args, had_error)
     } else {
         let dest_path = if dest.exists() && dest.is_dir() {
             match source.file_name() {
@@ -101,9 +130,7 @@ fn copy_file(source: &Path, dest: &Path, args: &cli::Args) -> Result<(), String>
         }
 
         if dest_path.exists() {
-            // fs::copy cannot replace a Windows read-only destination
-            // ("Access is denied"), so the read-only bit is cleared first.
-            let _ = ruxcmd_core::fsutil::clear_readonly(&dest_path);
+            ensure_replaceable(&dest_path, args.force)?;
         }
 
         if args.symbolic_link {
@@ -142,7 +169,44 @@ fn copy_file(source: &Path, dest: &Path, args: &cli::Args) -> Result<(), String>
     }
 }
 
-fn copy_directory(source: &Path, dest: &Path, args: &cli::Args) -> Result<(), String> {
+/// Copy one file entry from inside a directory tree, applying the same
+/// overwrite and read-only rules as a top-level copy.
+fn copy_entry_file(source: &Path, dest_path: &Path, args: &cli::Args) -> Result<(), String> {
+    if dest_path.exists() {
+        match overwrite_decision(args) {
+            Overwrite::Skip => return Ok(()),
+            Overwrite::Prompt => {
+                if !prompt_yes_no(&format!("cp: overwrite '{}'? ", dest_path.display())) {
+                    return Ok(());
+                }
+            }
+            Overwrite::Allow => {}
+        }
+        ensure_replaceable(dest_path, args.force)?;
+    }
+
+    fs::copy(source, dest_path).map_err(|e| {
+        format!(
+            "cannot copy '{}' to '{}': {}",
+            source.display(),
+            dest_path.display(),
+            e
+        )
+    })?;
+
+    if args.verbose {
+        println!("'{}' -> '{}'", source.display(), dest_path.display());
+    }
+
+    Ok(())
+}
+
+fn copy_directory(
+    source: &Path,
+    dest: &Path,
+    args: &cli::Args,
+    had_error: &mut bool,
+) -> Result<(), String> {
     let dest_path = if ends_in_dot_component(source) {
         // `cp -r src/. dest` (also bare `.`/`..`): copy the contents of
         // source into dest itself. Dest must already be an existing
@@ -183,45 +247,15 @@ fn copy_directory(source: &Path, dest: &Path, args: &cli::Args) -> Result<(), St
             .map_err(|e| format!("cannot stat '{}': {}", entry_path.display(), e))?;
 
         if entry_metadata.is_dir() {
-            copy_directory(&entry_path, &dest_entry_path, args)?;
-        } else {
-            if dest_entry_path.exists() {
-                match overwrite_decision(args) {
-                    Overwrite::Skip => continue,
-                    Overwrite::Prompt => {
-                        if !prompt_yes_no(&format!(
-                            "cp: overwrite '{}'? ",
-                            dest_entry_path.display()
-                        )) {
-                            continue;
-                        }
-                    }
-                    Overwrite::Allow => {}
-                }
+            // A failing entry must not abort the remaining tree, but it does
+            // make the overall cp fail (GNU exits 1 after reporting it).
+            if let Err(e) = copy_directory(&entry_path, &dest_entry_path, args, had_error) {
+                eprintln!("cp: {}", e);
+                *had_error = true;
             }
-
-            if dest_entry_path.exists() {
-                // Clear the read-only bit first so fs::copy can replace the
-                // file instead of failing with "Access is denied".
-                let _ = ruxcmd_core::fsutil::clear_readonly(&dest_entry_path);
-            }
-
-            fs::copy(&entry_path, &dest_entry_path).map_err(|e| {
-                format!(
-                    "cannot copy '{}' to '{}': {}",
-                    entry_path.display(),
-                    dest_entry_path.display(),
-                    e
-                )
-            })?;
-
-            if args.verbose {
-                println!(
-                    "'{}' -> '{}'",
-                    entry_path.display(),
-                    dest_entry_path.display()
-                );
-            }
+        } else if let Err(e) = copy_entry_file(&entry_path, &dest_entry_path, args) {
+            eprintln!("cp: {}", e);
+            *had_error = true;
         }
     }
 
@@ -244,8 +278,9 @@ fn ends_in_dot_component(path: &Path) -> bool {
 }
 
 fn prompt_yes_no(prompt: &str) -> bool {
-    print!("{}", prompt);
-    let _ = io::stdout().flush();
+    // GNU cp writes its prompts to stderr, keeping stdout clean for scripts.
+    eprint!("{}", prompt);
+    let _ = io::stderr().flush();
 
     let mut input = String::new();
     if io::stdin().read_line(&mut input).is_err() {
