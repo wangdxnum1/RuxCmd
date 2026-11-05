@@ -136,6 +136,7 @@ fn main() {
 
     let multiple_files = args.files.len() > 1;
     let mut total_count = 0;
+    let mut searched = 0usize;
 
     let stdout = std::io::stdout();
     let mut out = std::io::BufWriter::new(stdout.lock());
@@ -143,6 +144,7 @@ fn main() {
     if args.files.is_empty() {
         let show_name = args.with_filename && !args.no_filename;
         let stdin = std::io::stdin();
+        searched += 1;
         total_count += grep_reader(
             stdin.lock(),
             "<stdin>",
@@ -156,13 +158,16 @@ fn main() {
             let file_name = file.display().to_string();
             if file.is_dir() {
                 if args.recursive {
-                    total_count += grep_directory(file, &matcher, &args, &mut out);
+                    total_count += grep_directory(file, &matcher, &args, &mut out, &mut searched);
                 } else {
                     eprintln!("grep: {}: Is a directory", file_name);
                 }
             } else {
                 // GNU behavior: a single file operand prints bare lines;
                 // several operands (or -H) prefix each line with the name.
+                if !file_allowed(file, &args) {
+                    continue;
+                }
                 let show_name = !args.no_filename && (args.with_filename || multiple_files);
                 let count = match grep_file(file, &file_name, &matcher, &args, show_name, &mut out)
                 {
@@ -172,6 +177,7 @@ fn main() {
                         continue;
                     }
                 };
+                searched += 1;
                 total_count += count;
             }
         }
@@ -179,25 +185,43 @@ fn main() {
 
     let _ = out.flush();
 
-    if args.count && !args.quiet && !args.files_with_matches {
+    // GNU prints no count when --include/--exclude filtered out every input.
+    if args.count
+        && !args.quiet
+        && !args.files_with_matches
+        && !args.files_without_match
+        && searched > 0
+    {
         println!("{}", total_count);
     }
 
     std::process::exit(if total_count > 0 { 0 } else { 1 });
 }
 
-fn grep_directory(dir: &Path, matcher: &Matcher, args: &cli::Args, out: &mut dyn Write) -> u64 {
+fn grep_directory(
+    dir: &Path,
+    matcher: &Matcher,
+    args: &cli::Args,
+    out: &mut dyn Write,
+    searched: &mut usize,
+) -> u64 {
     let mut total_count = 0;
 
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
-                total_count += grep_directory(&path, matcher, args, out);
+                if !dir_excluded(&path, args) {
+                    total_count += grep_directory(&path, matcher, args, out, searched);
+                }
             } else {
+                if !file_allowed(&path, args) {
+                    continue;
+                }
                 let file_name = path.display().to_string();
                 let show_name = !args.no_filename;
                 if let Ok(count) = grep_file(&path, &file_name, matcher, args, show_name, out) {
+                    *searched += 1;
                     total_count += count;
                 }
             }
@@ -205,6 +229,54 @@ fn grep_directory(dir: &Path, matcher: &Matcher, args: &cli::Args, out: &mut dyn
     }
 
     total_count
+}
+
+/// Base-name glob used by `--include`/`--exclude`/`--exclude-dir`. `*` and `?`
+/// are wildcards; every other character is literal, matching GNU's fnmatch for
+/// the patterns these options accept in practice.
+fn glob_match(name: &str, pattern: &str) -> bool {
+    match glob_regex(pattern) {
+        Ok(re) => re.is_match(name),
+        Err(_) => false,
+    }
+}
+
+fn glob_regex(pattern: &str) -> Result<Regex, regex::Error> {
+    let mut regex = String::from("^");
+    for c in pattern.chars() {
+        match c {
+            '*' => regex.push_str(".*"),
+            '?' => regex.push('.'),
+            '.' | '(' | ')' | '[' | ']' | '{' | '}' | '+' | '^' | '$' | '|' | '\\' => {
+                regex.push('\\');
+                regex.push(c);
+            }
+            _ => regex.push(c),
+        }
+    }
+    regex.push('$');
+    Regex::new(&regex)
+}
+
+fn file_allowed(path: &Path, args: &cli::Args) -> bool {
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    let included = args.include.is_empty()
+        || args
+            .include
+            .iter()
+            .any(|pattern| glob_match(&name, pattern));
+    included
+        && !args
+            .exclude
+            .iter()
+            .any(|pattern| glob_match(&name, pattern))
+}
+
+fn dir_excluded(path: &Path, args: &cli::Args) -> bool {
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    args.exclude_dir
+        .iter()
+        .any(|pattern| glob_match(&name, pattern))
 }
 
 fn grep_file(
@@ -234,6 +306,12 @@ fn grep_reader<R: BufRead>(
     if args.files_with_matches {
         return grep_files_with_matches(reader, name, matcher, args, out);
     }
+    if args.files_without_match {
+        return grep_files_without_match(reader, name, matcher, args, out);
+    }
+    if args.max_count == Some(0) {
+        return 0;
+    }
 
     let before = args.before_context.or(args.context).unwrap_or(0);
     let after = args.after_context.or(args.context).unwrap_or(0);
@@ -245,7 +323,7 @@ fn grep_reader<R: BufRead>(
     let mut after_remaining = 0usize;
     let mut last_printed: Option<u64> = None;
 
-    for line in ByteLines::new(reader) {
+    for line in ByteLines::with_separator(reader, record_separator(args)) {
         let raw = match line {
             Ok(raw) => raw,
             Err(e) => {
@@ -270,23 +348,15 @@ fn grep_reader<R: BufRead>(
                         if let Some(printed) = last_printed
                             && before_num > printed + 1
                         {
-                            emit_separator(out);
+                            emit_separator(out, args);
                         }
-                        emit_line(
-                            out,
-                            name,
-                            show_name,
-                            before_num,
-                            &before_raw,
-                            '-',
-                            args.line_number,
-                        );
+                        emit_line(out, name, show_name, before_num, &before_raw, '-', args);
                         last_printed = Some(before_num);
                     }
                     if let Some(printed) = last_printed
                         && line_num > printed + 1
                     {
-                        emit_separator(out);
+                        emit_separator(out, args);
                     }
                 }
                 if args.only_matching {
@@ -299,31 +369,27 @@ fn grep_reader<R: BufRead>(
                         }
                     };
                     for hit in &hits {
-                        emit_line(
-                            out,
-                            name,
-                            show_name,
-                            line_num,
-                            hit.as_bytes(),
-                            ':',
-                            args.line_number,
-                        );
+                        emit_line(out, name, show_name, line_num, hit.as_bytes(), ':', args);
                     }
                 } else {
-                    emit_line(out, name, show_name, line_num, &raw, ':', args.line_number);
+                    emit_line(out, name, show_name, line_num, &raw, ':', args);
                 }
                 last_printed = Some(line_num);
             }
             after_remaining = after;
+            // GNU stops reading a file at the NUMth match (-m 0 never reads).
+            if args.max_count.is_some_and(|max| count >= max) {
+                break;
+            }
         } else if after_remaining > 0 {
             after_remaining -= 1;
             if !args.count {
                 if let Some(printed) = last_printed
                     && line_num > printed + 1
                 {
-                    emit_separator(out);
+                    emit_separator(out, args);
                 }
-                emit_line(out, name, show_name, line_num, &raw, '-', args.line_number);
+                emit_line(out, name, show_name, line_num, &raw, '-', args);
                 last_printed = Some(line_num);
             }
         } else if before > 0 {
@@ -345,7 +411,7 @@ fn grep_files_with_matches<R: BufRead>(
     args: &cli::Args,
     out: &mut dyn Write,
 ) -> u64 {
-    for line in ByteLines::new(reader) {
+    for line in ByteLines::with_separator(reader, record_separator(args)) {
         let raw = match line {
             Ok(raw) => raw,
             Err(e) => {
@@ -353,8 +419,7 @@ fn grep_files_with_matches<R: BufRead>(
                 break;
             }
         };
-        let hay = String::from_utf8_lossy(&raw);
-        if matcher.is_match(&hay) {
+        if line_selected(matcher, args, &raw) {
             if !args.quiet {
                 let _ = writeln!(out, "{}", name);
             }
@@ -364,6 +429,48 @@ fn grep_files_with_matches<R: BufRead>(
     0
 }
 
+/// -L: report the file name only when no line was selected. GNU keeps the exit
+/// status tied to whether lines matched, so the match count is still returned.
+fn grep_files_without_match<R: BufRead>(
+    reader: R,
+    name: &str,
+    matcher: &Matcher,
+    args: &cli::Args,
+    out: &mut dyn Write,
+) -> u64 {
+    let mut count = 0u64;
+    if args.max_count != Some(0) {
+        for line in ByteLines::with_separator(reader, record_separator(args)) {
+            let raw = match line {
+                Ok(raw) => raw,
+                Err(e) => {
+                    eprintln!("grep: {}: read error: {}", name, e);
+                    break;
+                }
+            };
+            if line_selected(matcher, args, &raw) {
+                count += 1;
+                if args.max_count.is_some_and(|max| count >= max) {
+                    break;
+                }
+            }
+        }
+    }
+    if count == 0 && !args.quiet {
+        let _ = writeln!(out, "{}", name);
+    }
+    count
+}
+
+fn line_selected(matcher: &Matcher, args: &cli::Args, raw: &[u8]) -> bool {
+    matcher.is_match(&String::from_utf8_lossy(raw)) != args.invert_match
+}
+
+/// `-z` switches both the input and the output record terminator to NUL.
+fn record_separator(args: &cli::Args) -> u8 {
+    if args.null_data { 0 } else { b'\n' }
+}
+
 fn emit_line(
     out: &mut dyn Write,
     name: &str,
@@ -371,20 +478,21 @@ fn emit_line(
     line_num: u64,
     raw: &[u8],
     context_sep: char,
-    line_number: bool,
+    args: &cli::Args,
 ) {
     if show_name {
         let _ = write!(out, "{}:", name);
     }
-    if line_number {
+    if args.line_number {
         // The separator sits between the number and the content:
         // `3:match` vs `3-context` (GNU layout).
         let _ = write!(out, "{}{}", line_num, context_sep);
     }
     let _ = out.write_all(raw);
-    let _ = out.write_all(b"\n");
+    let _ = out.write_all(&[record_separator(args)]);
 }
 
-fn emit_separator(out: &mut dyn Write) {
-    let _ = out.write_all(b"--\n");
+fn emit_separator(out: &mut dyn Write, args: &cli::Args) {
+    let _ = out.write_all(b"--");
+    let _ = out.write_all(&[record_separator(args)]);
 }

@@ -51,8 +51,40 @@ pub struct Args {
     pub word_regexp: bool,
 
     /// Print only the names of files with matching lines
-    #[arg(short = 'l', long = "files-with-matches")]
+    #[arg(
+        short = 'l',
+        long = "files-with-matches",
+        overrides_with = "files_without_match"
+    )]
     pub files_with_matches: bool,
+
+    /// Print only the names of files without matching lines
+    #[arg(
+        short = 'L',
+        long = "files-without-match",
+        overrides_with = "files_with_matches"
+    )]
+    pub files_without_match: bool,
+
+    /// Stop reading a file after NUM matching lines
+    #[arg(short = 'm', long = "max-count", value_name = "NUM")]
+    pub max_count: Option<u64>,
+
+    /// Treat input and output as NUL-separated records
+    #[arg(short = 'z', long = "null-data")]
+    pub null_data: bool,
+
+    /// Search only files whose base name matches GLOB
+    #[arg(long = "include", value_name = "GLOB")]
+    pub include: Vec<String>,
+
+    /// Skip files whose base name matches GLOB
+    #[arg(long = "exclude", value_name = "GLOB")]
+    pub exclude: Vec<String>,
+
+    /// Skip directories whose base name matches GLOB
+    #[arg(long = "exclude-dir", value_name = "GLOB")]
+    pub exclude_dir: Vec<String>,
 
     /// Suppress the file name prefix on output lines
     #[arg(short = 'h', long = "no-filename")]
