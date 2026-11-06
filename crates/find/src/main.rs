@@ -1,6 +1,6 @@
 mod cli;
 
-use cli::Args;
+use cli::{Args, Node};
 use regex::Regex;
 use std::fs;
 use std::io::{self, BufWriter, Write};
@@ -18,37 +18,25 @@ fn main() {
         }
     };
 
-    // GNU evaluates -delete and -print/-exec in expression order. This build
-    // walks the tree once and either deletes or acts on each entry, so it
-    // refuses the mixture rather than doing only half of what was asked.
-    if args.delete && (args.print || !args.exec.is_empty()) {
-        eprintln!("find: -delete cannot be combined with -print/-print0/-exec");
-        std::process::exit(1);
-    }
-
+    // GNU evaluates actions in expression order; -delete also implies -depth.
     let paths = if args.paths.is_empty() {
         vec![PathBuf::from(".")]
     } else {
         args.paths.clone()
     };
 
-    let re = args
-        .regex
-        .as_ref()
-        .map(|pattern| match Regex::new(pattern) {
-            Ok(re) => re,
-            Err(e) => {
-                eprintln!("find: invalid regex '{}': {}", pattern, e);
-                std::process::exit(1);
-            }
-        });
+    // GNU appends an implicit -print when the expression has no action.
+    let mut nodes = args.nodes.clone();
+    if !nodes.iter().any(Node::is_action) {
+        nodes.push(Node::Print);
+    }
 
+    let batch_count = nodes.len();
     let mut walker = Walker {
-        default_print: !args.print && !args.delete && args.exec.is_empty(),
         args: &args,
-        re,
+        nodes,
         out: BufWriter::new(io::stdout().lock()),
-        batch: vec![Vec::new(); args.exec.len()],
+        batch: vec![Vec::new(); batch_count],
         had_error: false,
     };
 
@@ -64,11 +52,11 @@ fn main() {
 
 struct Walker<'a> {
     args: &'a Args,
-    re: Option<Regex>,
+    /// Expression nodes in evaluation order, including the implicit -print.
+    nodes: Vec<Node>,
     out: BufWriter<io::StdoutLock<'static>>,
-    /// Paths collected for each `-exec ... {} +` action.
+    /// Paths collected for each `-exec ... {} +` action, keyed by node index.
     batch: Vec<Vec<String>>,
-    default_print: bool,
     had_error: bool,
 }
 
@@ -96,14 +84,14 @@ impl Walker<'_> {
             if is_dir && !reparse && depth < maxdepth {
                 self.walk_children(path, depth);
             }
-            if depth >= mindepth && self.matches(path, &metadata, is_dir, reparse) {
-                self.delete_entry(path, is_dir);
+            if depth >= mindepth {
+                self.eval(path, &metadata, is_dir, reparse);
             }
             return;
         }
 
-        if depth >= mindepth && self.matches(path, &metadata, is_dir, reparse) {
-            self.act(path);
+        if depth >= mindepth {
+            self.eval(path, &metadata, is_dir, reparse);
         }
 
         // Like GNU, reparse points (symlinks and junctions) are not followed.
@@ -126,76 +114,72 @@ impl Walker<'_> {
         }
     }
 
-    fn matches(&self, path: &Path, metadata: &fs::Metadata, is_dir: bool, reparse: bool) -> bool {
-        let type_ok = match self.args.file_type {
-            // A junction is a directory on NTFS, but this build classifies
-            // every reparse point as a link, mirroring `-type l`.
-            Some('d') => is_dir && !reparse,
-            Some('f') => metadata.is_file(),
-            Some('l') => reparse,
-            _ => true,
-        };
-        if !type_ok {
-            return false;
-        }
-
-        if let Some(spec) = &self.args.size
-            && !spec.matches(metadata.len())
-        {
-            return false;
-        }
-
-        if let Some(spec) = &self.args.mtime {
-            let Some(days) = age_days(metadata) else {
-                return false;
+    /// Evaluates the expression left to right with GNU's implicit `-and`
+    /// short-circuit: a failing test stops the rest of the expression.
+    fn eval(&mut self, path: &Path, metadata: &fs::Metadata, is_dir: bool, reparse: bool) -> bool {
+        let name = path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
+        for index in 0..self.nodes.len() {
+            let ok = match self.nodes[index].clone() {
+                Node::Name(pattern) => {
+                    let (target, pattern) = if self.args.ignore_case {
+                        (name.to_lowercase(), pattern.to_lowercase())
+                    } else {
+                        (name.clone(), pattern)
+                    };
+                    if pattern.contains('*') || pattern.contains('?') {
+                        glob_match(&target, &pattern)
+                    } else {
+                        target == pattern
+                    }
+                }
+                Node::Regex(re) => re.is_match(&name),
+                // A junction is a directory on NTFS, but this build classifies
+                // every reparse point as a link, mirroring `-type l`.
+                Node::Type(kind) => match kind {
+                    'd' => is_dir && !reparse,
+                    'f' => metadata.is_file(),
+                    'l' => reparse,
+                    _ => true,
+                },
+                Node::Size(spec) => spec.matches(metadata.len()),
+                Node::Mtime(spec) => match age_days(metadata) {
+                    Some(days) => spec.bound.matches(days, spec.days as i64),
+                    None => false,
+                },
+                Node::Print => {
+                    self.write_path(path, false);
+                    true
+                }
+                Node::Print0 => {
+                    self.write_path(path, true);
+                    true
+                }
+                Node::Delete => self.delete_entry(path, is_dir),
+                Node::Exec(action) => {
+                    let text = path_text(path);
+                    if action.batch {
+                        self.batch[index].push(text);
+                        true
+                    } else {
+                        let status = Command::new(&action.program)
+                            .args(action.args.iter().map(|arg| arg.replace("{}", &text)))
+                            .status();
+                        self.record_status(&action.program, status)
+                    }
+                }
             };
-            if !spec.bound.matches(days, spec.days as i64) {
+            if !ok {
                 return false;
             }
         }
-
-        let name = path.file_name().unwrap_or_default().to_string_lossy();
-        let matches_name = self.args.name.as_ref().is_none_or(|pattern| {
-            let (target, pattern) = if self.args.ignore_case {
-                (name.to_lowercase(), pattern.to_lowercase())
-            } else {
-                (name.to_string(), pattern.clone())
-            };
-            if pattern.contains('*') || pattern.contains('?') {
-                glob_match(&target, &pattern)
-            } else {
-                target == pattern
-            }
-        });
-        if !matches_name {
-            return false;
-        }
-
-        self.re.as_ref().is_none_or(|re| re.is_match(&name))
+        true
     }
 
-    fn act(&mut self, path: &Path) {
-        if self.args.print || self.default_print {
-            self.write_path(path);
-        }
-        if self.args.exec.is_empty() {
-            return;
-        }
-        let text = path_text(path);
-        for index in 0..self.args.exec.len() {
-            let action = self.args.exec[index].clone();
-            if action.batch {
-                self.batch[index].push(text.clone());
-            } else {
-                let status = Command::new(&action.program)
-                    .args(action.args.iter().map(|arg| arg.replace("{}", &text)))
-                    .status();
-                self.record_status(&action.program, status);
-            }
-        }
-    }
-
-    fn write_path(&mut self, path: &Path) {
+    fn write_path(&mut self, path: &Path, null: bool) {
         let text = if self.args.basename {
             path.file_name()
                 .unwrap_or_default()
@@ -205,38 +189,50 @@ impl Walker<'_> {
             path_text(path)
         };
         let _ = self.out.write_all(text.as_bytes());
-        let _ = self
-            .out
-            .write_all(if self.args.print0 { b"\0" } else { b"\n" });
+        let _ = self.out.write_all(if null { b"\0" } else { b"\n" });
     }
 
-    fn delete_entry(&mut self, path: &Path, is_dir: bool) {
+    fn delete_entry(&mut self, path: &Path, is_dir: bool) -> bool {
         let result = if is_dir {
             fs::remove_dir(path)
         } else {
             fs::remove_file(path)
         };
-        if let Err(e) = result {
-            eprintln!("find: cannot delete '{}': {}", path.display(), e);
-            self.had_error = true;
+        match result {
+            Ok(()) => true,
+            Err(e) => {
+                eprintln!("find: cannot delete '{}': {}", path.display(), e);
+                self.had_error = true;
+                false
+            }
         }
     }
 
-    fn record_status(&mut self, program: &str, status: io::Result<std::process::ExitStatus>) {
+    fn record_status(
+        &mut self,
+        program: &str,
+        status: io::Result<std::process::ExitStatus>,
+    ) -> bool {
         match status {
-            Ok(status) if status.success() => {}
-            Ok(_) => self.had_error = true,
+            Ok(status) if status.success() => true,
+            Ok(_) => {
+                self.had_error = true;
+                false
+            }
             Err(e) => {
                 eprintln!("find: {}: {}", program, e);
                 self.had_error = true;
+                false
             }
         }
     }
 
     fn finish(&mut self) {
         let _ = self.out.flush();
-        for index in 0..self.args.exec.len() {
-            let action = self.args.exec[index].clone();
+        for index in 0..self.nodes.len() {
+            let Node::Exec(action) = self.nodes[index].clone() else {
+                continue;
+            };
             if !action.batch || self.batch[index].is_empty() {
                 continue;
             }

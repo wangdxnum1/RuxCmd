@@ -6,6 +6,7 @@
 //! hand. Both GNU single-dash long options (`-name`) and double-dash spellings
 //! (`--name`) are accepted.
 
+use regex::Regex;
 use std::path::PathBuf;
 
 /// Comparison operator shared by `-size` and `-mtime`.
@@ -58,23 +59,44 @@ pub struct ExecAction {
     pub batch: bool,
 }
 
+/// One element of the expression. GNU evaluates tests and actions strictly
+/// left to right with implicit `-and` short-circuiting, so order is preserved
+/// here instead of splitting the expression into a filter and an action list.
+#[derive(Debug, Clone)]
+pub enum Node {
+    Name(String),
+    Regex(Regex),
+    Type(char),
+    Size(SizeSpec),
+    Mtime(AgeSpec),
+    Print,
+    Print0,
+    Delete,
+    Exec(ExecAction),
+}
+
+impl Node {
+    /// Actions are evaluated even when a preceding test fails only by GNU's
+    /// `-and` rule, but the presence of any action disables the implicit print.
+    pub fn is_action(&self) -> bool {
+        matches!(
+            self,
+            Node::Print | Node::Print0 | Node::Delete | Node::Exec(_)
+        )
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct Args {
     pub paths: Vec<PathBuf>,
-    pub name: Option<String>,
-    pub regex: Option<String>,
-    pub file_type: Option<char>,
     pub mindepth: Option<usize>,
     pub maxdepth: Option<usize>,
     pub basename: bool,
     pub ignore_case: bool,
-    /// `-print` or `-print0` was given explicitly.
-    pub print: bool,
-    pub print0: bool,
+    /// `-delete` was given, which also implies depth-first traversal.
     pub delete: bool,
-    pub size: Option<SizeSpec>,
-    pub mtime: Option<AgeSpec>,
-    pub exec: Vec<ExecAction>,
+    /// Expression nodes in command-line order.
+    pub nodes: Vec<Node>,
 }
 
 /// Parses the arguments after the program name.
@@ -92,13 +114,21 @@ pub fn parse(argv: &[String]) -> Result<Args, String> {
             continue;
         }
         match token.as_str() {
-            "-name" | "--name" => args.name = Some(take_value(argv, &mut index, "-name")?),
-            "-regex" | "--regex" => args.regex = Some(take_value(argv, &mut index, "-regex")?),
+            "-name" | "--name" => {
+                args.nodes
+                    .push(Node::Name(take_value(argv, &mut index, "-name")?));
+            }
+            "-regex" | "--regex" => {
+                let pattern = take_value(argv, &mut index, "-regex")?;
+                let re = Regex::new(&pattern)
+                    .map_err(|e| format!("invalid regex '{}': {}", pattern, e))?;
+                args.nodes.push(Node::Regex(re));
+            }
             "-type" | "--type" => {
                 let value = take_value(argv, &mut index, "-type")?;
                 let mut chars = value.chars();
                 match (chars.next(), chars.next()) {
-                    (Some(c @ ('d' | 'f' | 'l')), None) => args.file_type = Some(c),
+                    (Some(c @ ('d' | 'f' | 'l')), None) => args.nodes.push(Node::Type(c)),
                     _ => return Err(format!("invalid argument '{}' to '-type'", value)),
                 }
             }
@@ -110,19 +140,19 @@ pub fn parse(argv: &[String]) -> Result<Args, String> {
             }
             "-size" | "--size" => {
                 let value = take_value(argv, &mut index, "-size")?;
-                args.size = Some(parse_size(&value)?);
+                args.nodes.push(Node::Size(parse_size(&value)?));
             }
             "-mtime" | "--mtime" => {
                 let value = take_value(argv, &mut index, "-mtime")?;
-                args.mtime = Some(parse_age(&value)?);
+                args.nodes.push(Node::Mtime(parse_age(&value)?));
             }
-            "-print" | "--print" => args.print = true,
-            "-print0" | "--print0" => {
-                args.print = true;
-                args.print0 = true;
+            "-print" | "--print" => args.nodes.push(Node::Print),
+            "-print0" | "--print0" => args.nodes.push(Node::Print0),
+            "-delete" | "--delete" => {
+                args.nodes.push(Node::Delete);
+                args.delete = true;
             }
-            "-delete" | "--delete" => args.delete = true,
-            "-exec" | "--exec" => args.exec.push(parse_exec(argv, &mut index)?),
+            "-exec" | "--exec" => args.nodes.push(Node::Exec(parse_exec(argv, &mut index)?)),
             "-basename" | "--basename" | "-f" => args.basename = true,
             "-ignore-case" | "--ignore-case" | "-i" => args.ignore_case = true,
             "-v" | "--version" => {

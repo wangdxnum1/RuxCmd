@@ -142,20 +142,47 @@ fn delete_honours_the_name_filter() {
 }
 
 #[test]
-fn delete_rejects_print_and_exec() {
+fn delete_runs_in_expression_order_with_print() {
     let dir = tree();
-    for args in [
-        vec![".", "-delete", "-print"],
-        vec![".", "-delete", "-print0"],
-        vec![".", "-delete", "-exec", "cmd", "/c", "echo", "{}", ";"],
-    ] {
-        cargo_bin_cmd!("find")
-            .args(&args)
-            .current_dir(dir.path())
-            .assert()
-            .code(1)
-            .stderr(predicates::str::contains("-delete cannot be combined"));
-    }
+    let root = dir.path().join("doomed");
+    fs::create_dir_all(root.join("inner")).unwrap();
+    fs::write(root.join("inner").join("file.txt"), "x").unwrap();
+
+    // -delete implies depth-first order, so the file is printed first.
+    let (stdout, code) = run(dir.path(), &["doomed", "-print", "-delete"]);
+    assert_eq!(code, 0);
+    let text = String::from_utf8_lossy(&stdout);
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(lines.len(), 3, "stdout: {}", text);
+    assert!(lines[0].contains("file.txt"), "stdout: {}", text);
+    assert!(lines[2].ends_with("doomed"), "stdout: {}", text);
+    assert!(!root.exists());
+}
+
+#[test]
+fn delete_runs_in_expression_order_with_print0_and_exec() {
+    let dir = tree();
+    let root = dir.path().join("doomed");
+    fs::create_dir_all(root.join("inner")).unwrap();
+    fs::write(root.join("inner").join("file.txt"), "x").unwrap();
+
+    let (stdout, code) = run(dir.path(), &["doomed", "-print0", "-delete"]);
+    assert_eq!(code, 0);
+    assert!(!stdout.contains(&b'\n'));
+    assert_eq!(split_nul(&stdout).len(), 3);
+    assert!(!root.exists());
+
+    // -delete before -exec: the command still receives the path afterwards.
+    fs::create_dir_all(root.join("inner")).unwrap();
+    fs::write(root.join("inner").join("file.txt"), "x").unwrap();
+    let (stdout, code) = run(
+        dir.path(),
+        &["doomed", "-delete", "-exec", "cmd", "/c", "echo", "{}", ";"],
+    );
+    assert_eq!(code, 0);
+    let text = String::from_utf8_lossy(&stdout);
+    assert_eq!(text.lines().count(), 3, "stdout: {}", text);
+    assert!(!root.exists());
 }
 
 #[test]

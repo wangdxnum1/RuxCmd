@@ -397,6 +397,24 @@ c');  shapes=@('empty') }
     @{ cmd='grep';   argv=@('-L','zzqq','source'); shapes=@('ascii','empty'); fixture=$true }
     @{ cmd='grep';   argv=@('--include=source','-L','zzqq','source'); shapes=@('ascii'); fixture=$true }
     @{ cmd='grep';   argv=@('--exclude=source','-c','a','source'); shapes=@('ascii'); fixture=$true }
+    # grep: -c over several operands must print one `name:count` line per
+    # input, including zero counts, and no grand total (GNU has no total line).
+    @{ cmd='grep';   argv=@('-c','a','source','nonempty/keep'); shapes=@('ascii'); fixture=$true; normalize='slashes' }
+    # grep: -h suppresses the name on per-file counts.
+    @{ cmd='grep';   argv=@('-c','-h','a','source','nonempty/keep'); shapes=@('ascii'); fixture=$true; normalize='slashes' }
+    # grep: an operand filtered out by --include emits no count line, but the
+    # remaining input still carries the name prefix because two operands exist.
+    @{ cmd='grep';   argv=@('-c','--include=source','a','source','nonempty/keep'); shapes=@('ascii'); fixture=$true; normalize='slashes' }
+    # grep: recursive -c must count every matching file, including zero counts.
+    @{ cmd='grep';   argv=@('-r','-c','--include=*.txt','a','tree'); shapes=@('empty'); fixture=$true; normalize='slashes' }
+    # grep: -h applies to recursive per-file counts as well.
+    @{ cmd='grep';   argv=@('-r','-c','-h','--include=*.txt','a','tree'); shapes=@('empty'); fixture=$true; normalize='slashes' }
+    # grep: -l overrides -c, so only matching file names are printed.
+    @{ cmd='grep';   argv=@('-c','-l','a','source','nonempty/keep'); shapes=@('ascii'); fixture=$true; normalize='slashes' }
+    # grep: multi-file -c with NUL-separated records keeps the name prefix.
+    @{ cmd='grep';   argv=@('-z','-c','a','source','nonempty/keep'); shapes=@('ascii'); fixture=$true; normalize='slashes' }
+    # grep: -m 0 stops before reading any input, so there is no output at all.
+    @{ cmd='grep';   argv=@('-m','0','-c','a','source','nonempty/keep'); shapes=@('ascii'); fixture=$true }
     # --- P2 batch C: state-changing commands --------------------------------
     # Every case below asserts stdout, exit code and the post-run tree
     # snapshot (path + size + read-only), so a regression that leaves the
@@ -437,10 +455,32 @@ c');  shapes=@('empty') }
     @{ cmd='du';  argv=@('-b','-s','tree/nested');                  shapes=@('empty'); fixture=$true }
     # du: -c must append the total line after the per-operand lines.
     @{ cmd='du';  argv=@('--apparent-size','-c','tree/a.txt','tree/b.bin'); shapes=@('empty'); fixture=$true }
+    # du: the default walk must print one line per subdirectory, children
+    # before the parent, including empty directories.
+    @{ cmd='du';  argv=@('--apparent-size','tree');                 shapes=@('empty'); fixture=$true; normalize='slashes' }
+    # du: -c must print a total even for a single operand.
+    @{ cmd='du';  argv=@('--apparent-size','-c','tree');            shapes=@('empty'); fixture=$true; normalize='slashes' }
+    # du: -b reports raw bytes for every directory line.
+    @{ cmd='du';  argv=@('-b','tree');                              shapes=@('empty'); fixture=$true; normalize='slashes' }
+    # du: a directory already seen as a repeated argument must be skipped as
+    # a whole, matching GNU's inode de-duplication.
+    @{ cmd='du';  argv=@('--apparent-size','tree','tree');          shapes=@('empty'); fixture=$true; normalize='slashes' }
     # du: an empty directory must still report a line.
     @{ cmd='du';  argv=@('--apparent-size','-s','tree/empty2');     shapes=@('empty'); fixture=$true }
     # find: -type d must walk nested directories, including empty ones.
     @{ cmd='find'; argv=@('tree','-type','d');      shapes=@('empty'); fixture=$true; normalize='slashes' }
+    # find: -delete combined with -print must print before deleting, in the
+    # implicit depth-first order (children first).
+    @{ cmd='find'; argv=@('tree/nested','-print','-delete'); shapes=@('empty'); fixture=$true; normalize='slashes' }
+    # find: the reverse order (-delete then -print) is also valid in GNU.
+    @{ cmd='find'; argv=@('tree/nested','-delete','-print'); shapes=@('empty'); fixture=$true; normalize='slashes' }
+    # find: -print0 combined with -delete keeps NUL-separated records.
+    @{ cmd='find'; argv=@('tree/nested','-print0','-delete'); shapes=@('empty'); fixture=$true; normalize='slashes' }
+    # find: a predicate placed after -delete must not prevent the deletion
+    # (GNU evaluates left to right), unlike a predicate used as a filter.
+    @{ cmd='find'; argv=@('tree/nested','-delete','-name','c.txt'); shapes=@('empty'); fixture=$true; normalize='slashes' }
+    # find: -delete alone removes an empty directory without output.
+    @{ cmd='find'; argv=@('tree/empty2','-delete'); shapes=@('empty'); fixture=$true; normalize='slashes' }
     # find: -name must filter entries instead of matching everything.
     @{ cmd='find'; argv=@('tree','-name','a*');     shapes=@('empty'); fixture=$true; normalize='slashes' }
     # find: -maxdepth 1 must stop before grandchildren.
@@ -599,7 +639,7 @@ function New-CaseFixture([string]$directory, [string]$inputPath, [string]$comman
         [IO.File]::WriteAllBytes((Join-Path $directory 'one'), [byte[]]@(97,10,120,0,98,0))
         [IO.File]::WriteAllBytes((Join-Path $directory 'two'), [byte[]]@(99,13,0,100,10))
     }
-    if ($command -in @('cp','mv','ls','du','find')) {
+    if ($command -in @('cp','mv','ls','du','find','grep')) {
         # Mixed tree: nested content, an empty directory and a dotfile, so
         # recursive / listing / traversal behaviour has something to get
         # wrong. `pinned` is read-only to exercise attribute preservation.

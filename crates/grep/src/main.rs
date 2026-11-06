@@ -134,9 +134,13 @@ fn main() {
         }
     };
 
+    // GNU -m 0 stops before opening any input: no output, exit status 1.
+    if args.max_count == Some(0) {
+        std::process::exit(1);
+    }
+
     let multiple_files = args.files.len() > 1;
     let mut total_count = 0;
-    let mut searched = 0usize;
 
     let stdout = std::io::stdout();
     let mut out = std::io::BufWriter::new(stdout.lock());
@@ -144,8 +148,7 @@ fn main() {
     if args.files.is_empty() {
         let show_name = args.with_filename && !args.no_filename;
         let stdin = std::io::stdin();
-        searched += 1;
-        total_count += grep_reader(
+        let count = grep_reader(
             stdin.lock(),
             "<stdin>",
             &matcher,
@@ -153,12 +156,16 @@ fn main() {
             show_name,
             &mut out,
         );
+        if count_output(&args) {
+            emit_count(&mut out, "<stdin>", show_name, count);
+        }
+        total_count += count;
     } else {
         for file in &args.files {
             let file_name = file.display().to_string();
             if file.is_dir() {
                 if args.recursive {
-                    total_count += grep_directory(file, &matcher, &args, &mut out, &mut searched);
+                    total_count += grep_directory(file, &matcher, &args, &mut out);
                 } else {
                     eprintln!("grep: {}: Is a directory", file_name);
                 }
@@ -177,7 +184,9 @@ fn main() {
                         continue;
                     }
                 };
-                searched += 1;
+                if count_output(&args) {
+                    emit_count(&mut out, &file_name, show_name, count);
+                }
                 total_count += count;
             }
         }
@@ -185,26 +194,10 @@ fn main() {
 
     let _ = out.flush();
 
-    // GNU prints no count when --include/--exclude filtered out every input.
-    if args.count
-        && !args.quiet
-        && !args.files_with_matches
-        && !args.files_without_match
-        && searched > 0
-    {
-        println!("{}", total_count);
-    }
-
     std::process::exit(if total_count > 0 { 0 } else { 1 });
 }
 
-fn grep_directory(
-    dir: &Path,
-    matcher: &Matcher,
-    args: &cli::Args,
-    out: &mut dyn Write,
-    searched: &mut usize,
-) -> u64 {
+fn grep_directory(dir: &Path, matcher: &Matcher, args: &cli::Args, out: &mut dyn Write) -> u64 {
     let mut total_count = 0;
 
     if let Ok(entries) = fs::read_dir(dir) {
@@ -212,7 +205,7 @@ fn grep_directory(
             let path = entry.path();
             if path.is_dir() {
                 if !dir_excluded(&path, args) {
-                    total_count += grep_directory(&path, matcher, args, out, searched);
+                    total_count += grep_directory(&path, matcher, args, out);
                 }
             } else {
                 if !file_allowed(&path, args) {
@@ -221,7 +214,10 @@ fn grep_directory(
                 let file_name = path.display().to_string();
                 let show_name = !args.no_filename;
                 if let Ok(count) = grep_file(&path, &file_name, matcher, args, show_name, out) {
-                    *searched += 1;
+                    // A file filtered out by --include/--exclude prints no line.
+                    if count_output(args) {
+                        emit_count(out, &file_name, show_name, count);
+                    }
                     total_count += count;
                 }
             }
@@ -229,6 +225,21 @@ fn grep_directory(
     }
 
     total_count
+}
+
+/// -c output applies unless it is suppressed by -q or overridden by -l/-L.
+fn count_output(args: &cli::Args) -> bool {
+    args.count && !args.quiet && !args.files_with_matches && !args.files_without_match
+}
+
+/// GNU -c prints one count per input, with `name:count` when the name prefix
+/// applies to this input; a zero count is still printed.
+fn emit_count(out: &mut dyn Write, name: &str, show_name: bool, count: u64) {
+    if show_name {
+        let _ = writeln!(out, "{}:{}", name, count);
+    } else {
+        let _ = writeln!(out, "{}", count);
+    }
 }
 
 /// Base-name glob used by `--include`/`--exclude`/`--exclude-dir`. `*` and `?`

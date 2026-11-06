@@ -20,30 +20,28 @@ fn main() {
         args.paths.clone()
     };
 
-    // GNU prints one line per subdirectory; this build only ever prints the
-    // argument line (declared deviation), so the walk always recurses and
-    // reports the accumulated total for the argument itself.
-    let _ = args.summarize;
-
+    // GNU prints one line per subdirectory, children before their parent.
     let mut counter = Counter {
         apparent: args.apparent_size || args.bytes,
         human: args.human_readable,
         bytes: args.bytes,
+        summarize: args.summarize,
         seen: HashSet::new(),
+        seen_dirs: HashSet::new(),
         had_error: false,
     };
 
     let mut grand_total = 0;
     for path in &paths {
         // GNU omits the line entirely for an argument that repeats an
-        // already-seen hard link, so only print when a value was returned.
-        if let Some(size) = counter.total(path) {
+        // already-seen entry, so only print when a value was returned.
+        if let Some(size) = counter.total(path, false) {
             grand_total += size;
             println!("{}\t{}", counter.display(size), path.display());
         }
     }
 
-    if args.total && paths.len() > 1 {
+    if args.total {
         println!("{}\ttotal", counter.display(grand_total));
     }
 
@@ -58,14 +56,19 @@ struct Counter {
     human: bool,
     /// Print raw bytes instead of 1K blocks.
     bytes: bool,
+    /// -s: suppress the per-subdirectory lines.
+    summarize: bool,
     seen: HashSet<(u32, u64, u64)>,
+    /// Directories already visited; a repeated argument is skipped entirely.
+    seen_dirs: HashSet<PathBuf>,
     had_error: bool,
 }
 
 impl Counter {
-    /// Returns `None` when the entry was skipped: a hard link already counted,
-    /// or an unreadable path (already reported on stderr).
-    fn total(&mut self, path: &Path) -> Option<u64> {
+    /// Returns `None` when the entry was skipped: an already counted entry, or
+    /// an unreadable path (already reported on stderr). Nested directories
+    /// print their own line unless -s is in effect; the caller prints operands.
+    fn total(&mut self, path: &Path, nested: bool) -> Option<u64> {
         let metadata = match fs::symlink_metadata(path) {
             Ok(m) => m,
             Err(e) => {
@@ -76,17 +79,26 @@ impl Counter {
         };
 
         if metadata.is_dir() {
+            // GNU counts every inode once; a directory reached again (for
+            // example `du a ./a`) produces no line at all.
+            let identity = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+            if !self.seen_dirs.insert(identity) {
+                return None;
+            }
             let mut size = 0;
             match fs::read_dir(path) {
                 Ok(entries) => {
                     for entry in entries.flatten() {
-                        size += self.total(&entry.path()).unwrap_or(0);
+                        size += self.total(&entry.path(), true).unwrap_or(0);
                     }
                 }
                 Err(e) => {
                     eprintln!("du: {}: {}", path.display(), e);
                     self.had_error = true;
                 }
+            }
+            if nested && !self.summarize {
+                println!("{}\t{}", self.display(size), path.display());
             }
             return Some(size);
         }
