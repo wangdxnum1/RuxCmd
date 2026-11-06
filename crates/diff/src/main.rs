@@ -91,6 +91,60 @@ fn normalize_line(line: &str, cli: &Cli) -> String {
     result
 }
 
+/// `n1,n2` for a multi-line span, `n` for a single line (GNU range folding).
+fn format_range(first: usize, last: usize) -> String {
+    if first == last {
+        first.to_string()
+    } else {
+        format!("{},{}", first, last)
+    }
+}
+
+/// Emit one normal-format command for a diff segment: `d` for pure deletes,
+/// `a` for pure adds, `c` for a mix. The command is followed by the `< `
+/// deletion lines, the `---` separator (only `c` has both sides) and the
+/// `> ` addition lines. `anchor1`/`anchor2` are the previous common line
+/// numbers of each file (0 when the segment starts the file).
+fn print_segment(
+    anchor1: usize,
+    anchor2: usize,
+    dels: &[usize],
+    adds: &[usize],
+    lines1: &[String],
+    lines2: &[String],
+) {
+    let header = if dels.is_empty() {
+        format!(
+            "{}a{}",
+            anchor1,
+            format_range(adds[0] + 1, adds[adds.len() - 1] + 1)
+        )
+    } else if adds.is_empty() {
+        format!(
+            "{}d{}",
+            format_range(dels[0] + 1, dels[dels.len() - 1] + 1),
+            anchor2
+        )
+    } else {
+        format!(
+            "{}c{}",
+            format_range(dels[0] + 1, dels[dels.len() - 1] + 1),
+            format_range(adds[0] + 1, adds[adds.len() - 1] + 1)
+        )
+    };
+    println!("{}", header);
+
+    for idx in dels {
+        println!("< {}", lines1[*idx]);
+    }
+    if !dels.is_empty() && !adds.is_empty() {
+        println!("---");
+    }
+    for idx in adds {
+        println!("> {}", lines2[*idx]);
+    }
+}
+
 fn print_normal_diff(lines1: &[String], lines2: &[String], cli: &Cli) -> bool {
     let n = lines1.len();
     let m = lines2.len();
@@ -153,48 +207,46 @@ fn print_normal_diff(lines1: &[String], lines2: &[String], cli: &Cli) -> bool {
 
     ops.reverse();
 
-    // GNU normal-format numbering: `i`/`j` are the next unprocessed 1-based
-    // line numbers of each file. Within a run of commands (the lines between
-    // two common lines) the anchors stay at the run start, so a delete reads
-    // "<n1>d<j-1>" and an add reads "<i-1>a<n3>" exactly as GNU would emit
-    // the ends of a merged hunk.
+    // Group the op sequence into diff segments: maximal runs of Delete/Add
+    // with no Common line in between. GNU normal format emits exactly one
+    // command per segment; a single common line always separates commands.
+    // `i`/`j` are the next unprocessed 1-based line numbers of each file, so
+    // `i - 1`/`j - 1` are the line numbers the anchors point at.
     let mut i: usize = 1;
     let mut j: usize = 1;
-    let mut run_start_i = 1;
-    let mut run_start_j = 1;
-    let mut in_run = false;
     let mut found_diff = false;
+
+    let mut seg_del: Vec<usize> = Vec::new();
+    let mut seg_add: Vec<usize> = Vec::new();
 
     for op in &ops {
         match *op {
             Op::Common => {
-                in_run = false;
+                if !seg_del.is_empty() || !seg_add.is_empty() {
+                    print_segment(i - 1, j - 1, &seg_del, &seg_add, lines1, lines2);
+                    found_diff = true;
+                    seg_del.clear();
+                    seg_add.clear();
+                }
                 i += 1;
                 j += 1;
             }
             Op::Delete(idx) => {
-                if !in_run {
-                    run_start_i = i;
-                    run_start_j = j;
-                    in_run = true;
-                }
-                found_diff = true;
-                println!("{}d{}", i, run_start_j - 1);
-                println!("< {}", lines1[idx]);
+                seg_del.push(idx);
                 i += 1;
             }
             Op::Add(idx) => {
-                if !in_run {
-                    run_start_i = i;
-                    run_start_j = j;
-                    in_run = true;
-                }
-                found_diff = true;
-                println!("{}a{}", run_start_i - 1, j);
-                println!("> {}", lines2[idx]);
+                seg_add.push(idx);
                 j += 1;
             }
         }
+    }
+
+    // Trailing segment: the ops can end on a diff segment with no following
+    // Common line, e.g. a diff at the end of the file.
+    if !seg_del.is_empty() || !seg_add.is_empty() {
+        print_segment(i - 1, j - 1, &seg_del, &seg_add, lines1, lines2);
+        found_diff = true;
     }
 
     found_diff
