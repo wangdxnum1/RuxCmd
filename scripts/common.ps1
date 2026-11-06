@@ -178,6 +178,46 @@ function Get-RuxCmdShimContent {
     "@echo off`r`n`"%~dp0$Command.exe`" %*`r`n"
 }
 
+# ISCC.exe carries no version resource (ProductVersion is 0.0.0.0), so the
+# installed version is read from the Inno Setup uninstall registration.
+function Get-InnoSetupVersion {
+    param([string]$IsccPath)
+    $directory = [IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath([IO.Path]::GetDirectoryName($IsccPath)))
+    foreach ($key in @(
+            'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
+            'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*',
+            'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*')) {
+        foreach ($item in @(Get-ItemProperty -Path $key -ErrorAction SilentlyContinue)) {
+            $nameProperty = $item.PSObject.Properties['DisplayName']
+            $versionProperty = $item.PSObject.Properties['DisplayVersion']
+            $locationProperty = $item.PSObject.Properties['InstallLocation']
+            if (-not $nameProperty -or -not $versionProperty -or -not $locationProperty) { continue }
+            if ($nameProperty.Value -notlike 'Inno Setup*' -or [string]::IsNullOrWhiteSpace([string]$versionProperty.Value)) { continue }
+            $location = [string]$locationProperty.Value
+            if ([string]::IsNullOrWhiteSpace($location)) { continue }
+            $resolved = [IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath($location))
+            if ([string]::Equals($resolved, $directory, [StringComparison]::OrdinalIgnoreCase)) { return [string]$versionProperty.Value }
+        }
+    }
+    return ''
+}
+
+function Find-InnoSetupCompiler {
+    $candidates = @()
+    $command = Get-Command ISCC.exe -ErrorAction SilentlyContinue
+    if ($command) { $candidates += $command.Source }
+    foreach ($root in @(${env:ProgramFiles(x86)}, $env:ProgramFiles)) {
+        if ([string]::IsNullOrWhiteSpace($root)) { continue }
+        foreach ($edition in @('Inno Setup 6', 'Inno Setup 7')) {
+            $candidates += (Join-Path $root "$edition\ISCC.exe")
+        }
+    }
+    foreach ($candidate in $candidates) {
+        if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) { return (Get-FileSystemPath $candidate) }
+    }
+    return $null
+}
+
 function Expand-ReleaseArchive {
     param([string]$ArchivePath, [string]$Destination)
     $root = [IO.Path]::GetFullPath($Destination)

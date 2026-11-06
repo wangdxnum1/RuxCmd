@@ -47,22 +47,7 @@ jobs:
       - name: Build and verify ZIP
         run: ./scripts/release.ps1
       - name: Install pinned Inno Setup
-        run: |
-          $toolchain = Get-Content -LiteralPath scripts/packaging/inno/toolchain.json -Raw | ConvertFrom-Json
-          $version = [string]$toolchain.innoSetupVersion
-          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
-          $installed = if (Test-Path -LiteralPath $iscc) { [Diagnostics.FileVersionInfo]::GetVersionInfo($iscc).ProductVersion } else { '' }
-          if ($installed -notmatch "^$([regex]::Escape($version))") {
-            $installer = Join-Path $env:RUNNER_TEMP "innosetup-$version.exe"
-            Invoke-WebRequest -Uri $toolchain.downloadUrl -OutFile $installer
-            $process = Start-Process -FilePath $installer -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-' -Wait -PassThru
-            if ($process.ExitCode -ne 0) { throw "Inno Setup installer exited $($process.ExitCode)." }
-          }
-          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
-          if (-not (Test-Path -LiteralPath $iscc)) { throw 'ISCC.exe was not installed.' }
-          $actual = [Diagnostics.FileVersionInfo]::GetVersionInfo($iscc).ProductVersion
-          if ($actual -notmatch "^$([regex]::Escape($version))") { throw "Inno Setup version mismatch: expected $version, found '$actual'." }
-          Write-Host "Inno Setup $actual at $iscc"
+        run: ./scripts/packaging/inno/install-inno.ps1
       - name: Build EXE installer
         run: |
           $clock = [Diagnostics.Stopwatch]::StartNew()

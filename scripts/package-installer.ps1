@@ -14,7 +14,10 @@ No command list is maintained here; the manifest is the source of truth. The
 142 binary version resources are checked again before compiling.
 
 Inno Setup is not installed by this script. Pass -Iscc or install the pinned
-version described by scripts/packaging/inno/toolchain.json.
+version described by scripts/packaging/inno/toolchain.json. The compiler is
+located through PATH, then the standard "Inno Setup 6" and "Inno Setup 7"
+directories; its version is read from the Inno Setup uninstall registration
+because ISCC.exe has no version resource of its own.
 
 .PARAMETER Archive
 Release ZIP produced by scripts/release.ps1 or scripts/package.ps1.
@@ -26,7 +29,8 @@ Sidecar containing "<sha256>  <filename>". Defaults to <Archive>.sha256.
 Directory for the setup EXE and its .sha256 sidecar. Defaults to dist/.
 
 .PARAMETER Iscc
-Path to ISCC.exe. Defaults to the standard Inno Setup 6 installation paths.
+Path to ISCC.exe. Defaults to PATH and the standard Inno Setup installation
+directories.
 
 .EXAMPLE
 ./scripts/package-installer.ps1 -Archive dist/ruxcmd-0.4.4-x86_64-pc-windows-msvc.zip
@@ -43,28 +47,14 @@ param(
 
 function Resolve-IsccExecutable {
     param([string]$Path, [string]$ExpectedVersion, $Toolchain)
-    $candidate = $Path
-    if (-not $candidate) {
-        $programFilesX86 = ${env:ProgramFiles(x86)}
-        $candidates = @()
-        if ($programFilesX86) { $candidates += (Join-Path $programFilesX86 'Inno Setup 6\ISCC.exe') }
-        if ($env:ProgramFiles) { $candidates += (Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe') }
-        foreach ($item in $candidates) {
-            if (Test-Path -LiteralPath $item -PathType Leaf) { $candidate = $item; break }
-        }
-        if (-not $candidate) {
-            $command = Get-Command ISCC.exe -ErrorAction SilentlyContinue
-            if ($command) { $candidate = $command.Source }
-        }
-    }
+    $candidate = if ($Path) { Get-FileSystemPath $Path } else { Find-InnoSetupCompiler }
     if (-not $candidate) {
         throw "Inno Setup $ExpectedVersion was not found. Install it from $($Toolchain.downloadUrl) or pass -Iscc <path>."
     }
-    $candidate = Get-FileSystemPath $candidate
     if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { throw "ISCC.exe not found: $candidate" }
-    $version = [Diagnostics.FileVersionInfo]::GetVersionInfo($candidate).ProductVersion
+    $version = Get-InnoSetupVersion $candidate
     if ($version -notmatch "^$([regex]::Escape($ExpectedVersion))") {
-        throw "Inno Setup version mismatch: expected $ExpectedVersion, found '$version' at $candidate."
+        throw "Inno Setup version mismatch: expected $ExpectedVersion, found '$version' at $candidate. Install the pinned version from $($Toolchain.downloadUrl)."
     }
     $candidate
 }
