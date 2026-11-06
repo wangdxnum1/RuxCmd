@@ -1,6 +1,6 @@
 # Generated source template for microsoft/winget-pkgs; submit via pull request.
 PackageIdentifier: wangdxnum1.RuxCmd
-PackageVersion: 0.4.7
+PackageVersion: 0.4.8
 DefaultLocale: en-US
 ManifestType: version
 ManifestVersion: 1.6.0

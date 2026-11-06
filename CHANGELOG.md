@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.8 — bc scale、expr 反向引用、cut --complement、mktemp dry-run(2026-11-07)
+
+- bc:支持 `scale=N`(0..=64)赋值——scale>0 时 `/` 输出按 scale 截断的小数(i128 定点长除法,~38 位有效数字)、`%` = a−(a/b)·b、`^` 负指数与 `sqrt()` 产生小数;支持十进制字面量(1.5、.5);非零值打印完整小数位(前导 0)。仍非任意精度:超出报 overflow。
+- expr:BRE 反向引用 `\1`-`\9` 支持(fancy-regex 0.20,纯 Rust 回溯引擎);POSIX 分组 `\(...\)` 编号保持嵌套语义;非法反向引用(前向/越界/未闭合)报 Invalid back reference 退出 2,与 GNU 8.32 一致。
+- cut:新增 `--complement` 反转选择集(按行序输出)。
+- mktemp:新增 `-u/--dry-run`(仅打印路径不创建)与无值 `--tmpdir`(用 $TMPDIR,否则 %TEMP%)。
+
 ## 0.4.7 — column fill、grep fnmatch、dd conv 扩展(2026-11-07)
 
 - column:默认 fill 模式与 util-linux 2.40.2 逐字节一致(100 组固定输入 × 5 种宽度全 MATCH)——整行为词条、空行忽略、TAB 制表位对齐、列优先填充，词条宽 ≥ 终端宽时逐行原样输出；宽度仅读 COLUMNS 环境变量（默认 80）；-t 表格模式行为不变。
