@@ -1,5 +1,6 @@
 //! Convert and copy a file block by block - a Windows port of GNU dd's core
-//! subset: if/of/bs/ibs/obs/count/skip/seek/status/conv=notrunc.
+//! subset: if/of/bs/ibs/obs/count/skip/seek/status, conv=notrunc/sync/
+//! fullblock/nocreat and iflag=fullblock.
 
 use std::io::{Read, Seek, SeekFrom, Write};
 
@@ -15,7 +16,8 @@ Copy a file, converting and formatting according to the operands.\n\n\
   seek=N      skip N obs-sized blocks in the output\n\
   skip=N      skip N ibs-sized blocks in the input\n\
   status=LEVEL  none | noxfer\n\
-  conv=LIST   notrunc is supported; other conversions are rejected\n\n\
+  conv=LIST   notrunc, sync, fullblock, nocreat, noerror, ucase, lcase\n\
+  iflag=LIST  fullblock (accumulate full input blocks, as conv=fullblock)\n\n\
 N may be followed by c (1), w (2), b (512), kB (1000), K (1024), MB, M, GB, G.";
 
 fn main() {
@@ -72,6 +74,8 @@ struct Opts {
     no_error: bool,
     ucase: bool,
     lcase: bool,
+    full_block: bool,
+    no_creat: bool,
 }
 
 #[derive(Default, PartialEq, Eq)]
@@ -123,11 +127,26 @@ fn apply_operand(opts: &mut Opts, arg: &str) {
                 match conversion {
                     "notrunc" => opts.no_trunc = true,
                     "sync" => opts.sync_pad = true,
+                    "fullblock" => opts.full_block = true,
+                    "nocreat" => opts.no_creat = true,
                     "noerror" => opts.no_error = true,
                     "ucase" => opts.ucase = true,
                     "lcase" => opts.lcase = true,
                     other => {
-                        eprintln!("dd: invalid conversion '{}'", other);
+                        eprintln!("dd: invalid conversion: '{}'", other);
+                        eprintln!("Try 'dd --help' for more information.");
+                        std::process::exit(1);
+                    }
+                }
+            }
+        }
+        "iflag" => {
+            for flag in value.split(',') {
+                match flag {
+                    "fullblock" => opts.full_block = true,
+                    other => {
+                        eprintln!("dd: invalid input flag: '{}'", other);
+                        eprintln!("Try 'dd --help' for more information.");
                         std::process::exit(1);
                     }
                 }
@@ -181,9 +200,9 @@ fn run_copy(opts: &Opts) -> Result<Stats, String> {
     let obs = if opts.obs > 0 { opts.obs } else { 512 };
 
     let mut input: Box<dyn Read> = match &opts.input {
-        Some(name) if name != "-" => {
-            Box::new(std::fs::File::open(name).map_err(|e| format!("'{name}': {e}"))?)
-        }
+        Some(name) if name != "-" => Box::new(
+            std::fs::File::open(name).map_err(|e| format!("failed to open '{name}': {e}"))?,
+        ),
         _ => Box::new(std::io::stdin()),
     };
 
@@ -225,7 +244,7 @@ fn run_copy(opts: &Opts) -> Result<Stats, String> {
         {
             break;
         }
-        let mut got = match read_some_opt(&mut input, &mut block, opts.no_error) {
+        let mut got = match read_block_opt(&mut input, &mut block, opts.no_error, opts.full_block) {
             Ok(n) => n,
             Err(_) => break,
         };
@@ -233,6 +252,14 @@ fn run_copy(opts: &Opts) -> Result<Stats, String> {
             break;
         }
         blocks_copied += 1;
+        // Count input records on the raw read, before conv=sync pads the
+        // block: GNU dd 8.32 reports a short read padded up to ibs as a
+        // partial input record.
+        if got == block.len() {
+            stats.full_in += 1;
+        } else {
+            stats.partial_in += 1;
+        }
         if opts.ucase {
             block[..got].make_ascii_uppercase();
         } else if opts.lcase {
@@ -242,13 +269,7 @@ fn run_copy(opts: &Opts) -> Result<Stats, String> {
             for b in &mut block[got..] {
                 *b = 0;
             }
-            let full = block.len();
-            got = full;
-        }
-        if got == block.len() {
-            stats.full_in += 1;
-        } else {
-            stats.partial_in += 1;
+            got = block.len();
         }
 
         // Write through the obs window.
@@ -311,16 +332,41 @@ fn build_output(opts: &Opts) -> Result<OutTarget, String> {
         && name != "-"
     {
         let mut options = std::fs::OpenOptions::new();
-        options.write(true).create(true);
+        // conv=nocreat: the output file must already exist; fail instead of
+        // creating it (GNU dd 8.32).
+        options.write(true).create(!opts.no_creat);
         options.truncate(!opts.no_trunc);
-        let file = options.open(name).map_err(|e| format!("'{name}': {e}"))?;
+        let file = options
+            .open(name)
+            .map_err(|e| format!("failed to open '{name}': {e}"))?;
         return Ok(OutTarget::File(file));
     }
     Ok(OutTarget::Stdout(std::io::stdout()))
 }
 
-fn read_some_opt(reader: &mut dyn Read, buf: &mut [u8], _no_error: bool) -> Result<usize, String> {
-    read_some(reader, buf)
+/// Read one input block. With fullblock (conv=fullblock / iflag=fullblock),
+/// keep reading until the buffer is full or the stream ends, merging the
+/// short reads a pipe delivers; otherwise return after the first successful
+/// read. A zero return means end of stream.
+fn read_block_opt(
+    reader: &mut dyn Read,
+    buf: &mut [u8],
+    _no_error: bool,
+    full_block: bool,
+) -> Result<usize, String> {
+    if !full_block {
+        return read_some(reader, buf);
+    }
+    let mut n = 0;
+    while n < buf.len() {
+        match reader.read(&mut buf[n..]) {
+            Ok(0) => break,
+            Ok(k) => n += k,
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(e) => return Err(format!("read error: {e}")),
+        }
+    }
+    Ok(n)
 }
 
 /// Read up to the buffer capacity, looping over short reads; a zero return
