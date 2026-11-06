@@ -153,6 +153,8 @@ PrivilegesRequiredOverridesAllowed=dialog
   `https://github.com/jrsoftware/issrc/releases/download/is-7_1_1/innosetup-7.1.1-x64.exe`（x64 安装器，安装到 `%ProgramFiles%\Inno Setup 7`）。
 - 版本约束：`toolchain.json` 的 `supportedMajorVersion=7` 定义支持区间为 **7.x**。脚本会从注册表读出实际 `ISCC` 版本并打印；**5.x/6.x/8.x 明确拒绝**，7.x 内的任意小版本（如 7.0.2）允许，便于本机已有 7 系工具链直接使用。`innoSetupVersion` 只用于“自动安装时下载哪个版本”。
 - 7.1.1 编译出的安装包独立分发，不依赖 Inno 运行时；Inno 的授权变化只影响**使用编译器的一方**，不影响产物的分发与运行。Inno 7 下载页要求商业使用者购买许可（见 jrsoftware 的 Commercial Licenses 页面），本项目按用户决定使用 7.1.1。
+- 未配置商业许可密钥时，`ISCC 7.1.1` 的编译横幅会打印 `Non-commercial use only`。本轮本机编译即处于该状态（用户已接受 7.x 条款）；该横幅不写入产物、不改变安装包行为。若 RuxCmd 的发行属于商业使用，需要按 jrsoftware 的许可页面购买并在构建机上配置密钥。
+- **Inno 7 改了卸载注册表值的名字**：Inno 6 写作 `Inno Setup: AppPath`，7.x 写作 `Inno Setup: App Path`（带空格）。升级/同版本重装时读取旧目录必须两个名字都尝试，否则会以“已安装但目录无法读取”中止（本轮实测发现并修复）。
 - 只需要 `ISCC.exe` 命令行编译器。定位顺序：`PATH` → `%ProgramFiles(x86)%\Inno Setup 6` → `%ProgramFiles%\Inno Setup 6` → 同名 `Inno Setup 7` 目录（x86/x64 安装器各用其一）；也可用 `-Iscc <path>` 显式指定。定位时会优先返回属于支持区间的编译器。
 - **版本检测不能读 `ISCC.exe` 的文件版本**：它没有版本资源，`ProductVersion` 恒为 `0.0.0.0`（这正是首次 CI 失败的原因）。版本从卸载注册表 `...\Uninstall\Inno Setup 7_is1`（或 `6_is1`）的 `DisplayVersion` 读取，并与 `InstallLocation` 目录匹配。
 - CI 与本机共用 [install-inno.ps1](file:///C:/Users/Tim/Work/my-projects/RuxCmd/scripts/packaging/inno/install-inno.ps1)：已装 7.x 则跳过并打印实际版本，否则下载 7.1.1 官方安装器静默安装并复验。**7 系静默安装参数与 6 系相同**：`/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-`；Inno 的安装器没有单独的 EULA 接受开关，`/VERYSILENT` 不显示许可页，接受条款属于使用者（本项目已由用户确认）。
@@ -189,12 +191,11 @@ PrivilegesRequiredOverridesAllowed=dialog
 
 `release.ps1 -Publish` 保持只上传 ZIP：安装包只在 CI 的 Release 流程里产出，避免本地发布路径多一处需要单独验证的分支。
 
-预计新增耗时（估算，待首次 CI 实测后更新为实测值）：
+实测（本机 2026-11-06，7.1.1，增量 Rust 构建）：
 
-- 下载并安装 Inno：约 30–60 秒（缓存/预装命中则更短）。
-- `ISCC` 用 `lzma2/max` 压缩约 56 MB 输入：约 1–3 分钟。
-- 打包脚本的校验与解压：约 20–40 秒。
-- CI 总时长预计增加 2–4 分钟；现有 45 分钟超时充足。
+- 已有 0.4.4 ZIP 时，`package-installer.ps1` 的校验+解压+`ISCC` 编译共约 25 秒，其中 `ISCC` 19.1 秒（`lzma2/max`，142 exe + 16 shim + 6 文档）。
+- 从零构建 0.4.4 ZIP（Rust 已预热）并用 `release.ps1` 完整校验约 72 秒。
+- 首次 CI 的下载/安装 Inno 耗时待该次 run 完成后补记；现有 45 分钟超时充足。
 
 ## 7. 版本与签名
 
@@ -341,10 +342,30 @@ pwsh -File scripts/install.ps1 -Source <zip> -Force
 
 ```powershell
 $dir = "D:\Tools\RuxCmd\bin"
-Get-ChildItem "$dir\*.exe" |
-  Where-Object { [Diagnostics.FileVersionInfo]::GetVersionInfo($_.FullName).ProductVersion -ne '0.4.4' }
+Get-ChildItem "$dir\*.exe" | Where-Object Name -ne 'unins000.exe' |
+  Where-Object { [Diagnostics.FileVersionInfo]::GetVersionInfo($_.FullName).ProductVersion.Trim() -ne '0.4.4' }
 # 预期：无输出（142 个 exe 的 ProductVersion 全部为 0.4.4）
 ```
+
+### 9.12 本轮验证记录（本机，2026-11-06）
+
+产物：`ruxcmd-0.4.4-x86_64-pc-windows-msvc-setup.exe`（16,474,102 字节，SHA256 `c248b53860e3fc875a35c98b90348bb5a01523482c81d362c175ee02b4aa75fc`），由 Inno 7.1.1 编译，编译耗时 19.1 秒，版本资源 `0.4.4 / 0.4.4.0`。
+
+| 步骤 | 结果 |
+| --- | --- |
+| 首次安装（`/CURRENTUSER /DIR=%TEMP%\...`） | `exit=0`；142 exe、16 shim、6 文档；PATH 仅在末尾追加一条；`DisplayVersion=0.4.4`；HKCU 卸载键存在 |
+| 同版本重装（首次尝试） | `exit=7`：Inno 7 的 `Inno Setup: App Path` 值名不匹配，报“已安装但目录无法读取” |
+| 同版本重装（修复后） | `exit=0`；沿用原目录；卸载键仍为 1 个；PATH 不变 |
+| 改目录重装 | `exit=7`，提示“不支持改目录”；目标目录未创建；PATH 不变 |
+| 卸载 | `exit=0`；exe/shim/share/目录/卸载键全部清理；用户 PATH 与安装前快照**逐字符一致** |
+| exe 版本资源 | 142 个 exe 的 `ProductVersion` 全部 `0.4.4`（0 个不一致），名称集合与 `manifest.json` 一致 |
+| 互斥：安装包存在时跑 `install.ps1` | 立即报错并提示先卸载；未写文件、PATH 不变 |
+| 互斥：脚本安装存在时跑安装包 | `exit=7`，`PrepareToInstall` 中止并给出 `install.ps1 -Uninstall` 命令；未创建目录、PATH 不变 |
+| 升级到下一版本 | 未执行：仓库只有 0.4.4 安装包，且不允许自造版本 |
+| 降级 | 未执行：需要“已装更高版本 + 更高版本安装包”，同样缺产物；不自造版本 |
+| 所有用户（HKLM）模式 | 本轮未执行：需要 UAC 交互，且会改机器级 PATH/注册表 |
+
+验证期间的所有安装目录均在 `%TEMP%` 下自建，结束后已卸载并删除；未触碰 `dist` 下的既有 ZIP/安装包。
 
 ## 10. 已落地的文件
 

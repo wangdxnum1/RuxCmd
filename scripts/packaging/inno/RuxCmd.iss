@@ -266,13 +266,20 @@ begin
       Result := MachineVersion;
 end;
 
-function GetPreviousAppDir: string;
+function ReadPreviousAppDir(RootKey: Integer): string;
 begin
   Result := '';
-  if RegQueryStringValue(HKCU, UserUninstallKey, 'Inno Setup: AppPath', Result) then
+  { Inno Setup 7 renamed the value to "Inno Setup: App Path"; accept both. }
+  if RegQueryStringValue(RootKey, UserUninstallKey, 'Inno Setup: App Path', Result) and (Result <> '') then
     Exit;
-  if RegQueryStringValue(HKLM, UserUninstallKey, 'Inno Setup: AppPath', Result) then
-    Exit;
+  RegQueryStringValue(RootKey, UserUninstallKey, 'Inno Setup: AppPath', Result);
+end;
+
+function GetPreviousAppDir: string;
+begin
+  Result := ReadPreviousAppDir(HKCU);
+  if Result = '' then
+    Result := ReadPreviousAppDir(HKLM);
 end;
 
 function StartsWithPath(const Value, Prefix: string): Boolean;
