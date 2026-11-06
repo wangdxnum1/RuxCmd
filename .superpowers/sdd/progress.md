@@ -41082,3 +41082,4 @@ Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
 - sed -E/-r/--regexp-extended: shared converter switch; ERE passes operators through; backrefs rejected in both dialects.
 - awk user functions: function/func keyword, return with value, recursion (depth cap 512), dynamic local params restored after call. Output redirection: print/printf > file, >> file, | cmd (cmd /C), /dev/stdout, /dev/stderr, close(). GNU open-once semantics.
 - Fixed: expr_end call-paren misclassification, print multi-arg loss after parenthesized first arg, missing Return arm in statement_end, wrapper-vs-call comma-depth confusion (rewritten as explicit depth scanner).
+- Release: v0.4.6 tag 已推送,Release workflow 已 dispatch(42268415881);scoop/winget 清单同步至 0.4.6;compat-check 通过(0 问题)。
