@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.7 — column fill、grep fnmatch、dd conv 扩展(2026-11-07)
+
+- column:默认 fill 模式与 util-linux 2.40.2 逐字节一致(100 组固定输入 × 5 种宽度全 MATCH)——整行为词条、空行忽略、TAB 制表位对齐、列优先填充，词条宽 ≥ 终端宽时逐行原样输出；宽度仅读 COLUMNS 环境变量（默认 80）；-t 表格模式行为不变。
+- grep:`--include`/`--exclude` glob 支持 fnmatch 字符类（[abc]、[a-z]、[!abc]、[]x]、转义），翻译规则与 GNU grep 3.0 实测一致。
+- dd:`conv=sync`（短读补 NUL 到 ibs，修正 records in 计数时机）、`conv=nocreat`、`conv=fullblock`/`iflag=fullblock`（读侧短读合并）；conv/iflag 非法值错误格式对齐 GNU。
+
 ## 0.4.6 — 脚本必备 GNU 对齐(2026-11-07)
 
 - touch:`-r/--reference`(取参考文件时间)、`-t STAMP`([[CC]YY]MMDDhhmm[.ss],本地时间经 TzSpecificLocalTimeToSystemTime 转换,DST 正确)、`-d/--date` 子集(@epoch、YYYY-MM-DD[THH:MM[:SS]]);源优先级 -r>-d/-t>now,-t 与 -d/-r 组合报 GNU 同款错误(8.32 实测对齐)。
