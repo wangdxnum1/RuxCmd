@@ -28,15 +28,20 @@ jobs:
           $version = (Select-String -Path rust-toolchain.toml -Pattern '^channel = "([^"]+)"').Matches[0].Groups[1].Value
           rustup toolchain install $version --profile minimal --component rustfmt --component clippy --target x86_64-pc-windows-msvc
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      - uses: Swatinem/rust-cache@e9d7b9f1e587218970671bac74e5511ed9506e6a # v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-msvc-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', '.cargo/config.toml') }}
+          # The key covers the toolchain, lockfile, cargo config and this workflow
+          # file itself, so a stale target tree is never reused after any of them
+          # changes. A miss simply rebuilds; `cache-workspace-crates: false` keeps
+          # this run's crates out of the cache, so a hit can never substitute the
+          # 142 release binaries that the compatibility check reads.
+          key: ${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', '.cargo/config.toml', '.github/workflows/ci.yml') }}
+          cache-targets: true
+          cache-workspace-crates: false
       - name: Verify workspace and build release binaries
         run: ./scripts/build.ps1 -Task Verify
+      - name: Confirm the release binaries were produced by this build
+        run: ./scripts/verify-version-info.ps1
       - name: Check compatibility tables and documented counts
         run: ./scripts/compat-check.ps1
       - name: Build and verify ZIP
