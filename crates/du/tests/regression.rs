@@ -147,6 +147,207 @@ fn empty_file_is_zero_bytes() {
     assert_eq!(String::from_utf8(out).unwrap().trim(), "0\tzero.bin");
 }
 
+/// `--max-depth=N` keeps the counting identical but prints only directory
+/// lines up to N levels below the operand (the operand itself is depth 0).
+/// Output paths use `/` separators like GNU.
+#[test]
+fn max_depth_limits_printed_directory_lines() {
+    let dir = nested_tree();
+    assert_eq!(
+        du_in(&dir, &["--apparent-size", "--max-depth=1"]).trim(),
+        "1\ta/b\n1\ta"
+    );
+    assert_eq!(
+        du_in(&dir, &["--apparent-size", "--max-depth=0"]).trim(),
+        "1\ta"
+    );
+    assert_eq!(
+        du_in(&dir, &["--apparent-size", "--max-depth=2"]).trim(),
+        "1\ta/b/c\n1\ta/b\n1\ta"
+    );
+}
+
+/// GNU parses the depth with `xstrtoumax(..., base 0)`: hex and leading
+/// whitespace/plus are accepted, trailing junk, signs and overflow are not.
+#[test]
+fn max_depth_accepts_gnu_number_forms() {
+    let dir = nested_tree();
+    let full = "1\ta/b/c\n1\ta/b\n1\ta";
+    assert_eq!(
+        du_in(&dir, &["--apparent-size", "--max-depth=0x10"]).trim(),
+        full
+    );
+    assert_eq!(
+        du_in(&dir, &["--apparent-size", "--max-depth= 2"]).trim(),
+        full
+    );
+    for bad in ["-1", "99999999999999999999", "2x"] {
+        cargo_bin_cmd!("du")
+            .arg(format!("--max-depth={bad}"))
+            .arg("a")
+            .current_dir(dir.path())
+            .assert()
+            .code(1)
+            .stderr(predicates::str::contains("invalid maximum depth"));
+    }
+}
+
+/// A file operand gets exactly one line with `-a`: the operand line itself,
+/// not a second one from the nested-file path.
+#[test]
+fn all_file_operand_prints_one_line() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("size.bin"), vec![b'x'; 5000]).unwrap();
+    let mut cmd = cargo_bin_cmd!("du");
+    let out = cmd
+        .args(["-a", "-b"])
+        .arg("size.bin")
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(String::from_utf8(out).unwrap().trim(), "5000\tsize.bin");
+}
+
+/// `-a` writes a line for every file in post-order position (readdir order,
+/// before its parent directory's line).
+#[test]
+fn all_prints_file_lines_in_post_order() {
+    let dir = nested_tree();
+    assert_eq!(
+        du_in(&dir, &["-a", "-b"]).trim(),
+        "10\ta/b/c/z\n10\ta/b/c\n10\ta/b/y\n20\ta/b\n10\ta/x\n30\ta"
+    );
+}
+
+/// With `--max-depth` files count as the depth of their directory level:
+/// `-a --max-depth=0` shows only the operand, `-a --max-depth=1` shows the
+/// operand's direct children of both kinds.
+#[test]
+fn all_with_max_depth_limits_files_like_dirs() {
+    let dir = nested_tree();
+    assert_eq!(
+        du_in(&dir, &["-a", "--apparent-size", "--max-depth=0"]).trim(),
+        "1\ta"
+    );
+    assert_eq!(
+        du_in(&dir, &["-a", "--apparent-size", "--max-depth=1"]).trim(),
+        "1\ta/b\n1\ta/x\n1\ta"
+    );
+}
+
+/// GNU refuses `-a` together with `-s` (usage error, exit 1).
+#[test]
+fn all_and_summarize_are_rejected() {
+    let dir = nested_tree();
+    cargo_bin_cmd!("du")
+        .args(["-a", "-s"])
+        .arg("a")
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stdout(predicates::str::is_empty())
+        .stderr(predicates::str::contains(
+            "cannot both summarize and show all entries",
+        ));
+}
+
+/// `-s` with an explicit positive `--max-depth` is a usage failure; with
+/// `--max-depth=0` GNU only warns and behaves like plain `-s`.
+#[test]
+fn summarize_conflicts_with_positive_max_depth() {
+    let dir = nested_tree();
+    cargo_bin_cmd!("du")
+        .args(["-s", "--max-depth=1"])
+        .arg("a")
+        .current_dir(dir.path())
+        .assert()
+        .code(1)
+        .stdout(predicates::str::is_empty())
+        .stderr(predicates::str::contains(
+            "summarizing conflicts with --max-depth=1",
+        ));
+}
+
+#[test]
+fn summarize_with_zero_max_depth_warns_and_summarizes() {
+    let dir = nested_tree();
+    let out = cargo_bin_cmd!("du")
+        .args(["-s", "--apparent-size", "--max-depth=0"])
+        .arg("a")
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stderr(predicates::str::contains(
+            "summarizing is the same as using --max-depth=0",
+        ))
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(String::from_utf8(out).unwrap().trim(), "1\ta");
+}
+
+/// `--exclude` prunes matching directories (whole subtree, not counted) and
+/// files, before their lines would be printed. Slash-bearing patterns match
+/// any suffix of the path at component boundaries.
+#[test]
+fn exclude_prunes_matching_dirs_and_files() {
+    let dir = nested_tree();
+    // A pruned directory disappears from the listing; the operand shrinks.
+    assert_eq!(
+        du_in(&dir, &["--apparent-size", "--exclude=b"]).trim(),
+        "1\ta"
+    );
+    // A file pattern removes it from the count and from the -a listing.
+    assert_eq!(
+        du_in(&dir, &["-a", "-b", "--exclude=y"]).trim(),
+        "10\ta/b/c/z\n10\ta/b/c\n10\ta/b\n10\ta/x\n20\ta"
+    );
+    // `b/*` keeps directory b itself but empties it.
+    assert_eq!(
+        du_in(&dir, &["-b", "--exclude=b/*"]).trim(),
+        "0\ta/b\n10\ta"
+    );
+    // Patterns are repeatable.
+    assert_eq!(
+        du_in(&dir, &["-b", "--exclude=x", "--exclude=z"]).trim(),
+        "0\ta/b/c\n10\ta/b\n10\ta"
+    );
+}
+
+/// A pattern without `/` matches any single path component.
+#[test]
+fn exclude_pattern_without_slash_matches_any_component() {
+    let dir = nested_tree();
+    assert_eq!(
+        du_in(&dir, &["-b", "--exclude=y"]).trim(),
+        "10\ta/b/c\n10\ta/b\n20\ta"
+    );
+}
+
+/// An excluded operand produces no output at all and exits 0.
+#[test]
+fn excluded_operand_produces_no_output() {
+    let dir = nested_tree();
+    cargo_bin_cmd!("du")
+        .args(["-b", "--exclude=a"])
+        .arg("a")
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::is_empty());
+}
+
+/// On a single volume `-x` changes nothing; the real cross-volume pruning is
+/// covered by unit tests with an injected volume predicate.
+#[test]
+fn one_file_system_traverses_same_volume_normally() {
+    let dir = nested_tree();
+    assert_eq!(du_in(&dir, &["-b", "-a"]), du_in(&dir, &["-b", "-a", "-x"]));
+}
+
 /// A path that cannot be read must be reported on stderr and must make du
 /// exit 1 (the old code always exited 0).
 #[test]

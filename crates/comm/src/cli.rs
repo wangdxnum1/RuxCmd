@@ -23,6 +23,9 @@ pub struct Cli {
     #[arg(short = '3', help = "Suppress lines that appear in both files")]
     pub hide_col3: bool,
 
+    #[arg(long = "total", help = "Append a total line with unsuppressed counts")]
+    pub total: bool,
+
     #[arg(help = "First sorted file to compare")]
     pub file1: Option<String>,
 

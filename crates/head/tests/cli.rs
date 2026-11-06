@@ -150,3 +150,153 @@ fn nul_multi_file_headers_still_use_lf_separators() {
         .as_bytes()
     );
 }
+
+// --- 0.4.6: negative counts (`-n -K` / `-c -K` = all but the last K) --------
+//
+// GNU coreutils 8.32, measured locally:
+// - `head -n -3` on 12 lines prints lines 1..9 (all but the last 3);
+// - `head -c -5` on 39 bytes prints 34 bytes;
+// - `head -n -0` / `-c -0` print EVERYTHING (the sign is part of the number
+//   string, so `-0` is not `0`);
+// - a negative K larger than the input prints nothing, exit 0;
+// - invalid numbers fail with `head: invalid number of lines: 'abc'`, exit 1.
+
+const TWELVE_LINES: &[u8] = b"l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\nl11\nl12\n";
+
+#[test]
+fn negative_lines_on_stdin_print_all_but_last_k() {
+    let out = run_head(&["-n", "-3"], TWELVE_LINES);
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, &TWELVE_LINES[..9 * 3]);
+}
+
+#[test]
+fn negative_bytes_on_stdin_print_all_but_last_k() {
+    let out = run_head(&["-c", "-5"], TWELVE_LINES);
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, &TWELVE_LINES[..39 - 5]);
+}
+
+/// `-n -5` and `-n 5` must not collapse to the same behavior.
+#[test]
+fn negative_and_positive_line_counts_differ() {
+    let negative = run_head(&["-n", "-3"], TWELVE_LINES).stdout;
+    let positive = run_head(&["-n", "3"], TWELVE_LINES).stdout;
+    assert_eq!(positive, b"l1\nl2\nl3\n");
+    assert_eq!(negative, &TWELVE_LINES[..9 * 3]);
+    assert_ne!(negative, positive);
+}
+
+/// `-n -0` means "all but the last 0 records" = everything, unlike `-n 0`.
+#[test]
+fn negative_zero_counts_print_everything() {
+    let out = run_head(&["-n", "-0"], TWELVE_LINES);
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, TWELVE_LINES);
+    let out = run_head(&["-c", "-0"], TWELVE_LINES);
+    assert_eq!(out.stdout, TWELVE_LINES);
+    let out = run_head(&["-n", "0"], TWELVE_LINES);
+    assert_eq!(out.stdout, b"");
+}
+
+#[test]
+fn negative_lines_on_file_print_all_but_last_k() {
+    let path = temp_path("neg-lines");
+    std::fs::write(&path, TWELVE_LINES).unwrap();
+    let out = run_head(&["-n", "-3", path.to_str().unwrap()], b"");
+    let _ = std::fs::remove_file(&path);
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, &TWELVE_LINES[..9 * 3]);
+}
+
+/// GNU headers and blank separators still apply per file with negative
+/// counts (`head -n -2 a.txt b.txt` measured: `==> a <==\nA\n\n==> b <==\nB\n`).
+#[test]
+fn negative_lines_multi_file_keep_headers() {
+    let first = temp_path("neg-head-first");
+    let second = temp_path("neg-head-second");
+    std::fs::write(&first, b"A\nB\nC\n").unwrap();
+    std::fs::write(&second, b"B\nC\nD\n").unwrap();
+    let out = run_head(
+        &[
+            "-n",
+            "-2",
+            first.to_str().unwrap(),
+            second.to_str().unwrap(),
+        ],
+        b"",
+    );
+    let _ = std::fs::remove_file(&first);
+    let _ = std::fs::remove_file(&second);
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(
+        out.stdout,
+        format!(
+            "==> {} <==\nA\n\n==> {} <==\nB\n",
+            first.display(),
+            second.display()
+        )
+        .as_bytes()
+    );
+}
+
+/// A negative K larger than the input prints nothing, exit 0 (GNU measured).
+#[test]
+fn negative_count_larger_than_input_prints_nothing() {
+    let out = run_head(&["-n", "-5"], b"a\nb\n");
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, b"");
+    let out = run_head(&["-c", "-100"], b"tiny");
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, b"");
+}
+
+#[test]
+fn negative_lines_in_zero_terminated_mode() {
+    let out = run_head(&["-z", "-n", "-2"], b"a\0b\0c\0d\0e\0");
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, b"a\0b\0c\0");
+}
+
+#[test]
+fn verbose_header_still_printed_with_negative_count() {
+    let path = temp_path("neg-verbose");
+    std::fs::write(&path, b"A\nB\nC\n").unwrap();
+    let out = run_head(&["-v", "-n", "-2", path.to_str().unwrap()], b"");
+    let _ = std::fs::remove_file(&path);
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(
+        out.stdout,
+        format!("==> {} <==\nA\n", path.display()).as_bytes()
+    );
+}
+
+/// The `-n`/`-c` mutual exclusion also holds when the counts are negative.
+#[test]
+fn n_and_c_together_fail_even_when_negative() {
+    let out = run_head(&["-n", "-3", "-c", "-5"], TWELVE_LINES);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(out.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("cannot specify both"), "stderr: {}", stderr);
+}
+
+/// Invalid numbers must follow the GNU wording and exit 1, matching
+/// `head: invalid number of lines: 'abc'`.
+#[test]
+fn invalid_numbers_fail_with_gnu_message_and_exit_1() {
+    let out = run_head(&["-n", "abc"], TWELVE_LINES);
+    assert_eq!(out.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("invalid number of lines: 'abc'"),
+        "stderr: {stderr}"
+    );
+    let out = run_head(&["-c", "1x"], TWELVE_LINES);
+    assert_eq!(out.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("invalid number of bytes: '1x'"),
+        "stderr: {stderr}"
+    );
+}

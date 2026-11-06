@@ -8,7 +8,7 @@ use std::path::PathBuf;
     version,
     about,
     disable_version_flag = true,
-    after_help = "Options -d/--date, -t and -r/--reference are not implemented in this build."
+    after_help = "-d/--date supports only @SECONDS and 'YYYY-MM-DD[THH:MM[:SS]]' or\n'YYYY-MM-DD HH:MM[:SS]' (local time); relative date expressions such as\n'1 day ago' are not supported and fail with `invalid date format`."
 )]
 pub struct Args {
     /// Do not create any files
@@ -22,6 +22,18 @@ pub struct Args {
     /// Change only the modification time
     #[arg(short = 'm')]
     pub mtime: bool,
+
+    /// Use this file's times instead of the current time
+    #[arg(short = 'r', long = "reference", value_name = "FILE")]
+    pub reference: Option<PathBuf>,
+
+    /// Use [[CC]YY]MMDDhhmm[.ss] (local time) instead of the current time
+    #[arg(short = 't', value_name = "STAMP")]
+    pub stamp: Option<String>,
+
+    /// Use @SECONDS or an ISO date/time (local time) instead of the current time
+    #[arg(short = 'd', long = "date", value_name = "DATE")]
+    pub date: Option<String>,
 
     /// The file(s) to touch
     #[arg(value_name = "FILE")]

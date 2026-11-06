@@ -8,13 +8,24 @@ pub struct Args {
     /// Use NUL instead of newline as the record delimiter
     #[arg(short = 'z', long = "zero-terminated")]
     pub zero_terminated: bool,
-    /// Print the first N lines instead of the first 10
-    #[arg(short = 'n', long = "lines", value_name = "N")]
-    pub lines: Option<i64>,
+    /// Print the first N lines instead of the first 10; a negative -N
+    /// prints all but the last N lines
+    #[arg(
+        short = 'n',
+        long = "lines",
+        value_name = "N",
+        allow_negative_numbers = true
+    )]
+    pub lines: Option<String>,
 
-    /// Print the first N bytes
-    #[arg(short = 'c', long = "bytes")]
-    pub bytes: Option<i64>,
+    /// Print the first N bytes; a negative -N prints all but the last N bytes
+    #[arg(
+        short = 'c',
+        long = "bytes",
+        value_name = "N",
+        allow_negative_numbers = true
+    )]
+    pub bytes: Option<String>,
 
     /// Never print headers giving file names
     #[arg(short = 'q', long = "quiet")]

@@ -27,9 +27,27 @@ pub struct Args {
     #[arg(long = "apparent-size")]
     pub apparent_size: bool,
 
+    /// Write counts for all files, not just directories
+    #[arg(short = 'a', long = "all")]
+    pub all: bool,
+
     /// Show totals for all arguments
     #[arg(short = 's', long = "summarize")]
     pub summarize: bool,
+
+    /// Print the total for a directory (or file, with --all) only if it is
+    /// N or fewer levels below the command line argument; --max-depth=0 is
+    /// the same as --summarize
+    #[arg(short = 'd', long = "max-depth", value_name = "N")]
+    pub max_depth: Option<String>,
+
+    /// Skip directories on different file systems
+    #[arg(short = 'x', long = "one-file-system")]
+    pub one_file_system: bool,
+
+    /// Exclude files that match PATTERN (repeatable)
+    #[arg(long = "exclude", value_name = "PATTERN")]
+    pub exclude: Vec<String>,
 
     /// Show grand total
     #[arg(short = 'c', long = "total")]
