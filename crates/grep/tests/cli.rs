@@ -266,3 +266,83 @@ fn extended_regexp_flag_is_accepted() {
         .code(0)
         .stdout("foo123\n");
 }
+
+// --- P2: fnmatch character classes in --include/--exclude globs ---
+// Expectations verified against GNU grep 3.0 (fnmatch(3) semantics).
+
+/// Run a recursive grep over `dir` and return the -l style stdout.
+fn grep_recursive_stdout(args: &[&str], pattern: &str, dir: &std::path::Path) -> String {
+    let output = cargo_bin_cmd!("grep")
+        .args(args)
+        .arg(pattern)
+        .arg(dir)
+        .assert()
+        .get_output()
+        .clone();
+    String::from_utf8_lossy(&output.stdout).into_owned()
+}
+
+#[test]
+fn include_glob_set_matches_c_and_h_files() {
+    let dir = tempfile::tempdir().unwrap();
+    for name in ["main.c", "main.h", "main.rs", "readme.md"] {
+        std::fs::write(dir.path().join(name), "hello\n").unwrap();
+    }
+
+    let out = grep_recursive_stdout(&["-r", "-l", "--include=*.[ch]"], "hello", dir.path());
+    assert!(out.contains("main.c"), "main.c missing: {out}");
+    assert!(out.contains("main.h"), "main.h missing: {out}");
+    assert!(!out.contains("main.rs"), "main.rs leaked: {out}");
+    assert!(!out.contains("readme.md"), "readme.md leaked: {out}");
+}
+
+#[test]
+fn include_glob_leading_set_matches_s_or_t_files() {
+    let dir = tempfile::tempdir().unwrap();
+    for name in ["test.txt", "start.log", "main.c", "readme.md"] {
+        std::fs::write(dir.path().join(name), "hello\n").unwrap();
+    }
+
+    let out = grep_recursive_stdout(&["-r", "-l", "--include=[st]*"], "hello", dir.path());
+    assert!(out.contains("test.txt"), "test.txt missing: {out}");
+    assert!(out.contains("start.log"), "start.log missing: {out}");
+    assert!(!out.contains("main.c"), "main.c leaked: {out}");
+    assert!(!out.contains("readme.md"), "readme.md leaked: {out}");
+}
+
+#[test]
+fn exclude_glob_negated_set_keeps_files_starting_with_a() {
+    let dir = tempfile::tempdir().unwrap();
+    for name in ["apple.txt", "banana.txt", "main.c"] {
+        std::fs::write(dir.path().join(name), "hello\n").unwrap();
+    }
+
+    let out = grep_recursive_stdout(&["-r", "-l", "--exclude=[!a]*"], "hello", dir.path());
+    assert!(out.contains("apple.txt"), "apple.txt missing: {out}");
+    assert!(!out.contains("banana.txt"), "banana.txt leaked: {out}");
+    assert!(!out.contains("main.c"), "main.c leaked: {out}");
+}
+
+#[test]
+fn include_glob_range_and_plain_metacharacters() {
+    let dir = tempfile::tempdir().unwrap();
+    for name in ["apple.txt", "banana.txt", "cherry.log", "main.c"] {
+        std::fs::write(dir.path().join(name), "hello\n").unwrap();
+    }
+
+    // [a-c] is a range; the dot in *.log stays a literal dot (not regex-any).
+    let out = grep_recursive_stdout(&["-r", "-l", "--include=[a-c]*"], "hello", dir.path());
+    assert!(out.contains("apple.txt"), "apple.txt missing: {out}");
+    assert!(out.contains("banana.txt"), "banana.txt missing: {out}");
+    assert!(out.contains("cherry.log"), "cherry.log missing: {out}");
+    assert!(!out.contains("main.c"), "main.c leaked: {out}");
+
+    // A literal dot must not act as `.`: "mainXc" does not match "main.c".
+    std::fs::write(dir.path().join("mainXc"), "hello\n").unwrap();
+    let out = grep_recursive_stdout(&["-r", "-l", "--include=main.c"], "hello", dir.path());
+    assert!(out.contains("main.c"), "main.c missing: {out}");
+    assert!(
+        !out.contains("mainXc"),
+        "mainXc leaked through unescaped dot: {out}"
+    );
+}

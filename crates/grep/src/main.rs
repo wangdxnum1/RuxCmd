@@ -242,9 +242,12 @@ fn emit_count(out: &mut dyn Write, name: &str, show_name: bool, count: u64) {
     }
 }
 
-/// Base-name glob used by `--include`/`--exclude`/`--exclude-dir`. `*` and `?`
-/// are wildcards; every other character is literal, matching GNU's fnmatch for
-/// the patterns these options accept in practice.
+/// Base-name glob used by `--include`/`--exclude`/`--exclude-dir`, translated
+/// with fnmatch(3) semantics (what GNU grep applies to these options): `*`
+/// matches any run of characters including none, `?` one character, `[abc]`
+/// and `[a-z]` a set or range, `[!abc]` its complement (GNU also accepts the
+/// regex-style `[^abc]`), a backslash escapes the next character, and every
+/// remaining character is literal.
 fn glob_match(name: &str, pattern: &str) -> bool {
     match glob_regex(pattern) {
         Ok(re) => re.is_match(name),
@@ -253,20 +256,127 @@ fn glob_match(name: &str, pattern: &str) -> bool {
 }
 
 fn glob_regex(pattern: &str) -> Result<Regex, regex::Error> {
+    let chars: Vec<char> = pattern.chars().collect();
     let mut regex = String::from("^");
-    for c in pattern.chars() {
-        match c {
-            '*' => regex.push_str(".*"),
-            '?' => regex.push('.'),
-            '.' | '(' | ')' | '[' | ']' | '{' | '}' | '+' | '^' | '$' | '|' | '\\' => {
-                regex.push('\\');
-                regex.push(c);
+    let mut i = 0;
+    while i < chars.len() {
+        match chars[i] {
+            '*' => {
+                regex.push_str(".*");
+                i += 1;
             }
-            _ => regex.push(c),
+            '?' => {
+                regex.push('.');
+                i += 1;
+            }
+            '\\' => {
+                // fnmatch escapes the next character; a trailing backslash is
+                // itself literal.
+                if i + 1 < chars.len() {
+                    push_regex_literal(&mut regex, chars[i + 1]);
+                    i += 2;
+                } else {
+                    regex.push_str("\\\\");
+                    i += 1;
+                }
+            }
+            '[' => match bracket_end(&chars, i) {
+                Some(end) => {
+                    push_bracket(&chars, i, end, &mut regex);
+                    i = end + 1;
+                }
+                // POSIX: an unterminated bracket expression is a literal `[`.
+                None => {
+                    push_regex_literal(&mut regex, '[');
+                    i += 1;
+                }
+            },
+            c => {
+                push_regex_literal(&mut regex, c);
+                i += 1;
+            }
         }
     }
     regex.push('$');
     Regex::new(&regex)
+}
+
+/// Index of the `]` terminating the bracket expression whose `[` sits at
+/// `start`, or None when the pattern ends without one. A `]` immediately
+/// after `[` (or after the negation) is a literal member, not the terminator,
+/// and an escaped `]` never terminates either.
+fn bracket_end(chars: &[char], start: usize) -> Option<usize> {
+    let mut j = start + 1;
+    if j < chars.len() && (chars[j] == '!' || chars[j] == '^') {
+        j += 1;
+    }
+    if j < chars.len() && chars[j] == ']' {
+        j += 1;
+    }
+    while j < chars.len() {
+        if chars[j] == '\\' {
+            // fnmatch escapes carry inside brackets (GNU grep: `[\a-z]` is
+            // the range a-z), so skip the escaped character wholesale.
+            j += 2;
+        } else if chars[j] == ']' {
+            return Some(j);
+        } else {
+            j += 1;
+        }
+    }
+    None
+}
+
+/// Emit the bracket expression spanning `chars[start..end]`, where `end`
+/// points at the terminating `]`. fnmatch and regex bracket expressions
+/// share range/dash semantics, so members pass through except `!` (negation
+/// in globs, regex wants `^`) and the characters the regex engine reads
+/// specially inside classes.
+fn push_bracket(chars: &[char], start: usize, end: usize, regex: &mut String) {
+    regex.push('[');
+    let mut j = start + 1;
+    if chars[j] == '!' || chars[j] == '^' {
+        regex.push('^');
+        j += 1;
+    }
+    while j < end {
+        if chars[j] == '\\' && j + 1 < end {
+            // An escaped character is one literal member. Emit it plain so
+            // ranges like [\a-z] survive (regex would read \a as BEL); only
+            // a dash needs escaping, or it would turn into a range operator
+            // ([a\-z] is {a, -, z} for fnmatch).
+            match chars[j + 1] {
+                '-' => regex.push_str("\\-"),
+                c => push_class_member(regex, c),
+            }
+            j += 2;
+        } else {
+            push_class_member(regex, chars[j]);
+            j += 1;
+        }
+    }
+    regex.push(']');
+}
+
+/// Emit one character as a class member. Unescaped dashes and ranges keep
+/// their fnmatch meaning verbatim; the rest are the characters a regex class
+/// would misread (`]`, `[`, `&`, `^`, `\`).
+fn push_class_member(regex: &mut String, c: char) {
+    if matches!(c, ']' | '[' | '&' | '^' | '\\') {
+        regex.push('\\');
+    }
+    regex.push(c);
+}
+
+/// Escape a character that is a regex metacharacter outside a class.
+fn push_regex_literal(regex: &mut String, c: char) {
+    if matches!(
+        c,
+        '.' | '(' | ')' | '[' | ']' | '{' | '}' | '+' | '^' | '$' | '|' | '\\' | '*' | '?'
+    ) {
+        regex.push('\\');
+    }
+    regex.push(c);
 }
 
 fn file_allowed(path: &Path, args: &cli::Args) -> bool {
@@ -513,4 +623,85 @@ fn emit_line(
 fn emit_separator(out: &mut dyn Write, args: &cli::Args) {
     let _ = out.write_all(b"--");
     let _ = out.write_all(&[record_separator(args)]);
+}
+
+#[cfg(test)]
+mod glob_tests {
+    use super::glob_match;
+
+    // Expectations cross-checked against GNU grep 3.0 / glibc fnmatch(3).
+    #[test]
+    fn fnmatch_wildcards_and_literals() {
+        assert!(glob_match("main.c", "*.c"));
+        assert!(!glob_match("main.rs", "*.c"));
+        assert!(glob_match("a1b.txt", "a?b.txt"));
+        assert!(!glob_match("ab.txt", "a?b.txt"));
+        // A glob dot is literal, not regex-any.
+        assert!(glob_match("main.c", "main.c"));
+        assert!(!glob_match("mainXc", "main.c"));
+        assert!(glob_match("main.c", "main\\.c"));
+        assert!(!glob_match("mainXc", "main\\.c"));
+        // Backslash escapes the next character; a trailing one is literal.
+        assert!(glob_match("a?b.txt", "a\\?b.txt"));
+        assert!(!glob_match("a1b.txt", "a\\?b.txt"));
+        assert!(glob_match("\\", "\\\\"));
+    }
+
+    #[test]
+    fn fnmatch_bracket_sets_ranges_and_negation() {
+        assert!(glob_match("main.c", "*.[ch]"));
+        assert!(glob_match("main.h", "*.[ch]"));
+        assert!(!glob_match("main.rs", "*.[ch]"));
+        assert!(glob_match("test.txt", "[st]*"));
+        assert!(glob_match("start.log", "[st]*"));
+        assert!(!glob_match("main.c", "[st]*"));
+        assert!(glob_match("apple.txt", "[a-c]*"));
+        assert!(glob_match("banana.txt", "[a-c]*"));
+        assert!(!glob_match("main.c", "[a-c]*"));
+        // Negation: glob writes !, GNU also accepts regex's ^.
+        assert!(glob_match("banana.txt", "[!a]*"));
+        assert!(!glob_match("apple.txt", "[!a]*"));
+        assert!(glob_match("banana.txt", "[^a]*"));
+        assert!(!glob_match("apple.txt", "[^a]*"));
+    }
+
+    #[test]
+    fn fnmatch_bracket_edge_cases() {
+        // POSIX: an unterminated bracket expression is a literal `[`.
+        assert!(glob_match("[abc", "[abc"));
+        assert!(!glob_match("abc", "[abc"));
+        // A `]` right after `[` (or after the negation) is a literal member.
+        assert!(glob_match("]", "[]x]"));
+        assert!(glob_match("x", "[]x]"));
+        assert!(!glob_match("]y", "[]x]"));
+        assert!(glob_match("x]y", "[]x]*"));
+        assert!(glob_match("x", "[!]]"));
+        assert!(!glob_match("]", "[!]]"));
+        // Leading and trailing dashes are literal members.
+        assert!(glob_match("-x.txt", "[a-]*"));
+        assert!(glob_match("-x.txt", "[-a]*"));
+        assert!(glob_match("-x.txt", "[a\\-z]*"));
+        assert!(!glob_match("-x.txt", "[a-z]*"));
+    }
+
+    #[test]
+    fn fnmatch_escapes_inside_brackets() {
+        // GNU grep 3.0: `[\a-z]` escapes the a and keeps the a-z range.
+        assert!(glob_match("a1b.txt", "[\\a-z]*"));
+        assert!(glob_match("test.txt", "[\\a-z]*"));
+        // `[a\z]` is the set {a, z}: b/m/s/t do not match.
+        assert!(glob_match("a1b.txt", "[a\\z]*"));
+        assert!(!glob_match("banana.txt", "[a\\z]*"));
+        // Escaped class metacharacters stay literal members.
+        assert!(glob_match("ac", "[a\\]b]c"));
+        assert!(glob_match("]c", "[a\\]b]c"));
+        assert!(!glob_match("ad", "[a\\]b]c"));
+        assert!(glob_match("a[b", "a[\\[]b"));
+        assert!(!glob_match("aXb", "a[\\[]b"));
+        assert!(glob_match("a", "[a\\\\b]"));
+        assert!(glob_match("\\", "[a\\\\b]"));
+        assert!(!glob_match("ab", "[a\\\\b]"));
+        assert!(glob_match("^", "[a\\^b]"));
+        assert!(glob_match("a&b", "a[&]b"));
+    }
 }
