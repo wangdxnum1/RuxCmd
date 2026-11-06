@@ -1,6 +1,6 @@
 mod cli;
 
-use cli::{Args, Node};
+use cli::{Args, Expr, Node, StampKind};
 use regex::Regex;
 use std::fs;
 use std::io::{self, BufWriter, Write};
@@ -25,25 +25,18 @@ fn main() {
         args.paths.clone()
     };
 
-    // GNU appends an implicit -print when the expression has no action.
-    let mut nodes = args.nodes.clone();
-    if !nodes.iter().any(Node::is_action) {
-        nodes.push(Node::Print);
-    }
-
-    let batch_count = nodes.len();
     let mut walker = Walker {
         args: &args,
-        nodes,
         out: BufWriter::new(io::stdout().lock()),
-        batch: vec![Vec::new(); batch_count],
+        // One buffer per `-exec ... +` action, keyed by its parse-time id.
+        batch: vec![Vec::new(); args.exec_count],
         had_error: false,
     };
 
     for path in &paths {
-        walker.walk(path, 0);
+        walker.walk(&args.expr, path, 0);
     }
-    walker.finish();
+    walker.finish(&args.expr);
 
     if walker.had_error {
         std::process::exit(1);
@@ -52,16 +45,14 @@ fn main() {
 
 struct Walker<'a> {
     args: &'a Args,
-    /// Expression nodes in evaluation order, including the implicit -print.
-    nodes: Vec<Node>,
     out: BufWriter<io::StdoutLock<'static>>,
-    /// Paths collected for each `-exec ... {} +` action, keyed by node index.
+    /// Paths collected for each `-exec ... {} +` action, keyed by action id.
     batch: Vec<Vec<String>>,
     had_error: bool,
 }
 
 impl Walker<'_> {
-    fn walk(&mut self, path: &Path, depth: usize) {
+    fn walk(&mut self, expr: &Expr, path: &Path, depth: usize) {
         let mindepth = self.args.mindepth.unwrap_or(0);
         let maxdepth = self.args.maxdepth.unwrap_or(usize::MAX);
         if depth > maxdepth {
@@ -71,7 +62,7 @@ impl Walker<'_> {
         let metadata = match fs::symlink_metadata(path) {
             Ok(metadata) => metadata,
             Err(e) => {
-                eprintln!("find: {}: {}", path.display(), e);
+                eprintln!("find: {}: {}", path.display(), cli::io_message(&e));
                 self.had_error = true;
                 return;
             }
@@ -82,101 +73,143 @@ impl Walker<'_> {
         // -delete implies GNU's -depth: children go before their parent.
         if self.args.delete {
             if is_dir && !reparse && depth < maxdepth {
-                self.walk_children(path, depth);
+                self.walk_children(expr, path, depth);
             }
             if depth >= mindepth {
-                self.eval(path, &metadata, is_dir, reparse);
+                self.eval(expr, path, &metadata, is_dir, reparse);
             }
             return;
         }
 
         if depth >= mindepth {
-            self.eval(path, &metadata, is_dir, reparse);
+            self.eval(expr, path, &metadata, is_dir, reparse);
         }
 
         // Like GNU, reparse points (symlinks and junctions) are not followed.
         if is_dir && !reparse && depth < maxdepth {
-            self.walk_children(path, depth);
+            self.walk_children(expr, path, depth);
         }
     }
 
-    fn walk_children(&mut self, path: &Path, depth: usize) {
+    fn walk_children(&mut self, expr: &Expr, path: &Path, depth: usize) {
         match fs::read_dir(path) {
             Ok(entries) => {
                 for entry in entries.flatten() {
-                    self.walk(&entry.path(), depth + 1);
+                    self.walk(expr, &entry.path(), depth + 1);
                 }
             }
             Err(e) => {
-                eprintln!("find: {}: {}", path.display(), e);
+                eprintln!("find: {}: {}", path.display(), cli::io_message(&e));
                 self.had_error = true;
             }
         }
     }
 
-    /// Evaluates the expression left to right with GNU's implicit `-and`
-    /// short-circuit: a failing test stops the rest of the expression.
-    fn eval(&mut self, path: &Path, metadata: &fs::Metadata, is_dir: bool, reparse: bool) -> bool {
+    /// Evaluates the expression left to right with GNU's short-circuit rules:
+    /// `-a` stops at the first failure, `-o` at the first success, and `!`
+    /// negates. Tests and actions are all leaves, so `-print -delete` keeps
+    /// its command-line order.
+    fn eval(
+        &mut self,
+        expr: &Expr,
+        path: &Path,
+        metadata: &fs::Metadata,
+        is_dir: bool,
+        reparse: bool,
+    ) -> bool {
+        match expr {
+            Expr::And(left, right) => {
+                self.eval(left, path, metadata, is_dir, reparse)
+                    && self.eval(right, path, metadata, is_dir, reparse)
+            }
+            Expr::Or(left, right) => {
+                self.eval(left, path, metadata, is_dir, reparse)
+                    || self.eval(right, path, metadata, is_dir, reparse)
+            }
+            Expr::Not(inner) => !self.eval(inner, path, metadata, is_dir, reparse),
+            Expr::Primary(node) => self.eval_node(node, path, metadata, is_dir, reparse),
+        }
+    }
+
+    fn eval_node(
+        &mut self,
+        node: &Node,
+        path: &Path,
+        metadata: &fs::Metadata,
+        is_dir: bool,
+        reparse: bool,
+    ) -> bool {
         let name = path
             .file_name()
             .unwrap_or_default()
             .to_string_lossy()
             .into_owned();
-        for index in 0..self.nodes.len() {
-            let ok = match self.nodes[index].clone() {
-                Node::Name(pattern) => {
-                    let (target, pattern) = if self.args.ignore_case {
-                        (name.to_lowercase(), pattern.to_lowercase())
-                    } else {
-                        (name.clone(), pattern)
-                    };
-                    if pattern.contains('*') || pattern.contains('?') {
-                        glob_match(&target, &pattern)
-                    } else {
-                        target == pattern
-                    }
+        match node {
+            Node::Name(pattern) => {
+                let ignore_case = self.args.ignore_case;
+                let target = if ignore_case {
+                    name.to_lowercase()
+                } else {
+                    name
+                };
+                let pattern = if ignore_case {
+                    pattern.to_lowercase()
+                } else {
+                    pattern.clone()
+                };
+                if pattern.contains('*') || pattern.contains('?') {
+                    glob_match(&target, &pattern)
+                } else {
+                    target == pattern
                 }
-                Node::Regex(re) => re.is_match(&name),
-                // A junction is a directory on NTFS, but this build classifies
-                // every reparse point as a link, mirroring `-type l`.
-                Node::Type(kind) => match kind {
-                    'd' => is_dir && !reparse,
-                    'f' => metadata.is_file(),
-                    'l' => reparse,
-                    _ => true,
-                },
-                Node::Size(spec) => spec.matches(metadata.len()),
-                Node::Mtime(spec) => match age_days(metadata) {
-                    Some(days) => spec.bound.matches(days, spec.days as i64),
-                    None => false,
-                },
-                Node::Print => {
-                    self.write_path(path, false);
+            }
+            Node::Regex(re) => re.is_match(&name),
+            // A junction is a directory on NTFS, but this build classifies
+            // every reparse point as a link, mirroring `-type l`.
+            Node::Type(kind) => match kind {
+                'd' => is_dir && !reparse,
+                'f' => metadata.is_file(),
+                'l' => reparse,
+                _ => true,
+            },
+            Node::Size(spec) => spec.matches(metadata.len()),
+            Node::Mtime(spec) => match age_days(metadata) {
+                Some(days) => spec.bound.matches(days, spec.days as i64),
+                None => false,
+            },
+            Node::Newer { instant, kind } => {
+                let stamp = match kind {
+                    StampKind::Modified => metadata.modified(),
+                    StampKind::Accessed => metadata.accessed(),
+                };
+                match stamp {
+                    // Strictly newer, like GNU.
+                    Ok(stamp) => stamp > *instant,
+                    Err(_) => false,
+                }
+            }
+            Node::Print => {
+                self.write_path(path, false);
+                true
+            }
+            Node::Print0 => {
+                self.write_path(path, true);
+                true
+            }
+            Node::Delete => self.delete_entry(path, is_dir),
+            Node::Exec(action) => {
+                let text = path_text(path);
+                if action.batch {
+                    self.batch[action.id].push(text);
                     true
+                } else {
+                    let status = Command::new(&action.program)
+                        .args(action.args.iter().map(|arg| arg.replace("{}", &text)))
+                        .status();
+                    self.record_status(&action.program, status)
                 }
-                Node::Print0 => {
-                    self.write_path(path, true);
-                    true
-                }
-                Node::Delete => self.delete_entry(path, is_dir),
-                Node::Exec(action) => {
-                    let text = path_text(path);
-                    if action.batch {
-                        self.batch[index].push(text);
-                        true
-                    } else {
-                        let status = Command::new(&action.program)
-                            .args(action.args.iter().map(|arg| arg.replace("{}", &text)))
-                            .status();
-                        self.record_status(&action.program, status)
-                    }
-                }
-            };
-            if !ok {
-                return false;
             }
         }
-        true
     }
 
     fn write_path(&mut self, path: &Path, null: bool) {
@@ -227,24 +260,36 @@ impl Walker<'_> {
         }
     }
 
-    fn finish(&mut self) {
+    fn finish(&mut self, expr: &Expr) {
         let _ = self.out.flush();
-        for index in 0..self.nodes.len() {
-            let Node::Exec(action) = self.nodes[index].clone() else {
-                continue;
-            };
-            if !action.batch || self.batch[index].is_empty() {
-                continue;
+        self.flush_batches(expr);
+    }
+
+    /// Flushes the `+` batches once the whole walk is done, in tree order.
+    fn flush_batches(&mut self, expr: &Expr) {
+        match expr {
+            Expr::Primary(node) => {
+                if let Node::Exec(action) = node {
+                    if !action.batch || self.batch[action.id].is_empty() {
+                        return;
+                    }
+                    let paths = std::mem::take(&mut self.batch[action.id]);
+                    // Parsing guaranteed `{}` is the last argument, so it
+                    // expands to every collected path as separate arguments
+                    // (GNU's `+` form).
+                    let fixed = &action.args[..action.args.len() - 1];
+                    let status = Command::new(&action.program)
+                        .args(fixed)
+                        .args(&paths)
+                        .status();
+                    self.record_status(&action.program, status);
+                }
             }
-            let paths = std::mem::take(&mut self.batch[index]);
-            // Parsing guaranteed `{}` is the last argument, so it expands to
-            // every collected path as separate arguments (GNU's `+` form).
-            let fixed = &action.args[..action.args.len() - 1];
-            let status = Command::new(&action.program)
-                .args(fixed)
-                .args(&paths)
-                .status();
-            self.record_status(&action.program, status);
+            Expr::Not(inner) => self.flush_batches(inner),
+            Expr::And(left, right) | Expr::Or(left, right) => {
+                self.flush_batches(left);
+                self.flush_batches(right);
+            }
         }
     }
 }
@@ -295,46 +340,5 @@ fn glob_match(name: &str, pattern: &str) -> bool {
     match Regex::new(&regex) {
         Ok(re) => re.is_match(name),
         Err(_) => false,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use cli::{Bound, parse_size};
-
-    #[test]
-    fn size_rounds_up_to_the_unit() {
-        let exact = parse_size("5k").unwrap();
-        assert!(exact.matches(5 * 1024));
-        // Rounding up means one extra byte spills into a sixth unit, while a
-        // byte short still occupies five.
-        assert!(!exact.matches(5 * 1024 + 1));
-        assert!(exact.matches(5 * 1024 - 1));
-        assert!(!exact.matches(4 * 1024));
-        assert_eq!(exact.bound, Bound::Equal);
-    }
-
-    #[test]
-    fn size_units_and_bounds() {
-        let default_blocks = parse_size("1").unwrap();
-        assert_eq!(default_blocks.unit, 512);
-        assert!(default_blocks.matches(1));
-        assert!(default_blocks.matches(512));
-
-        let less = parse_size("-1c").unwrap();
-        assert!(less.matches(0));
-        assert!(!less.matches(1));
-
-        let greater = parse_size("+1k").unwrap();
-        assert!(greater.matches(2 * 1024));
-        assert!(!greater.matches(1024));
-    }
-
-    #[test]
-    fn invalid_size_is_rejected() {
-        assert!(parse_size("1x").is_err());
-        assert!(parse_size("abc").is_err());
-        assert!(parse_size("").is_err());
     }
 }

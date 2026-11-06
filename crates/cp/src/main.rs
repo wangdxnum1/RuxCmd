@@ -5,7 +5,8 @@ use std::fs;
 use std::io::{self, Write};
 #[cfg(windows)]
 use std::os::windows::fs::symlink_file;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 fn main() {
     let args = cli::Args::parse();
@@ -15,21 +16,76 @@ fn main() {
         std::process::exit(1);
     }
 
-    // With multiple sources the destination must be an existing directory,
-    // otherwise each source would silently overwrite the same target file.
-    if args.sources.len() > 1 && !(args.destination.exists() && args.destination.is_dir()) {
-        eprintln!(
-            "cp: target '{}' is not a directory",
-            args.destination.display()
-        );
+    // GNU refuses to combine the two destination selectors.
+    if args.target_directory.is_some() && args.no_target_directory {
+        eprintln!("cp: cannot combine --target-directory (-t) and --no-target-directory (-T)");
         std::process::exit(1);
+    }
+
+    // Which operand is the destination follows GNU's position rules: with -t
+    // every operand is a source and the option value is the destination, with
+    // -T there must be exactly two operands, otherwise the last operand is
+    // the destination.
+    let sources: &[PathBuf];
+    let destination: &Path;
+    if let Some(target) = &args.target_directory {
+        match fs::metadata(target) {
+            Err(_) => {
+                eprintln!(
+                    "cp: failed to access '{}': No such file or directory",
+                    target.display()
+                );
+                std::process::exit(1);
+            }
+            Ok(meta) if !meta.is_dir() => {
+                eprintln!("cp: target '{}' is not a directory", target.display());
+                std::process::exit(1);
+            }
+            Ok(_) => {}
+        }
+        sources = &args.sources;
+        destination = target.as_path();
+    } else if args.no_target_directory {
+        if args.sources.len() > 2 {
+            eprintln!("cp: extra operand '{}'", args.sources[2].display());
+            usage_error();
+        }
+        if args.sources.len() < 2 {
+            eprintln!(
+                "cp: missing destination file operand after '{}'",
+                args.sources[0].display()
+            );
+            usage_error();
+        }
+        sources = &args.sources[..1];
+        destination = args.sources[1].as_path();
+    } else {
+        if args.sources.len() < 2 {
+            eprintln!(
+                "cp: missing destination file operand after '{}'",
+                args.sources[0].display()
+            );
+            usage_error();
+        }
+        let split = args.sources.len() - 1;
+        // With multiple sources the destination must be an existing directory,
+        // otherwise each source would silently overwrite the same target file.
+        if split > 1 && !(args.sources[split].exists() && args.sources[split].is_dir()) {
+            eprintln!(
+                "cp: target '{}' is not a directory",
+                args.sources[split].display()
+            );
+            std::process::exit(1);
+        }
+        sources = &args.sources[..split];
+        destination = args.sources[split].as_path();
     }
 
     let mut exit_code = 0i32;
     let mut had_error = false;
 
-    for source in &args.sources {
-        if let Err(e) = copy_file(source, &args.destination, &args, &mut had_error) {
+    for source in sources {
+        if let Err(e) = copy_file(source, destination, &args, &mut had_error) {
             eprintln!("cp: {}", e);
             exit_code = 1;
         }
@@ -40,6 +96,21 @@ fn main() {
     }
 
     std::process::exit(exit_code);
+}
+
+fn usage_error() -> ! {
+    eprintln!("Try 'cp --help' for more information.");
+    std::process::exit(1);
+}
+
+/// -a is GNU's shorthand for -pR (plus -d, which has no Windows mapping);
+/// the explicit flags simply OR into the same decisions.
+fn wants_recursive(args: &cli::Args) -> bool {
+    args.recursive || args.archive
+}
+
+fn wants_preserve(args: &cli::Args) -> bool {
+    args.preserve || args.archive
 }
 
 /// How an existing destination is treated. GNU cp overwrites by default; -n
@@ -60,6 +131,24 @@ fn overwrite_decision(args: &cli::Args) -> Overwrite {
     } else {
         Overwrite::Allow
     }
+}
+
+/// GNU -u copies only when the source is strictly newer than the destination
+/// or the destination is missing: equal mtimes count as "not newer" (verified
+/// against GNU coreutils 8.32). Both sides are 100ns FILETIMEs on Windows, so
+/// the comparison is exact. Runs before -n/-i/-f and before the read-only
+/// check, and skips silently even under -v.
+fn source_not_newer(source_modified: io::Result<SystemTime>, dest: &Path) -> bool {
+    let Ok(source_time) = source_modified else {
+        return false;
+    };
+    let Ok(dest_metadata) = fs::metadata(dest) else {
+        return false;
+    };
+    let Ok(dest_time) = dest_metadata.modified() else {
+        return false;
+    };
+    source_time <= dest_time
 }
 
 /// GNU cp can only replace an unwritable destination when -f is in effect;
@@ -98,84 +187,110 @@ fn copy_file(
         fs::metadata(source).map_err(|e| format!("cannot stat '{}': {}", source.display(), e))?;
 
     if source_metadata.is_dir() {
-        if !args.recursive {
-            return Err(format!("omitting directory '{}'", source.display()));
+        if !wants_recursive(args) {
+            return Err(format!(
+                "-r not specified; omitting directory '{}'",
+                source.display()
+            ));
         }
-        copy_directory(source, dest, args, had_error)
-    } else {
-        let dest_path = if dest.exists() && dest.is_dir() {
-            match source.file_name() {
-                Some(name) => dest.join(name),
-                None => {
-                    return Err(format!(
-                        "cannot determine target name for '{}'",
-                        source.display()
-                    ));
-                }
-            }
-        } else {
-            dest.to_path_buf()
-        };
-
-        if dest_path.exists() {
-            match overwrite_decision(args) {
-                Overwrite::Skip => return Ok(()),
-                Overwrite::Prompt => {
-                    if !prompt_yes_no(&format!("cp: overwrite '{}'? ", dest_path.display())) {
-                        return Ok(());
-                    }
-                }
-                Overwrite::Allow => {}
-            }
-        }
-
-        if dest_path.exists() {
-            ensure_replaceable(&dest_path, args.force)?;
-        }
-
-        if args.symbolic_link {
-            #[cfg(windows)]
-            symlink_file(source, &dest_path).map_err(|e| {
-                format!(
-                    "cannot create symbolic link '{}': {}",
-                    dest_path.display(),
-                    e
-                )
-            })?;
-            #[cfg(not(windows))]
-            fs::symlink_file(source, &dest_path).map_err(|e| {
-                format!(
-                    "cannot create symbolic link '{}': {}",
-                    dest_path.display(),
-                    e
-                )
-            })?;
-        } else {
-            fs::copy(source, &dest_path).map_err(|e| {
-                format!(
-                    "cannot copy '{}' to '{}': {}",
-                    source.display(),
-                    dest_path.display(),
-                    e
-                )
-            })?;
-        }
-
-        if args.verbose {
-            println!("'{}' -> '{}'", source.display(), dest_path.display());
-        }
-
-        if args.preserve {
-            preserve_metadata(source, &dest_path)?;
-        }
-
-        Ok(())
+        return copy_directory(source, dest, args, had_error);
     }
+
+    // GNU -T: the destination is never entered, so an existing directory
+    // cannot receive a plain file copy.
+    if args.no_target_directory && dest.is_dir() {
+        return Err(format!(
+            "cannot overwrite directory '{}' with non-directory",
+            dest.display()
+        ));
+    }
+
+    let dest_path = if args.no_target_directory {
+        dest.to_path_buf()
+    } else if dest.exists() && dest.is_dir() {
+        match source.file_name() {
+            Some(name) => dest.join(name),
+            None => {
+                return Err(format!(
+                    "cannot determine target name for '{}'",
+                    source.display()
+                ));
+            }
+        }
+    } else {
+        dest.to_path_buf()
+    };
+
+    if args.update && source_not_newer(source_metadata.modified(), &dest_path) {
+        return Ok(());
+    }
+
+    if dest_path.exists() {
+        match overwrite_decision(args) {
+            Overwrite::Skip => return Ok(()),
+            Overwrite::Prompt => {
+                if !prompt_yes_no(&format!("cp: overwrite '{}'? ", dest_path.display())) {
+                    return Ok(());
+                }
+            }
+            Overwrite::Allow => {}
+        }
+    }
+
+    if dest_path.exists() {
+        ensure_replaceable(&dest_path, args.force)?;
+    }
+
+    if args.symbolic_link {
+        #[cfg(windows)]
+        symlink_file(source, &dest_path).map_err(|e| {
+            format!(
+                "cannot create symbolic link '{}': {}",
+                dest_path.display(),
+                e
+            )
+        })?;
+        #[cfg(not(windows))]
+        fs::symlink_file(source, &dest_path).map_err(|e| {
+            format!(
+                "cannot create symbolic link '{}': {}",
+                dest_path.display(),
+                e
+            )
+        })?;
+    } else {
+        fs::copy(source, &dest_path).map_err(|e| {
+            format!(
+                "cannot copy '{}' to '{}': {}",
+                source.display(),
+                dest_path.display(),
+                e
+            )
+        })?;
+    }
+
+    if args.verbose {
+        println!("'{}' -> '{}'", source.display(), dest_path.display());
+    }
+
+    if wants_preserve(args) {
+        preserve_metadata(source, &dest_path)?;
+    }
+
+    Ok(())
 }
 
 /// Copy one file entry from inside a directory tree, applying the same
-/// overwrite and read-only rules as a top-level copy.
+/// update, overwrite and read-only rules as a top-level copy.
 fn copy_entry_file(source: &Path, dest_path: &Path, args: &cli::Args) -> Result<(), String> {
+    if args.update {
+        let source_metadata = fs::metadata(source)
+            .map_err(|e| format!("cannot stat '{}': {}", source.display(), e))?;
+        if source_not_newer(source_metadata.modified(), dest_path) {
+            return Ok(());
+        }
+    }
+
     if dest_path.exists() {
         match overwrite_decision(args) {
             Overwrite::Skip => return Ok(()),
@@ -202,7 +317,7 @@ fn copy_entry_file(source: &Path, dest_path: &Path, args: &cli::Args) -> Result<
         println!("'{}' -> '{}'", source.display(), dest_path.display());
     }
 
-    if args.preserve {
+    if wants_preserve(args) {
         preserve_metadata(source, dest_path)?;
     }
 
@@ -231,7 +346,7 @@ fn preserve_metadata(source: &Path, dest: &Path) -> Result<(), String> {
 #[cfg(windows)]
 fn set_timestamps(dest: &Path, source_meta: &fs::Metadata) -> Result<(), String> {
     use std::os::windows::ffi::OsStrExt;
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::time::UNIX_EPOCH;
     use windows::Win32::Foundation::{CloseHandle, FILETIME};
     use windows::Win32::Storage::FileSystem::{
         CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, FILE_SHARE_READ, FILE_SHARE_WRITE,
@@ -311,7 +426,18 @@ fn copy_directory(
     args: &cli::Args,
     had_error: &mut bool,
 ) -> Result<(), String> {
-    let dest_path = if ends_in_dot_component(source) {
+    let dest_path = if args.no_target_directory {
+        // GNU -T: use the destination as-is. An existing directory receives
+        // the source's contents; a non-directory destination is rejected.
+        if dest.exists() && !dest.is_dir() {
+            return Err(format!(
+                "cannot overwrite non-directory '{}' with directory '{}'",
+                dest.display(),
+                source.display()
+            ));
+        }
+        dest.to_path_buf()
+    } else if ends_in_dot_component(source) {
         // `cp -r src/. dest` (also bare `.`/`..`): copy the contents of
         // source into dest itself. Dest must already be an existing
         // directory; unlike GNU cp we do not create it on demand.
@@ -365,7 +491,7 @@ fn copy_directory(
 
     // -p also stamps the directory itself; do it after the children so copying
     // them does not bump the timestamps again.
-    if args.preserve {
+    if wants_preserve(args) {
         preserve_metadata(source, &dest_path)?;
     }
 

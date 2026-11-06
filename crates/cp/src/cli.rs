@@ -3,11 +3,34 @@ use std::path::PathBuf;
 
 /// Copy files and directories — a Windows port of the Linux cp command.
 #[derive(Parser, Debug)]
-#[command(name = "cp", version, about)]
+#[command(
+    name = "cp",
+    version,
+    about,
+    override_usage = "cp [OPTIONS] <SOURCE>... [DESTINATION]"
+)]
 pub struct Args {
     /// Copy directories recursively
     #[arg(short = 'r', short_alias = 'R', long = "recursive")]
     pub recursive: bool,
+
+    /// Like -pR: preserve the mappable attributes and recurse. The GNU -d
+    /// (no-dereference) part has no Windows mapping and is not applied.
+    #[arg(short = 'a', long = "archive")]
+    pub archive: bool,
+
+    /// Copy only when the SOURCE file is newer than the destination file
+    /// or when the destination file is missing
+    #[arg(short = 'u', long = "update")]
+    pub update: bool,
+
+    /// Copy all SOURCE arguments into DIRECTORY
+    #[arg(short = 't', long = "target-directory", value_name = "DIRECTORY")]
+    pub target_directory: Option<PathBuf>,
+
+    /// Treat DESTINATION as a regular file, never look inside it as a directory
+    #[arg(short = 'T', long = "no-target-directory")]
+    pub no_target_directory: bool,
 
     /// Overwrite existing files without prompting
     #[arg(short = 'f', long = "force")]
@@ -33,11 +56,9 @@ pub struct Args {
     #[arg(short = 'v', long = "verbose")]
     pub verbose: bool,
 
-    /// The source file(s) to copy
-    #[arg(value_name = "SOURCE", required = true, num_args = 1..)]
+    /// The source file(s) and, unless -t is given, the final DESTINATION as
+    /// the last operand. Which operand is the destination follows GNU's
+    /// position rules and is decided in main, not by clap.
+    #[arg(value_name = "SOURCE", num_args = 1..)]
     pub sources: Vec<PathBuf>,
-
-    /// The destination file or directory
-    #[arg(value_name = "DESTINATION")]
-    pub destination: PathBuf,
 }
