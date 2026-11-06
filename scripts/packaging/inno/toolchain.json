@@ -1,4 +1,5 @@
 {
-  "innoSetupVersion": "6.7.4",
-  "downloadUrl": "https://github.com/jrsoftware/issrc/releases/download/is-6_7_4/innosetup-6.7.4.exe"
+  "innoSetupVersion": "7.1.1",
+  "supportedMajorVersion": 7,
+  "downloadUrl": "https://github.com/jrsoftware/issrc/releases/download/is-7_1_1/innosetup-7.1.1-x64.exe"
 }

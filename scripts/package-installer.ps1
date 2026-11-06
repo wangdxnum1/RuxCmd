@@ -6,18 +6,19 @@ Build the standalone RuxCmd EXE installer from an existing release ZIP.
 .DESCRIPTION
 Verifies the release ZIP checksum and manifest, extracts it into a private
 temporary directory, regenerates the rux-* shims from the manifest, generates
-the Inno Setup [Files] list, compiles the installer with a fixed Inno Setup
-version, and writes the setup EXE plus its SHA256 sidecar into -OutputDir.
+the Inno Setup [Files] list, compiles the installer with an Inno Setup 7.x
+compiler, and writes the setup EXE plus its SHA256 sidecar into -OutputDir.
 
 The installer packages exactly the executables already present in the ZIP.
 No command list is maintained here; the manifest is the source of truth. The
 142 binary version resources are checked again before compiling.
 
-Inno Setup is not installed by this script. Pass -Iscc or install the pinned
-version described by scripts/packaging/inno/toolchain.json. The compiler is
-located through PATH, then the standard "Inno Setup 6" and "Inno Setup 7"
-directories; its version is read from the Inno Setup uninstall registration
-because ISCC.exe has no version resource of its own.
+Inno Setup is not installed by this script. The pinned version and download
+URL live in scripts/packaging/inno/toolchain.json. The compiler is located
+through PATH, then the standard "Inno Setup 6" and "Inno Setup 7" directories;
+its version is read from the Inno Setup uninstall registration because
+ISCC.exe has no version resource of its own. The major version must match
+toolchain.json; other majors are rejected.
 
 .PARAMETER Archive
 Release ZIP produced by scripts/release.ps1 or scripts/package.ps1.
@@ -46,16 +47,13 @@ param(
 . (Join-Path $PSScriptRoot 'common.ps1')
 
 function Resolve-IsccExecutable {
-    param([string]$Path, [string]$ExpectedVersion, $Toolchain)
-    $candidate = if ($Path) { Get-FileSystemPath $Path } else { Find-InnoSetupCompiler }
+    param([string]$Path, $Toolchain, [int]$SupportedMajor)
+    $candidate = if ($Path) { Get-FileSystemPath $Path } else { Find-InnoSetupCompiler -SupportedMajor $SupportedMajor }
     if (-not $candidate) {
-        throw "Inno Setup $ExpectedVersion was not found. Install it from $($Toolchain.downloadUrl) or pass -Iscc <path>."
+        throw "Inno Setup $SupportedMajor.x was not found. Install it from $($Toolchain.downloadUrl) or pass -Iscc <path>."
     }
     if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { throw "ISCC.exe not found: $candidate" }
-    $version = Get-InnoSetupVersion $candidate
-    if ($version -notmatch "^$([regex]::Escape($ExpectedVersion))") {
-        throw "Inno Setup version mismatch: expected $ExpectedVersion, found '$version' at $candidate. Install the pinned version from $($Toolchain.downloadUrl)."
-    }
+    Assert-InnoSetupVersion -Version (Get-InnoSetupVersion $candidate) -SupportedMajor $SupportedMajor -Path $candidate -DownloadUrl $Toolchain.downloadUrl
     $candidate
 }
 
@@ -68,6 +66,10 @@ $toolchainPath = Join-Path $PSScriptRoot 'packaging/inno/toolchain.json'
 $toolchain = Get-Content -LiteralPath $toolchainPath -Raw | ConvertFrom-Json
 $innoVersion = [string]$toolchain.innoSetupVersion
 if ($innoVersion -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid pinned Inno Setup version: $innoVersion" }
+$supportedMajor = [int]$toolchain.supportedMajorVersion
+if ($supportedMajor -ne (Get-InnoSetupMajorVersion $innoVersion)) {
+    throw "toolchain.json supportedMajorVersion $supportedMajor does not match the pinned version $innoVersion."
+}
 
 $Archive = Get-FileSystemPath $Archive
 if (-not (Test-Path -LiteralPath $Archive -PathType Leaf)) { throw "Release ZIP not found: $Archive" }
@@ -89,7 +91,7 @@ if ((Test-Path -LiteralPath $setupPath) -or (Test-Path -LiteralPath $setupChecks
 }
 
 # Fail fast before the expensive extraction and compilation.
-$isccPath = Resolve-IsccExecutable -Path $Iscc -ExpectedVersion $innoVersion -Toolchain $toolchain
+$isccPath = Resolve-IsccExecutable -Path $Iscc -Toolchain $toolchain -SupportedMajor $supportedMajor
 
 $zip = [IO.Compression.ZipFile]::OpenRead($Archive)
 try {

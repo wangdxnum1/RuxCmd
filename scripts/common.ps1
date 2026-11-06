@@ -202,7 +202,27 @@ function Get-InnoSetupVersion {
     return ''
 }
 
+# Only one Inno Setup major is supported at a time. RuxCmd pins the major
+# version in toolchain.json, so an unexpected major fails instead of silently
+# changing the generated installer semantics.
+function Get-InnoSetupMajorVersion {
+    param([string]$Version)
+    if ($Version -match '^(\d+)\.(\d+)\.(\d+)') { return [int]$Matches[1] }
+    return -1
+}
+
+function Assert-InnoSetupVersion {
+    param([string]$Version, [int]$SupportedMajor, [string]$Path, [string]$DownloadUrl)
+    $major = Get-InnoSetupMajorVersion $Version
+    if ($major -ne $SupportedMajor) {
+        $found = if ($Version) { $Version } else { 'unknown' }
+        throw "Inno Setup '$found' at $Path is not supported: RuxCmd requires Inno Setup $SupportedMajor.x; other majors are rejected. Install it from $DownloadUrl or pass -Iscc <path>."
+    }
+    Write-Host "Inno Setup compiler: $Version at $Path"
+}
+
 function Find-InnoSetupCompiler {
+    param([int]$SupportedMajor = 0)
     $candidates = @()
     $command = Get-Command ISCC.exe -ErrorAction SilentlyContinue
     if ($command) { $candidates += $command.Source }
@@ -212,10 +232,17 @@ function Find-InnoSetupCompiler {
             $candidates += (Join-Path $root "$edition\ISCC.exe")
         }
     }
+    $first = $null
     foreach ($candidate in $candidates) {
-        if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) { return (Get-FileSystemPath $candidate) }
+        if (-not $candidate -or -not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+        $resolved = Get-FileSystemPath $candidate
+        if (-not $first) { $first = $resolved }
+        if ($SupportedMajor -le 0) { return $resolved }
+        if ((Get-InnoSetupMajorVersion (Get-InnoSetupVersion $resolved)) -eq $SupportedMajor) { return $resolved }
     }
-    return $null
+    # No supported compiler was found; return the first existing one so the
+    # caller can report the exact version it rejected.
+    return $first
 }
 
 function Expand-ReleaseArchive {

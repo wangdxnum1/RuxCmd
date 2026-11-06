@@ -46,7 +46,7 @@ jobs:
         run: ./scripts/compat-check.ps1
       - name: Build and verify ZIP
         run: ./scripts/release.ps1
-      - name: Install pinned Inno Setup
+      - name: Install supported Inno Setup
         run: ./scripts/packaging/inno/install-inno.ps1
       - name: Build EXE installer
         run: |

@@ -45,7 +45,7 @@ jobs:
         run: ./scripts/build.ps1 -Task Verify
       - name: Build and verify tagged release
         run: ./scripts/release.ps1 -RequireClean -Tag $env:RELEASE_TAG
-      - name: Install pinned Inno Setup
+      - name: Install supported Inno Setup
         run: ./scripts/packaging/inno/install-inno.ps1
       - name: Build EXE installer
         run: |

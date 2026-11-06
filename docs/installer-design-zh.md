@@ -1,11 +1,11 @@
 # RuxCmd 安装包方案（方案 A：单个 EXE，Inno Setup）
 
-状态：已收口，进入实现。方案 A（单 EXE、Inno Setup 6.7.4、放弃 MSI）已获用户确认。
-本轮只改仓库文件与脚本：没有在本机安装 Inno Setup，没有运行安装器/卸载器，没有修改 PATH 或注册表，没有删除任何已有构建产物。
+状态：已收口，进入实现。方案 A（单 EXE、Inno Setup 7.1.1、放弃 MSI）已获用户确认；用户已明确接受 Inno Setup 7 的授权条款，并同意把工具链约束放宽到 7.x（仍拒绝 5/6/8）。
+本轮只改仓库文件与脚本：没有在本机安装新的 Inno Setup，没有运行安装器/卸载器，没有修改 PATH 或注册表，没有删除任何已有构建产物。
 
 ## 0. 结论
 
-- 只发**一个 `ruxcmd-<version>-x86_64-pc-windows-msvc-setup.exe`**，由 Inno Setup 6.7.4 编译；不产出 MSI。
+- 只发**一个 `ruxcmd-<version>-x86_64-pc-windows-msvc-setup.exe`**，由 Inno Setup 7.1.1 编译；不产出 MSI。
 - 首次安装用 Inno 原生能力：启动时选择“仅为当前用户 / 为所有用户”（`PrivilegesRequiredOverridesAllowed=dialog`），并显示目录页让用户自选绝对路径。
 - 升级/重装复用同一个 `AppId`，自动沿用旧的安装模式与旧目录、跳过模式与目录页、原地覆盖；同版本重装也覆盖；降级拒绝；升级时改目录被拒绝。
 - PATH 只追加一条（用户级写 HKCU，机器级写 HKLM），卸载时精确移除这一条。
@@ -147,14 +147,15 @@ PrivilegesRequiredOverridesAllowed=dialog
 
 ## 6. 工具链与 CI
 
-### 6.1 固定版本
+### 6.1 固定版本与支持区间
 
-- **Inno Setup 6.7.4**（2026-10-28 发布），版本与下载地址记录在 [toolchain.json](file:///C:/Users/Tim/Work/my-projects/RuxCmd/scripts/packaging/inno/toolchain.json)：
-  `https://github.com/jrsoftware/issrc/releases/download/is-6_7_4/innosetup-6.7.4.exe`（约 10.6 MB）。
-- 选 6.x 不选 7.x：Inno 6 免费且允许商用；Inno 7 的商用需要商业许可。6.7.4 编译出的安装包独立分发，不依赖 Inno 运行时。
-- 只需要 `ISCC.exe` 命令行编译器。定位顺序：`PATH` → `%ProgramFiles(x86)%\Inno Setup 6` → `%ProgramFiles%\Inno Setup 6` → 同名的 `Inno Setup 7` 目录；也可用 `-Iscc <path>` 显式指定。
-- **版本检测不能读 `ISCC.exe` 的文件版本**：它没有版本资源，`ProductVersion` 恒为 `0.0.0.0`（这正是首次 CI 失败的原因）。版本从卸载注册表 `...\Uninstall\Inno Setup 6_is1`（或 `7_is1`）的 `DisplayVersion` 读取，并与 `InstallLocation` 目录匹配。
-- CI 与本机共用 [install-inno.ps1](file:///C:/Users/Tim/Work/my-projects/RuxCmd/scripts/packaging/inno/install-inno.ps1)：已装固定版本则跳过，否则下载官方安装器静默安装并复验版本。
+- **Inno Setup 7.1.1**（用户已确认使用该版本并接受 Inno Setup 7 的授权条款），版本与下载地址记录在 [toolchain.json](file:///C:/Users/Tim/Work/my-projects/RuxCmd/scripts/packaging/inno/toolchain.json)：
+  `https://github.com/jrsoftware/issrc/releases/download/is-7_1_1/innosetup-7.1.1-x64.exe`（x64 安装器，安装到 `%ProgramFiles%\Inno Setup 7`）。
+- 版本约束：`toolchain.json` 的 `supportedMajorVersion=7` 定义支持区间为 **7.x**。脚本会从注册表读出实际 `ISCC` 版本并打印；**5.x/6.x/8.x 明确拒绝**，7.x 内的任意小版本（如 7.0.2）允许，便于本机已有 7 系工具链直接使用。`innoSetupVersion` 只用于“自动安装时下载哪个版本”。
+- 7.1.1 编译出的安装包独立分发，不依赖 Inno 运行时；Inno 的授权变化只影响**使用编译器的一方**，不影响产物的分发与运行。Inno 7 下载页要求商业使用者购买许可（见 jrsoftware 的 Commercial Licenses 页面），本项目按用户决定使用 7.1.1。
+- 只需要 `ISCC.exe` 命令行编译器。定位顺序：`PATH` → `%ProgramFiles(x86)%\Inno Setup 6` → `%ProgramFiles%\Inno Setup 6` → 同名 `Inno Setup 7` 目录（x86/x64 安装器各用其一）；也可用 `-Iscc <path>` 显式指定。定位时会优先返回属于支持区间的编译器。
+- **版本检测不能读 `ISCC.exe` 的文件版本**：它没有版本资源，`ProductVersion` 恒为 `0.0.0.0`（这正是首次 CI 失败的原因）。版本从卸载注册表 `...\Uninstall\Inno Setup 7_is1`（或 `6_is1`）的 `DisplayVersion` 读取，并与 `InstallLocation` 目录匹配。
+- CI 与本机共用 [install-inno.ps1](file:///C:/Users/Tim/Work/my-projects/RuxCmd/scripts/packaging/inno/install-inno.ps1)：已装 7.x 则跳过并打印实际版本，否则下载 7.1.1 官方安装器静默安装并复验。**7 系静默安装参数与 6 系相同**：`/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-`；Inno 的安装器没有单独的 EULA 接受开关，`/VERYSILENT` 不显示许可页，接受条款属于使用者（本项目已由用户确认）。
 - `ISCC` 不在 `PATH` 不需要新开会话或加环境变量：脚本按绝对路径调用（新进程会读到已安装的文件）；`PATH` 条目只影响在终端直接输入 `iscc`。
 
 ### 6.2 打包脚本
@@ -167,7 +168,7 @@ PrivilegesRequiredOverridesAllowed=dialog
 4. 解压到本地临时目录，逐文件校验 SHA256，再对每个 exe 跑 `Assert-BinaryVersionInfo`（产品名、产品版本、文件版本、公司、版权、描述、Build/Prerelease 标志）。
 5. 按 manifest 生成 17 个 shim 中实际存在的那些。
 6. 生成 `build-info.iss`（版本、数字版本、产品名、公司、版权、输出路径）与 `generated-files.iss`（`[Files]` 列表），并断言 `Source:` 行数 = binaries + shims + docs + 2（`manifest.json`、`SHA256SUMS`）。
-7. 调用固定版本的 `ISCC.exe` 编译，校验安装包自身的版本资源，复制到 `dist/`，写 `.sha256`。
+7. 调用版本落在支持区间内的 `ISCC.exe`（打印实际版本）编译，校验安装包自身的版本资源，复制到 `dist/`，写 `.sha256`。
 8. 失败时只清理本次新建的产物与自己的临时目录；不覆盖已存在的安装包。
 
 产物：`dist/ruxcmd-<version>-x86_64-pc-windows-msvc-setup.exe` + `.sha256`。
@@ -180,7 +181,7 @@ PrivilegesRequiredOverridesAllowed=dialog
 
 `ci.yml` 在现有 `dist/*.zip` 步骤之后增加：
 
-1. 读取 `toolchain.json`，下载固定版本 Inno 安装器并静默安装（`/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-`），校验 `ISCC.exe` 的 `ProductVersion` 以 `6.7.4` 开头。
+1. 读取 `toolchain.json`，下载 7.1.1 安装器并静默安装（`/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-`），再读注册表 `DisplayVersion` 复验 `ISCC.exe` 属于 7.x。
 2. 找到 `dist/*.zip`，运行 `./scripts/package-installer.ps1 -Archive <zip>`，打印编译耗时。
 3. `upload-artifact` 增加 `dist/*.exe`（`dist/*.sha256` 已覆盖安装包的 sidecar）。
 
@@ -215,11 +216,11 @@ PrivilegesRequiredOverridesAllowed=dialog
 - `%`、`;`、`"` 的目录被拒绝是刻意收紧；极端合法路径（例如包含 `%` 的目录名）无法安装到自定义目录，可改用默认目录。
 - 未签名带来 SmartScreen/UAC 提示；Smart App Control 可能直接阻止。
 - 安装包内 exe 数量与版本资源的端到端校验依赖真实安装（需授权，见 §9）。
-- Inno 脚本尚未在本机编译过（本机没有 Inno Setup）；首次 CI 会暴露语法/编译问题，需要按报错修正后再提交。
+- 工具链限定 7.x：本机/CI 若只有 5/6/8 系，脚本会早期失败并打印实际版本与下载地址，不会退回到未验证的版本。
 
 ## 9. 本机验证方案（需用户授权后执行）
 
-本机当前状态：PowerShell 7 可用；**没有 Inno Setup**，`ISCC.exe` 不存在；没有安装任何新工具。以下步骤都会写注册表/PATH/文件，必须经用户逐项授权后再执行。
+本机当前状态：PowerShell 7 可用；本机已装有 **Inno Setup 7.1.1**（`C:\Program Files\Inno Setup 7\ISCC.exe`），在支持区间内，无需再安装。以下步骤都会写注册表/PATH/文件，必须经用户逐项授权后再执行。
 
 ### 9.1 只读/可随时丢弃的检查（不需要安装）
 
@@ -227,24 +228,24 @@ PrivilegesRequiredOverridesAllowed=dialog
 # 语法解析
 pwsh -NoProfile -Command '$t=$null; $e=$null; [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path scripts/package-installer.ps1).Path,[ref]$t,[ref]$e); $e.Count'
 
-# 需要先有 dist/ 下的 ZIP（已有构建产物，不重新构建）
+# 打印实际工具链版本（应为 7.x）
+./scripts/packaging/inno/install-inno.ps1
+
+# 需要先有 dist/ 下的 0.4.4 ZIP
 pwsh -File scripts/package-installer.ps1 -Archive dist/ruxcmd-0.4.4-x86_64-pc-windows-msvc.zip
 ```
 
-预期：解析 0 个错误；若 Inno 不存在或版本不匹配，打包脚本在早期失败并给出固定版本的下载地址（不会开始解压或写 `dist/`）。
+预期：解析 0 个错误；`install-inno.ps1` 输出 `Inno Setup 7.1.1 is already installed ...`；若工具链不属于 7.x，打包脚本在早期失败并打印实际版本与下载地址（不会开始解压或写 `dist/`）。
 
-### 9.2 工具链现状与安装（授权项）
+### 9.2 工具链现状（已满足）
 
-本机已探测到 **Inno Setup 7.1.1**（`C:\Program Files\Inno Setup 7\ISCC.exe`，注册表 `Inno Setup 7_is1`），**不是固定的 6.7.4**；`package-installer.ps1` 会明确拒绝并给出下载地址。要在本机用固定工具链编译，需安装 6.7.4（下载地址见 `toolchain.json`）：
+本机 `ISCC.exe` 为 7.1.1（注册表 `Inno Setup 7_is1`），落在 `supportedMajorVersion=7` 区间内，`package-installer.ps1` 会打印 `Inno Setup compiler: 7.1.1 at C:\Program Files\Inno Setup 7\ISCC.exe` 后继续。需要复核时运行：
 
 ```powershell
-curl.exe -L -o "$env:TEMP\innosetup-6.7.4.exe" `
-  https://github.com/jrsoftware/issrc/releases/download/is-6_7_4/innosetup-6.7.4.exe
-& "$env:TEMP\innosetup-6.7.4.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-
-& ./scripts/packaging/inno/install-inno.ps1
+./scripts/packaging/inno/install-inno.ps1
 ```
 
-预期：脚本输出 `Inno Setup 6.7.4 at C:\Program Files (x86)\Inno Setup 6\ISCC.exe`。若不希望在本机再装一个版本，直接用 CI 产出的安装包做 §9.4–§9.10 的验证即可。
+预期：输出 `Inno Setup 7.1.1 is already installed at C:\Program Files\Inno Setup 7\ISCC.exe`，不下载、不安装。若换到只有 5/6/8 系的机器，脚本会明确拒绝；需要时可用 `-Iscc` 指向合规路径，或让脚本按 `toolchain.json` 安装 7.1.1。
 
 ### 9.3 构建安装包（不安装到系统）
 
@@ -285,10 +286,12 @@ Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{06B
 
 预期：不弹模式/目录页；目录与旧版相同；`DisplayVersion` 变成新版本；PATH 仍只有一条；旧版本已移除命令的 `rux-*.cmd` 不残留。
 
+当前仓库只有 0.4.4 的安装包，没有下一版本的安装包，因此本轮**无法真实执行升级**，也不允许为测试自造版本。替代方案：等下一个版本发布后用两份真实安装包执行本步骤；或在合并下一版本代码后用 `package-installer.ps1` 现场构建（需要该版本 ZIP 与已提交的 checkout）。
+
 ### 9.7 降级与改目录（授权项）
 
 ```powershell
-# 先装 0.4.4，再运行 0.4.3 的安装包
+# 先装 0.4.4，再运行 0.4.3 的安装包（当前没有 0.4.3 安装包，见下方说明）
 & "dist\ruxcmd-0.4.3-...-setup.exe" /CURRENTUSER /VERYSILENT /SUPPRESSMSGBOXES
 # 预期：非 0 退出，日志/消息提示已安装更高版本
 
@@ -296,6 +299,8 @@ Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{06B
 & $setup /CURRENTUSER /DIR="D:\Other" /VERYSILENT /SUPPRESSMSGBOXES
 # 预期：非 0 退出，提示先卸载
 ```
+
+**降级本轮无法真实验证**：需要“已安装更高版本 + 更高版本的安装包”这组前提，仓库里只有 0.4.4，`package-installer.ps1` 又要求 ZIP 版本与当前工作区一致，因此不能也不应为了测试构造 0.4.3 或 0.4.5 的安装包。替代方案：等真实的下一个版本发布后，先装新版、再运行本版安装包，验证非 0 退出与提示；`RuxCmd.iss` 的 `InitializeSetup` 已实现该比较逻辑。改目录拒绝用当前 0.4.4 安装包即可真实执行。
 
 ### 9.8 机器级安装（授权项，需要 UAC）
 
@@ -346,11 +351,11 @@ Get-ChildItem "$dir\*.exe" |
 | 文件 | 作用 |
 | --- | --- |
 | [scripts/packaging/inno/RuxCmd.iss](file:///C:/Users/Tim/Work/my-projects/RuxCmd/scripts/packaging/inno/RuxCmd.iss) | Inno 安装/卸载脚本（固定 `AppId`、范围、目录、PATH、降级/改目录检查、卸载清理） |
-| [scripts/packaging/inno/toolchain.json](file:///C:/Users/Tim/Work/my-projects/RuxCmd/scripts/packaging/inno/toolchain.json) | 固定 Inno Setup 版本与官方下载地址 |
-| [scripts/packaging/inno/install-inno.ps1](file:///C:/Users/Tim/Work/my-projects/RuxCmd/scripts/packaging/inno/install-inno.ps1) | CI 与本机共用：探测、按需静默安装并复验固定版本 |
+| [scripts/packaging/inno/toolchain.json](file:///C:/Users/Tim/Work/my-projects/RuxCmd/scripts/packaging/inno/toolchain.json) | 固定 Inno Setup 版本（7.1.1）、支持区间（7.x）与官方下载地址 |
+| [scripts/packaging/inno/install-inno.ps1](file:///C:/Users/Tim/Work/my-projects/RuxCmd/scripts/packaging/inno/install-inno.ps1) | CI 与本机共用：探测、按需静默安装并复验 7.x |
 | [scripts/package-installer.ps1](file:///C:/Users/Tim/Work/my-projects/RuxCmd/scripts/package-installer.ps1) | 从现有 ZIP 生成 `[Files]`、调用 ISCC 编译、校验版本资源并写 `.sha256` |
 | [scripts/common.ps1](file:///C:/Users/Tim/Work/my-projects/RuxCmd/scripts/common.ps1) | 新增共享 shim 策略与 `Expand-ReleaseArchive` |
 | [scripts/install.ps1](file:///C:/Users/Tim/Work/my-projects/RuxCmd/scripts/install.ps1) | 默认目录改为 `%LOCALAPPDATA%\RuxCmd\bin`、共享 shim、新增安装包互斥检查 |
-| `.github/workflows/ci.yml` / `release.yml` | 固定版本 Inno 安装、安装包构建、作为 Release 资产 |
+| `.github/workflows/ci.yml` / `release.yml` | 支持区间内 Inno 安装、安装包构建、作为 Release 资产 |
 
 注意：仓库提交时只包含上述源文件；`dist/` 下的既有产物与临时目录不纳入、不删除。
