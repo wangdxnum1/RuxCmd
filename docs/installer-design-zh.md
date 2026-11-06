@@ -116,7 +116,7 @@ PrivilegesRequiredOverridesAllowed=dialog
 
 ### 3.4 shim
 
-- 17 个冲突名：`find sort where cat ls cp mv rm echo pwd ps kill sleep tee clear curl wget`；与 `install.ps1` 共享同一份策略（`Get-RuxCmdPrefixShimCommands` / `Get-RuxCmdShimContent`）。
+- 17 个冲突名：`find sort where cat ls cp mv rm echo pwd ps kill sleep tee clear curl wget`；与 `install.ps1` 共享同一份策略（`Get-RuxCmdPrefixShimCommands` / `Get-RuxCmdShimContent`）。套件不含 `where.exe`，因此实际生成 **16 个** `rux-*.cmd`。
 - 内容：`@echo off` + `"%~dp0<command>.exe" %*`，UTF-8 无 BOM，CRLF。
 - 打包期按 ZIP `manifest.json` 的 binaries 生成，只对 ZIP 中存在的命令生成；安装包把它们当普通文件装进 `{app}`。
 - 升级：`[InstallDelete]` 先删 `{app}\rux-*.cmd`，再写新集合，旧版多出的 shim 不会残留。
@@ -253,7 +253,7 @@ pwsh -File scripts/package-installer.ps1 -Archive dist/ruxcmd-0.4.4-x86_64-pc-wi
 pwsh -File scripts/package-installer.ps1 -Archive dist/ruxcmd-0.4.4-x86_64-pc-windows-msvc.zip
 ```
 
-预期：`dist/ruxcmd-0.4.4-x86_64-pc-windows-msvc-setup.exe` 与 `.sha256` 生成；输出显示 `binaries: 142`、`shims: 17`、`docs: 6`、编译耗时。
+预期：`dist/ruxcmd-0.4.4-x86_64-pc-windows-msvc-setup.exe` 与 `.sha256` 生成；输出显示 `binaries: 142`、`shims: 16`、`docs: 6`、编译耗时。
 
 ### 9.4 首次安装（用户级 + 自选目录，授权项）
 
@@ -269,7 +269,7 @@ Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{06B
 
 预期：
 
-- `exit=0`；exe 数量 142；`rux-*.cmd` 17。
+- `exit=0`；exe 数量 142；`rux-*.cmd` 16（不含 `rux-where`）。
 - HKCU PATH 中 `D:\Tools\RuxCmd\bin` 恰好出现一次（末尾追加），其他项不变。
 - 卸载键存在，`DisplayVersion=0.4.4`。
 - 新开控制台执行 `rux-find --version` 能找到命令；`D:\Tools\RuxCmd\bin\find.exe --version` 正常。

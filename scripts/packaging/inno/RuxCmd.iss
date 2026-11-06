@@ -1,4 +1,4 @@
-; RuxCmd standalone installer (Inno Setup 6.7.4).
+; RuxCmd standalone installer (Inno Setup 7.x; pinned 7.1.1).
 ;
 ; The packaging script copies this file into a temporary build directory and
 ; generates build-info.iss and generated-files.iss next to it. The [Files]

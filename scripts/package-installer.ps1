@@ -209,8 +209,12 @@ try {
         OriginalFilename = "$outputBaseFilename.exe"
     }
     foreach ($field in $expectedInfo.Keys) {
-        if ($setupInfo.$field -cne $expectedInfo[$field]) {
-            throw "Installer version resource mismatch: $field (expected '$($expectedInfo[$field])', got '$($setupInfo.$field)')."
+        # Inno Setup 7 pads version-info strings to fixed widths, so compare
+        # trimmed values instead of rejecting harmless trailing spaces.
+        $actual = ([string]$setupInfo.$field).Trim()
+        $expected = ([string]$expectedInfo[$field]).Trim()
+        if ($actual -cne $expected) {
+            throw "Installer version resource mismatch: $field (expected '$expected', got '$actual')."
         }
     }
 
