@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.5 — 发布溯源修正、安装包纳入源码树(2026-11-06)
+
+- 修正 0.4.4 的发布溯源缺口：`v0.4.4` tag 指向的提交早于安装包工具链，Release 中的 ZIP 与 setup 来自不同构建。本版的 ZIP 与 setup 由同一个 tag 提交、同一次 CI 构建产出，`manifest.json` 的 `sourceCommit` 与 tag 提交一致且 `dirty=false`。
+- 安装包纳入正式源码树：新增 `scripts/packaging/inno/`（`RuxCmd.iss`、`install-inno.ps1`、`toolchain.json`，固定 Inno Setup 7.1.1，接受 7.x、拒绝 5/6/8）与 `scripts/package-installer.ps1`；CI 与 Release 均构建并上传 `ruxcmd-<version>-x86_64-pc-windows-msvc-setup.exe` 及其 `.sha256`。
+- 安装包行为：首次安装可选“仅当前用户 / 所有用户”并自选目录（默认 `%LOCALAPPDATA%\RuxCmd\bin` 或 `%ProgramFiles%\RuxCmd\bin`）；升级与同版本重装就地覆盖并沿用原目录；降级拒绝；卸载移除安装文件、`rux-*.cmd`、`share`、PATH 条目与卸载项。
+- PATH 与 `rux-` 前缀：安装结束把安装目录追加到用户级或机器级 PATH（卸载时精确移除该条目）；`C:\Windows\System32` 与 PowerShell 别名会抢先裸名，因此冲突名请使用 `rux-find`、`rux-cat`、`rux-ls` 等 shim（本套件实际生成 16 个），非冲突名可直接使用。PATH 变更只对新开进程生效，旧终端或 IDE 需重开。
+- 安装包未签名，首次运行可能出现 SmartScreen 提示；可用 `Get-FileHash` 对照同名 `.sha256` 校验 ZIP 与 setup。
+- 命令行为修正（0.4.4 tag 之后合入）：grep `-c` 对齐 GNU（按输入逐个输出 `name:count`，含 0 计数、无总计，并遵循 `-h`/`-l`/`-L`/`-m 0`）；du 后序遍历全部子目录、总是追加 `-c` 总计并按目录身份去重；find 按命令行顺序求值（隐式 `-and` 短路），`-delete` 可与 `-print`/`-print0`/`-exec` 组合。
+- 工程：CI 改用 Swatinem/rust-cache（key 覆盖 `Cargo.lock`、`rust-toolchain.toml`、`.cargo/config.toml` 与该 workflow），工作区 crate 产物不缓存，保证 142 个 release 二进制由当前运行产出。
+- 文档记录 Inno 7 的卸载值名变更（`Inno Setup: App Path`）、许可横幅、16 个 shim 的真实数量，以及 CI 与本机安装/重装/改目录拒绝/卸载/PATH 精确恢复的验证结果。
+
 ## 0.4.4 — 语义收口、安装与打包基线、awk 流式化(2026-11-06)
 
 - du：默认改为 GNU 的 1K 已分配块（GetCompressedFileSize），新增 `-b/--bytes`、`-c/--total`、`-h` 与 `--apparent-size`；硬链接每次调用只计一次。已知差异：MSYS GNU du 按 4K 簇估算，在分配粒度等于逻辑大小的文件系统上块数会不同（apparent 模式一致）。
