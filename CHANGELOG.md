@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.4 — 语义收口、安装与打包基线、awk 流式化(2026-11-06)
+
+- du：默认改为 GNU 的 1K 已分配块（GetCompressedFileSize），新增 `-b/--bytes`、`-c/--total`、`-h` 与 `--apparent-size`；硬链接每次调用只计一次。已知差异：MSYS GNU du 按 4K 簇估算，在分配粒度等于逻辑大小的文件系统上块数会不同（apparent 模式一致）。
+- cp：默认覆盖已存在的可写目标对齐 GNU；`-n`/`-i` 以最后出现者为准、`-n` 恒压过 `-f`，覆盖只读目标必须带 `-f`，`-i` 提示写 stderr，递归单条失败不中断其余条目但整体退出 1；`-p` 保留只读属性与访问/修改时间（不可映射的 POSIX mode 位与 owner/group 除外）。
+- mv：覆盖、不覆盖与 `-f` 的优先级对齐 GNU；覆盖只读目标先清属性，删除失败时回退。
+- uptime `-p` 采用 GNU 的英文措辞；zip 从 PowerShell shim 改为 zip crate 的原生实现。
+- find 新增 `-print0`、`-delete`（隐式 -depth）、`-size`、`-mtime`、`-type l`、`-exec`（`{} \;` 与 `{} +`）；未知谓词与非法 glob 报错退出 1。grep 新增 `--include`/`--exclude`/`--exclude-dir`、`-m/--max-count`、`-z/--null-data`、`-L/--files-without-match`，并修复第 max-count 条匹配后仍输出尾部上下文。
+- 新增 `scripts/install.ps1`：先按 SHA256 校验归档，安装到用户目录，生成 `rux-` 前缀 shim，只修改用户 PATH；支持 `-Uninstall`/`-RemoveInstallDir`。新增 scoop 与 winget 清单源（`scripts/packaging/`）。
+- 文档与兼容表收敛为单一事实源：命令/包计数、wc stdin 说明、各命令验证状态、awk split 注释等统一；新增 `scripts/compat-check.ps1`，在 CI 中校验兼容表列结构、双语行数、选项与 `--help` 的一致性，以及 README/开发文档/兼容表/脚本 README 引用的计数。
+- 工程基线：clippy 以 `-D warnings` 全仓通过并纳入 CI；发布 EXE 数（142）与 `cargo metadata` 的 bin 目标逐一核对。
+- awk 内存有界：主输入与 `getline < file` 由一次性预加载改为按记录流式读取，峰值工作集不随输入增长（266 MB 输入实测：主输入 372 MB → 7.4 MB，`getline < file` 626 MB → 7.4 MB）。NR/FNR 计数、按文件（含空文件）重置 FNR、主输入 getline 共享游标、管道与协程不改计数等语义保持不变；缺失输入文件改为轮到它时才报错，报错后继续处理后续文件并退出 1。
+- difftest 扩展：为 cp、mv、ls、du、find、tar 新增 32 条隔离 fixture 用例，除 stdout/退出码外比对执行后的文件树快照（路径、大小、只读位）；tar 创建类改为解包后比对条目。`du` 分配块数与 `mv -v` 措辞仍以 `$KnownDifferences` 记录，未放宽全局断言。
+
 ## 0.4.3 — xxd 移植与新增选项、awk 协程与 FNR、logger 事件日志(2026-11-03)
 
 - 新增 2 个命令（sha3sum、xxd），命令总数 140 → 142（145 个包）：sha3sum 计算 SHA-3 摘要（--bits 支持 224/256/384/512，默认 512，多文件与 stdin，输出格式对齐 GNU）；xxd 提供十六进制转储与逆向。
