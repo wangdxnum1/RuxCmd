@@ -667,7 +667,7 @@ fn invalid_dates_report_gnu_message_exit_1() {
             .arg(&file)
             .assert()
             .code(1)
-            .stderr(predicates::str::contains(&format!(
+            .stderr(predicates::str::contains(format!(
                 "touch: invalid date format '{bad}'"
             )));
     }

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.6 — 脚本必备 GNU 对齐(2026-11-07)
+
+- touch:`-r/--reference`(取参考文件时间)、`-t STAMP`([[CC]YY]MMDDhhmm[.ss],本地时间经 TzSpecificLocalTimeToSystemTime 转换,DST 正确)、`-d/--date` 子集(@epoch、YYYY-MM-DD[THH:MM[:SS]]);源优先级 -r>-d/-t>now,-t 与 -d/-r 组合报 GNU 同款错误(8.32 实测对齐)。
+- head:`-n -K`/`-c -K` 负计数(输出除末尾 K 个记录/字节,GNU 语义,-0 表示全部);非法数字按 GNU 措辞退出 1。
+- comm:接受 `-` 作为任一操作数(两个 `-` 报错退出 1);`--total` 总计行(计数为未抑制的完整计数,-z 模式行尾 NUL);-1/-2/-3 的 TAB 前缀压缩 8 组旗标组合与 GNU 逐字节一致。
+- du:`--max-depth=N`(GNU 数值解析含 0x/八进制)、`-a/--all`(文件与目录同深度计)、`-x/--one-file-system`(按卷剪枝)、`--exclude=PATTERN`(可重复,组件级 glob);`-a×-s` 报错退出 1、`-s×--max-depth` warning 分支与 GNU 一致;输出路径分隔符统一为 `/`。34 个 apparent-size 场景与本机 GNU 8.32 逐一比对全 MATCH。
+- cp:`-a/--archive`(= -pR)、`-u/--update`(源 mtime 严格更新或目标缺失才复制,相等跳过且先于 -n/-i/-f)、`-t DIR`、`-T`;四类 GNU 错误文案复刻(exit 1 + Try 行);-t 与 -T 互斥。
+- find:布尔运算符 `-o/-or`、`-a/-and`、`!/-not` 与 `\( \)` 分组(! > -a > -o,顺序短路求值,隐式 -print 补全);`-newer FILE`、`-newermt/-newerat DATE`(日期子集,空串=今日 00:00);表达式语法错误措辞复刻 GNU;55 个 find 测试全绿。
+- diff:普通格式按 GNU 合并相邻删除+添加为单条 c 命令并折叠区间(0a…/…d0 锚点特例),与 GNU diffutils 3.12 逐字节对照一致(1800 组随机模糊验证:退出码 100% 一致、补丁应用 100% 还原);重复行等长 LCS 对齐选择差异仍存(输出仍为最短 diff)。
+- 修同步的旧行为锁定测试:seq 尾换行、cut 无分隔符透传、nl 终止末行、sed 保留缺失尾换行、md5sum/sha256sum 两空格、wc stdin 裸计数(verify-behavior.ps1 同步)。
+
 ## 0.4.5 — 发布溯源修正、安装包纳入源码树(2026-11-06)
 
 - 修正 0.4.4 的发布溯源缺口：`v0.4.4` tag 指向的提交早于安装包工具链，Release 中的 ZIP 与 setup 来自不同构建。本版的 ZIP 与 setup 由同一个 tag 提交、同一次 CI 构建产出，`manifest.json` 的 `sourceCommit` 与 tag 提交一致且 `dirty=false`。
