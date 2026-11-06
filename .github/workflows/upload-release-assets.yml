@@ -1,0 +1,104 @@
+name: Upload release assets
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag that receives the installer assets
+        required: true
+        default: v0.4.4
+        type: string
+      run_id:
+        description: CI run id that produced the ruxcmd-windows-x64-ci artifact
+        required: true
+        default: "42206804826"
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  upload:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ inputs.tag }}
+      ARTIFACT_RUN: ${{ inputs.run_id }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Validate inputs
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') { throw "Expected a version tag such as v0.4.4, got '$env:RELEASE_TAG'." }
+          if ($env:ARTIFACT_RUN -notmatch '^\d+$') { throw "Expected a numeric run id, got '$env:ARTIFACT_RUN'." }
+          $version = $env:RELEASE_TAG.TrimStart('v')
+          $expected = "ruxcmd-$version-x86_64-pc-windows-msvc-setup.exe"
+          Write-Host "Expected installer asset: $expected"
+          [IO.File]::WriteAllText((Join-Path $env:RUNNER_TEMP 'expected-name.txt'), $expected, [Text.UTF8Encoding]::new($false))
+
+      - name: Snapshot existing release assets
+        run: |
+          $before = gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json assets | ConvertFrom-Json
+          if (-not $before.assets) { throw "Release $env:RELEASE_TAG has no assets to snapshot." }
+          $before.assets | Sort-Object name | ForEach-Object { Write-Host "BEFORE: $($_.name) size=$($_.size) state=$($_.state) digest=$($_.digest)" }
+          [IO.File]::WriteAllText((Join-Path $env:RUNNER_TEMP 'assets-before.json'), ($before | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
+
+      - name: Download CI installer artifact
+        run: |
+          $dest = Join-Path $env:RUNNER_TEMP 'release-assets'
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          gh run download $env:ARTIFACT_RUN --repo $env:GITHUB_REPOSITORY -n ruxcmd-windows-x64-ci -D $dest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem -LiteralPath $dest | Sort-Object Name | ForEach-Object { Write-Host "DOWNLOADED: $($_.Name) $($_.Length) bytes" }
+
+      - name: Verify installer checksum
+        run: |
+          $dest = Join-Path $env:RUNNER_TEMP 'release-assets'
+          $expected = [IO.File]::ReadAllText((Join-Path $env:RUNNER_TEMP 'expected-name.txt'))
+          $setup = Join-Path $dest $expected
+          $sidecar = "$setup.sha256"
+          if (-not (Test-Path -LiteralPath $setup -PathType Leaf)) { throw "Expected installer not found in the artifact: $expected" }
+          if (-not (Test-Path -LiteralPath $sidecar -PathType Leaf)) { throw "Expected checksum sidecar not found: $expected.sha256" }
+          $text = (Get-Content -LiteralPath $sidecar -Raw).Trim()
+          if ($text -notmatch '^([0-9A-Fa-f]{64})\s+\*?([^\\/]+)$') { throw "Malformed checksum sidecar: $text" }
+          $listedHash = $Matches[1].ToLowerInvariant()
+          $listedName = $Matches[2]
+          if ($listedName -cne $expected) { throw "Checksum sidecar names '$listedName', expected '$expected'." }
+          $actualHash = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualHash -cne $listedHash) { throw "Checksum mismatch: sidecar $listedHash, file $actualHash." }
+          Write-Host "VERIFIED: $expected sha256=$actualHash"
+          [IO.File]::WriteAllText((Join-Path $env:RUNNER_TEMP 'verified-hash.txt'), $actualHash, [Text.UTF8Encoding]::new($false))
+
+      - name: Upload installer assets
+        run: |
+          $dest = Join-Path $env:RUNNER_TEMP 'release-assets'
+          $expected = [IO.File]::ReadAllText((Join-Path $env:RUNNER_TEMP 'expected-name.txt'))
+          $setup = Join-Path $dest $expected
+          $sidecar = "$setup.sha256"
+          gh release upload $env:RELEASE_TAG $setup $sidecar --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host "Uploaded $expected and $expected.sha256 to $env:RELEASE_TAG."
+
+      - name: Verify release assets
+        run: |
+          $before = Get-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'assets-before.json') -Raw | ConvertFrom-Json
+          $after = gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json assets | ConvertFrom-Json
+          $after.assets | Sort-Object name | ForEach-Object { Write-Host "AFTER : $($_.name) size=$($_.size) state=$($_.state) digest=$($_.digest)" }
+          foreach ($asset in $before.assets) {
+            $match = @($after.assets | Where-Object name -eq $asset.name)
+            if ($match.Count -ne 1) { throw "Existing asset changed or disappeared: $($asset.name)" }
+            if ($match[0].size -ne $asset.size -or $match[0].digest -ne $asset.digest) { throw "Existing asset changed: $($asset.name)" }
+          }
+          $expected = [IO.File]::ReadAllText((Join-Path $env:RUNNER_TEMP 'expected-name.txt'))
+          $verifiedHash = [IO.File]::ReadAllText((Join-Path $env:RUNNER_TEMP 'verified-hash.txt'))
+          $newAssets = @($after.assets | Where-Object { $_.name -eq $expected -or $_.name -eq "$expected.sha256" })
+          if ($newAssets.Count -ne 2) { throw "Expected exactly two uploaded installer assets, found $($newAssets.Count)." }
+          foreach ($asset in $newAssets) {
+            if ($asset.state -ne 'uploaded') { throw "Asset not uploaded: $($asset.name) state=$($asset.state)" }
+          }
+          $setupAsset = $newAssets | Where-Object name -eq $expected
+          if ($setupAsset.digest -ne "sha256:$verifiedHash") { throw "Uploaded digest $($setupAsset.digest) does not match sha256:$verifiedHash." }
+          if (@($after.assets).Count -ne (@($before.assets).Count + 2)) { throw "Unexpected asset count: before=$(@($before.assets).Count) after=$(@($after.assets).Count)." }
+          Write-Host "Release asset verification passed."
