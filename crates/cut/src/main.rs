@@ -71,14 +71,24 @@ fn process_records<R: BufRead, W: Write>(
             continue;
         }
         let result = if let Some(spec) = &args.bytes {
-            parse_spec(spec, raw.len())
+            let mut indices = parse_spec(spec, raw.len());
+            if args.complement {
+                indices = complement_indices(indices, raw.len());
+            }
+            indices
                 .into_iter()
                 .filter_map(|index| raw.get(index).copied())
                 .collect()
         } else if let Some(spec) = &args.fields {
-            cut_fields(&raw, spec, delimiter_bytes, output_delimiter.as_bytes())
+            cut_fields(
+                &raw,
+                spec,
+                args.complement,
+                delimiter_bytes,
+                output_delimiter.as_bytes(),
+            )
         } else if let Some(spec) = &args.characters {
-            cut_chars(&raw, spec)
+            cut_chars(&raw, spec, args.complement)
         } else {
             raw
         };
@@ -88,7 +98,24 @@ fn process_records<R: BufRead, W: Write>(
     Ok(())
 }
 
-fn cut_fields(line: &[u8], spec: &str, delimiter: &[u8], output_delimiter: &[u8]) -> Vec<u8> {
+/// --complement: invert the selection over 0..total, keeping line order.
+fn complement_indices(selected: Vec<usize>, total: usize) -> Vec<usize> {
+    let mut mask = vec![false; total];
+    for index in selected {
+        if index < total {
+            mask[index] = true;
+        }
+    }
+    (0..total).filter(|&index| !mask[index]).collect()
+}
+
+fn cut_fields(
+    line: &[u8],
+    spec: &str,
+    complement: bool,
+    delimiter: &[u8],
+    output_delimiter: &[u8],
+) -> Vec<u8> {
     let mut fields = Vec::new();
     let mut start = 0;
     let mut position = 0;
@@ -105,9 +132,13 @@ fn cut_fields(line: &[u8], spec: &str, delimiter: &[u8], output_delimiter: &[u8]
         return line.to_vec();
     }
     fields.push(&line[start..]);
+    let mut indices = parse_spec(spec, fields.len());
+    if complement {
+        indices = complement_indices(indices, fields.len());
+    }
     let mut result = Vec::new();
     let mut first = true;
-    for index in parse_spec(spec, fields.len()) {
+    for index in indices {
         if let Some(field) = fields.get(index) {
             if !first {
                 result.extend_from_slice(output_delimiter);
@@ -119,23 +150,34 @@ fn cut_fields(line: &[u8], spec: &str, delimiter: &[u8], output_delimiter: &[u8]
     result
 }
 
-fn cut_chars(raw: &[u8], spec: &str) -> Vec<u8> {
+fn cut_chars(raw: &[u8], spec: &str, complement: bool) -> Vec<u8> {
     match std::str::from_utf8(raw) {
         Ok(text) => {
             let mut starts: Vec<_> = text.char_indices().map(|(index, _)| index).collect();
             starts.push(raw.len());
+            let count = starts.len() - 1;
+            let mut indices = parse_spec(spec, count);
+            if complement {
+                indices = complement_indices(indices, count);
+            }
             let mut result = Vec::new();
-            for index in parse_spec(spec, starts.len() - 1) {
+            for index in indices {
                 if index + 1 < starts.len() {
                     result.extend_from_slice(&raw[starts[index]..starts[index + 1]]);
                 }
             }
             result
         }
-        Err(_) => parse_spec(spec, raw.len())
-            .into_iter()
-            .filter_map(|index| raw.get(index).copied())
-            .collect(),
+        Err(_) => {
+            let mut indices = parse_spec(spec, raw.len());
+            if complement {
+                indices = complement_indices(indices, raw.len());
+            }
+            indices
+                .into_iter()
+                .filter_map(|index| raw.get(index).copied())
+                .collect()
+        }
     }
 }
 

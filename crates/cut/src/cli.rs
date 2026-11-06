@@ -32,6 +32,10 @@ pub struct Args {
     #[arg(short = 'o', long = "output-delimiter")]
     pub output_delimiter: Option<String>,
 
+    /// Complement the set of selected bytes, characters or fields
+    #[arg(long = "complement")]
+    pub complement: bool,
+
     /// The file(s) to cut
     #[arg(value_name = "FILE")]
     pub files: Vec<PathBuf>,

@@ -78,12 +78,106 @@ fn syntax_error_exits_one() {
         .stderr(str::contains("bc: syntax error"));
 }
 
+// scale support: fixed-point arithmetic with the global scale variable.
+
 #[test]
-fn scale_is_reported_and_ignored_without_exit() {
-    run_bc("scale=2\n1+2\n")
+fn scale_assignment_is_silent() {
+    run_bc("scale=2\n").success().stdout("").stderr("");
+}
+
+#[test]
+fn scale_default_zero_keeps_integer_division() {
+    run_bc("10/3\n").success().stdout("3\n");
+}
+
+#[test]
+fn scale_two_division_prints_two_decimals() {
+    run_bc("scale=2; 10/3\n").success().stdout("3.33\n");
+}
+
+#[test]
+fn scale_five_division_prints_five_decimals() {
+    run_bc("scale=5; 1/3\n").success().stdout("0.33333\n");
+}
+
+#[test]
+fn scale_division_truncates_toward_zero() {
+    run_bc("scale=2; 10/4\n-7/3\n")
         .success()
-        .stdout("3\n")
-        .stderr("bc: scale is not supported in this build\n");
+        .stdout("2.50\n-2.33\n");
+}
+
+#[test]
+fn scale_remainder_is_fractional() {
+    // a % b = a - (a/b)*b with a/b truncated at the current scale.
+    run_bc("scale=2; 10%3\n").success().stdout("0.01\n");
+}
+
+#[test]
+fn scale_zero_remainder_stays_integer() {
+    run_bc("10%3\n-7%3\n").success().stdout("1\n-1\n");
+}
+
+#[test]
+fn negative_exponent_yields_fraction_at_scale() {
+    run_bc("scale=2; 2^-1\nscale=5; 2^-1\n")
+        .success()
+        .stdout("0.50\n0.50000\n");
+}
+
+#[test]
+fn positive_exponent_multiplies_scales() {
+    // GNU bc: (1/3)^2 at scale 2 is 0.33*0.33 = 0.1089.
+    run_bc("scale=2; (1/3)^2\n").success().stdout("0.1089\n");
+}
+
+#[test]
+fn sqrt_truncates_to_current_scale() {
+    run_bc("scale=2; sqrt(2)\n").success().stdout("1.41\n");
+}
+
+#[test]
+fn sqrt_at_default_scale_truncates_to_integer() {
+    run_bc("sqrt(2)\nsqrt(9)\n").success().stdout("1\n3\n");
+}
+
+#[test]
+fn sqrt_of_fraction() {
+    run_bc("scale=2; sqrt(0.25)\n").success().stdout("0.50\n");
+}
+
+#[test]
+fn sqrt_of_negative_is_an_error() {
+    run_bc("sqrt(-4)\n")
+        .failure()
+        .code(1)
+        .stderr(str::contains("bc: square root of negative number"));
+}
+
+#[test]
+fn scale_is_readable_and_stored_per_variable() {
+    run_bc("scale=3\nscale\na=1/3\na\n")
+        .success()
+        .stdout("3\n0.333\n");
+}
+
+#[test]
+fn decimal_literals_keep_their_scale() {
+    run_bc("1.5+2\n0.5*0.5\n").success().stdout("3.5\n0.25\n");
+}
+
+#[test]
+fn scale_out_of_range_is_an_error() {
+    run_bc("scale=65\n1+1\n")
+        .failure()
+        .code(1)
+        .stderr(str::contains("bc: scale must be between 0 and 64"));
+    run_bc("scale=-1\n").failure().code(1);
+}
+
+#[test]
+fn scale_max_is_assignable() {
+    run_bc("scale=64\nscale\n").success().stdout("64\n");
 }
 
 #[test]

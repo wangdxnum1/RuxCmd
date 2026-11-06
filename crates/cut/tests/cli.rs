@@ -73,3 +73,55 @@ fn crlf_is_stripped_but_trailing_tabs_kept() {
     assert_eq!(code, Some(0));
     assert_eq!(stdout, b"a\nc\n");
 }
+
+// --- --complement: invert the selection set ---
+
+#[test]
+fn complement_fields_drops_the_selected_field() {
+    // echo "hello world" | cut --complement -d ' ' -f 1  =>  "world"
+    let path = write_file("comp-fields.txt", b"hello world\n");
+    let (stdout, code) = cut(&["--complement", "-d", " ", "-f", "1"], &path);
+    assert_eq!(code, Some(0));
+    assert_eq!(stdout, b"world\n");
+}
+
+#[test]
+fn complement_fields_keep_position_order() {
+    // Complement output follows line order, not the order in the list.
+    let path = write_file("comp-order.txt", b"a,b,c,d\n");
+    let (stdout, code) = cut(&["--complement", "-d", ",", "-f", "2,3"], &path);
+    assert_eq!(code, Some(0));
+    assert_eq!(stdout, b"a,d\n");
+}
+
+#[test]
+fn complement_fields_with_ranges_and_lists() {
+    let path = write_file("comp-ranges.txt", b"a,b,c,d\n");
+    let (stdout, code) = cut(&["--complement", "-d", ",", "-f", "1,3-"], &path);
+    assert_eq!(code, Some(0));
+    assert_eq!(stdout, b"b\n");
+}
+
+#[test]
+fn complement_bytes_selection() {
+    let path = write_file("comp-bytes.txt", b"abcdef\n");
+    let (stdout, code) = cut(&["--complement", "-b", "1-3"], &path);
+    assert_eq!(code, Some(0));
+    assert_eq!(stdout, b"def\n");
+}
+
+#[test]
+fn complement_characters_on_multibyte_text() {
+    let path = write_file("comp-chars.txt", "你好世界\n".as_bytes());
+    let (stdout, code) = cut(&["--complement", "-c", "1"], &path);
+    assert_eq!(code, Some(0));
+    assert_eq!(stdout, "好世界\n".as_bytes());
+}
+
+#[test]
+fn complement_field_mode_passes_delimiterless_lines_through() {
+    let path = write_file("comp-plain.txt", b"plain\n");
+    let (stdout, code) = cut(&["--complement", "-d", ",", "-f", "1"], &path);
+    assert_eq!(code, Some(0));
+    assert_eq!(stdout, b"plain\n");
+}

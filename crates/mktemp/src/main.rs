@@ -97,10 +97,7 @@ fn main() {
             );
             std::process::exit(1);
         }
-        let dest_dir = match &args.tmpdir {
-            Some(dir) => dir.clone(),
-            None => std::env::temp_dir(),
-        };
+        let dest_dir = dest_temp_dir(&args.tmpdir);
         // Path::join inserts the platform separator (GNU file_name_concat).
         let mut full = dest_dir.join(&template).into_os_string();
         if explicit_suffix {
@@ -116,6 +113,19 @@ fn main() {
     }
 }
 
+/// Where `--tmpdir` (bare or with a value) resolves to: an explicit DIR wins,
+/// then $TMPDIR (GNU), then the Windows temporary directory (%TEMP%).
+fn dest_temp_dir(tmpdir: &Option<Option<PathBuf>>) -> PathBuf {
+    match tmpdir {
+        Some(Some(dir)) => dir.clone(),
+        Some(None) => std::env::var_os("TMPDIR")
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(std::env::temp_dir),
+        None => std::env::temp_dir(),
+    }
+}
+
 fn create_and_print(
     full: &std::ffi::OsString,
     args: &cli::Args,
@@ -124,6 +134,19 @@ fn create_and_print(
 ) {
     let full_str = full.to_string_lossy().into_owned();
     let mut last_err: Option<std::io::Error> = None;
+
+    // Dry run: one random name, printed, never created (GNU -u/--dry-run).
+    if args.dry_run {
+        let mut name_bytes = full_str.clone().into_bytes();
+        let x_start = name_bytes.len() - suffix_len - x_count;
+        if let Err(error) = randomize(&mut name_bytes[x_start..x_start + x_count]) {
+            fail(&full_str, args, error);
+        }
+        let candidate =
+            PathBuf::from(String::from_utf8(name_bytes).expect("template stays valid UTF-8"));
+        println!("{}", candidate.display());
+        return;
+    }
 
     for _ in 0..MAX_ATTEMPTS {
         let mut name_bytes = full_str.clone().into_bytes();

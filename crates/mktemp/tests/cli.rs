@@ -298,3 +298,149 @@ fn names_differ_across_invocations() {
     }
     assert_eq!(seen.len(), 8);
 }
+
+// --- dry run (-u / --dry-run): print a name, create nothing ---
+
+#[test]
+fn dry_run_prints_a_name_without_creating_anything() {
+    let dir = tempfile::tempdir().unwrap();
+    let assert = cargo_bin_cmd!("mktemp")
+        .args(["-u", "-p"])
+        .arg(dir.path())
+        .arg("dry.XXXXXX")
+        .assert()
+        .success();
+    let printed = stdout_of(&assert);
+    let path = Path::new(&printed);
+    let name = path.file_name().unwrap().to_string_lossy();
+    assert!(name.starts_with("dry."), "prefix kept: {}", printed);
+    let random_part = &name["dry.".len()..];
+    assert_eq!(random_part.len(), 6);
+    assert!(random_part.chars().all(|c| c.is_ascii_alphanumeric()));
+    assert!(
+        !path.exists(),
+        "dry run must not create the file: {}",
+        printed
+    );
+    assert_eq!(
+        std::fs::read_dir(dir.path()).unwrap().count(),
+        0,
+        "dry run must leave the directory empty"
+    );
+}
+
+#[test]
+fn long_dry_run_flag_behaves_like_u() {
+    let dir = tempfile::tempdir().unwrap();
+    let assert = cargo_bin_cmd!("mktemp")
+        .args(["--dry-run", "-p"])
+        .arg(dir.path())
+        .arg("dry.XXXXXX")
+        .assert()
+        .success();
+    let printed = stdout_of(&assert);
+    assert!(!Path::new(&printed).exists(), "printed: {}", printed);
+    assert!(
+        Path::new(&printed)
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("dry.")
+    );
+}
+
+#[test]
+fn dry_run_directory_prints_name_without_creating() {
+    let dir = tempfile::tempdir().unwrap();
+    let assert = cargo_bin_cmd!("mktemp")
+        .args(["-u", "-d", "-p"])
+        .arg(dir.path())
+        .arg("dryd.XXXXXX")
+        .assert()
+        .success();
+    let printed = stdout_of(&assert);
+    let path = Path::new(&printed);
+    assert!(
+        path.file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("dryd."),
+        "printed: {}",
+        printed
+    );
+    assert!(!path.exists(), "dry run must not create the directory");
+}
+
+#[test]
+fn dry_run_does_not_need_an_existing_parent() {
+    let dir = tempfile::tempdir().unwrap();
+    let missing = dir.path().join("no-such-subdir");
+    cargo_bin_cmd!("mktemp")
+        .args(["-u", "-p"])
+        .arg(&missing)
+        .arg("t.XXXXXX")
+        .assert()
+        .success();
+}
+
+// --- --tmpdir without a value: $TMPDIR (or %TEMP%) ---
+
+#[test]
+fn bare_tmpdir_uses_tmpdir_env_var() {
+    let dir = tempfile::tempdir().unwrap();
+    let assert = cargo_bin_cmd!("mktemp")
+        .env("TMPDIR", dir.path())
+        .args(["t.XXXXXX", "--tmpdir"])
+        .assert()
+        .success();
+    let printed = stdout_of(&assert);
+    let path = Path::new(&printed);
+    assert!(path.is_file(), "file must be created: {}", printed);
+    // The template stays a template and resolves inside $TMPDIR.
+    assert_eq!(path.parent(), Some(dir.path()), "printed: {}", printed);
+    assert!(
+        path.file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("t.")
+    );
+}
+
+#[test]
+fn bare_tmpdir_without_tmpdir_env_falls_back_to_windows_temp() {
+    let assert = cargo_bin_cmd!("mktemp")
+        .env_remove("TMPDIR")
+        .args(["t.XXXXXX", "--tmpdir"])
+        .assert()
+        .success();
+    let printed = stdout_of(&assert);
+    let path = Path::new(&printed);
+    assert!(path.is_file(), "printed path must exist");
+    assert_eq!(path.parent(), Some(std::env::temp_dir().as_path()));
+}
+
+#[test]
+fn empty_tmpdir_env_falls_back_to_windows_temp() {
+    let assert = cargo_bin_cmd!("mktemp")
+        .env("TMPDIR", "")
+        .args(["t.XXXXXX", "--tmpdir"])
+        .assert()
+        .success();
+    let printed = stdout_of(&assert);
+    let path = Path::new(&printed);
+    assert_eq!(path.parent(), Some(std::env::temp_dir().as_path()));
+}
+
+#[test]
+fn tmpdir_equals_form_places_result_in_given_directory() {
+    let dir = tempfile::tempdir().unwrap();
+    let assert = cargo_bin_cmd!("mktemp")
+        .arg(format!("--tmpdir={}", dir.path().display()))
+        .arg("t.XXXXXX")
+        .assert()
+        .success();
+    let printed = stdout_of(&assert);
+    let path = Path::new(&printed);
+    assert!(path.is_file(), "printed path must exist");
+    assert_eq!(path.parent(), Some(dir.path()));
+}

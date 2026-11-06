@@ -9,13 +9,20 @@ pub struct Args {
     #[arg(short = 'd', long = "directory")]
     pub directory: bool,
 
+    /// Do not create anything; just print a name (unsafe)
+    #[arg(short = 'u', long = "dry-run")]
+    pub dry_run: bool,
+
     /// Fail silently if an error occurs
     #[arg(short = 'q', long = "quiet")]
     pub quiet: bool,
 
-    /// Interpret TEMPLATE relative to DIR
-    #[arg(short = 'p', long = "tmpdir", value_name = "DIR")]
-    pub tmpdir: Option<PathBuf>,
+    /// Interpret TEMPLATE relative to DIR; without a value, use $TMPDIR
+    /// (or %TEMP%). Like GNU mktemp, give the value as --tmpdir=DIR;
+    /// a space-separated value is consumed greedily, so put the TEMPLATE
+    /// before a bare --tmpdir.
+    #[arg(short = 'p', long = "tmpdir", value_name = "DIR", num_args = 0..=1)]
+    pub tmpdir: Option<Option<PathBuf>>,
 
     /// Interpret a filename template relative to the Windows temporary directory
     #[arg(short = 't')]

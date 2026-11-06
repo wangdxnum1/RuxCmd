@@ -1,5 +1,5 @@
 use clap::Parser;
-use regex::Regex;
+use fancy_regex::Regex;
 
 /// Evaluate expressions - a Windows port of GNU expr (integer arithmetic,
 /// comparisons, | / &, anchored BRE matching, and the string functions).
@@ -258,13 +258,18 @@ fn compare(left: &str, right: &str, op: &str) -> String {
 
 /// GNU anchored match: `EXPR : BRE` and `match EXPR BRE` return the first
 /// group when the pattern has one, otherwise the match length in characters.
+/// Patterns are compiled with fancy-regex so BRE back references (`\(a\)\1`)
+/// work like GNU expr.
 fn anchored_match(subject: &str, pattern: &str) -> Result<String, String> {
     // Core translates the BRE; expr anchors it at the head like GNU.
     let rust_pattern =
-        ruxcmd_core::bre::to_regex(pattern).map_err(|e| format!("syntax error: {}", e))?;
+        ruxcmd_core::bre::to_regex_fancy(pattern).map_err(|e| format!("syntax error: {}", e))?;
     let re = Regex::new(&format!("^{}", rust_pattern))
         .map_err(|_| "syntax error: invalid regular expression".to_string())?;
-    match re.captures(subject) {
+    let captures = re
+        .captures(subject)
+        .map_err(|_| "syntax error: invalid regular expression".to_string())?;
+    match captures {
         None => Ok(String::new()),
         Some(captures) => match captures.get(1) {
             Some(group) => Ok(group.as_str().to_string()),

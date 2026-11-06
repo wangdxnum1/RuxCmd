@@ -96,6 +96,52 @@ fn anchored_bre_match_returns_group_or_length() {
 }
 
 #[test]
+fn back_reference_matches_repeated_group() {
+    // GNU 8.32 ground truth: a back reference `\N` re-matches what group N
+    // captured; the result is still the first group's content.
+    let (out, code) = run(&["abab", ":", "\\(ab\\)\\1"]);
+    assert_eq!((out.as_str(), code), ("ab\n", Some(0)));
+
+    let (out, code) = run(&["abcbc", ":", "a\\(b\\)c\\1"]);
+    assert_eq!((out.as_str(), code), ("b\n", Some(0)));
+
+    // Nested groups keep POSIX numbering: GNU `expr aXbXb : '\(a\(X\)b\)\2'`.
+    let (out, code) = run(&["aXbXb", ":", "\\(a\\(X\\)b\\)\\2"]);
+    assert_eq!((out.as_str(), code), ("aXb\n", Some(0)));
+
+    let (out, code) = run(&["aXaX", ":", "\\(a\\)\\(X\\)\\1\\2"]);
+    assert_eq!((out.as_str(), code), ("a\n", Some(0)));
+
+    // The `match` keyword shares the back reference support.
+    let (out, code) = run(&["match", "abab", "\\(ab\\)\\1"]);
+    assert_eq!((out.as_str(), code), ("ab\n", Some(0)));
+}
+
+#[test]
+fn back_reference_without_match_returns_empty_one() {
+    // GNU: `expr abcabc : 'a\(b\)c\1'` needs "abcb" at the head of the
+    // subject, which fails -> empty output, exit 1.
+    let (out, code) = run(&["abcabc", ":", "a\\(b\\)c\\1"]);
+    assert_eq!((out.as_str(), code), ("\n", Some(1)));
+}
+
+#[test]
+fn invalid_back_reference_exits_two() {
+    // GNU: "Invalid back reference" (exit 2) whenever the Nth group is not
+    // closed before the reference: forward refs, out-of-range refs and refs
+    // inside the referenced group.
+    for pattern in ["\\1", "\\(a\\)\\2", "\\(a\\1\\)"] {
+        let out = cargo_bin_cmd!("expr")
+            .args(["aa", ":", pattern])
+            .output()
+            .unwrap();
+        assert_eq!(out.status.code(), Some(2), "pattern {pattern}");
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert!(err.contains("back reference"), "stderr: {err}");
+    }
+}
+
+#[test]
 fn division_by_zero_exits_two() {
     let out = cargo_bin_cmd!("expr")
         .args(["1", "/", "0"])
