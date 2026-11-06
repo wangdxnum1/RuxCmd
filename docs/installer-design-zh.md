@@ -195,7 +195,7 @@ PrivilegesRequiredOverridesAllowed=dialog
 
 - 已有 0.4.4 ZIP 时，`package-installer.ps1` 的校验+解压+`ISCC` 编译共约 25 秒，其中 `ISCC` 19.1 秒（`lzma2/max`，142 exe + 16 shim + 6 文档）。
 - 从零构建 0.4.4 ZIP（Rust 已预热）并用 `release.ps1` 完整校验约 72 秒。
-- 首次 CI 的下载/安装 Inno 耗时待该次 run 完成后补记；现有 45 分钟超时充足。
+- 首次 CI 实测（run `42206804826`，commit `9f3a411`）：`Install supported Inno Setup` 6 秒——runner 上 PATH 里的 Chocolatey `ISCC.exe` 属于未注册版本，脚本按 `toolchain.json` 下载并静默安装 7.1.1，随后打印 `Inno Setup compiler: 7.1.1 at C:\Program Files\Inno Setup 7\ISCC.exe`；`Build EXE installer` 30 秒（`ISCC` 编译 25.2 秒）；整个 windows job 17 分 29 秒（主要耗时仍是 Rust 构建）。
 
 ## 7. 版本与签名
 
@@ -349,7 +349,11 @@ Get-ChildItem "$dir\*.exe" | Where-Object Name -ne 'unins000.exe' |
 
 ### 9.12 本轮验证记录（本机，2026-11-06）
 
-产物：`ruxcmd-0.4.4-x86_64-pc-windows-msvc-setup.exe`（16,474,102 字节，SHA256 `c248b53860e3fc875a35c98b90348bb5a01523482c81d362c175ee02b4aa75fc`），由 Inno 7.1.1 编译，编译耗时 19.1 秒，版本资源 `0.4.4 / 0.4.4.0`。
+产物：
+
+- 本机构建（验证期间使用）：`ruxcmd-0.4.4-x86_64-pc-windows-msvc-setup.exe`，16,474,102 字节，SHA256 `c248b53860e3fc875a35c98b90348bb5a01523482c81d362c175ee02b4aa75fc`，`ISCC` 编译 19.1 秒。
+- CI 构建（run `42206804826`）：同一文件名，16,442,094 字节，SHA256 `dd2ca321d6fd529023a3bf6f4c64553c96e38c79a0b85af706b6c80c102d8f1d`，sidecar 与实物一致。
+- 两者版本资源均为 `0.4.4 / 0.4.4.0`；下表结果在两份产物上分别复现，CI 产物按 §9.1–§9.5 完整跑过一遍。
 
 | 步骤 | 结果 |
 | --- | --- |
@@ -364,6 +368,8 @@ Get-ChildItem "$dir\*.exe" | Where-Object Name -ne 'unins000.exe' |
 | 升级到下一版本 | 未执行：仓库只有 0.4.4 安装包，且不允许自造版本 |
 | 降级 | 未执行：需要“已装更高版本 + 更高版本安装包”，同样缺产物；不自造版本 |
 | 所有用户（HKLM）模式 | 本轮未执行：需要 UAC 交互，且会改机器级 PATH/注册表 |
+
+CI 产物（run `42206804826`，commit `9f3a411`，`ruxcmd-windows-x64-ci`）：ZIP、`ruxcmd-0.4.4-x86_64-pc-windows-msvc-setup.exe` 与两者的 `.sha256`；构建日志显示 `Inno Setup compile finished in 25.2s`、`binaries: 142`、`shims: 16`，安装包版本资源 `0.4.4 / 0.4.4.0`。
 
 验证期间的所有安装目录均在 `%TEMP%` 下自建，结束后已卸载并删除；未触碰 `dist` 下的既有 ZIP/安装包。
 
