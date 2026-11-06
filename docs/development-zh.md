@@ -38,9 +38,9 @@ CI 还会运行 `scripts/compat-check.ps1`：把兼容表与 `cargo metadata`、
 
 `scripts/release.ps1` 产出 `dist/ruxcmd-<版本>-x86_64-pc-windows-msvc.zip` 及内容为 `<sha256>  <文件名>` 的 `.zip.sha256`。安装侧不改变发布纪律：显式 `-Tag` 必须等于套件版本并指向当前 checkout，正式打包要求工作区干净。
 
-`scripts/install.ps1` 是安装经过校验的发布包的用户入口，脚本自包含，不加载 `scripts/common.ps1`。输入可以是 ZIP 路径（读取旁边的 `.sha256`，或用 `-Sha256` 显式指定），也可以是 `0.4.3` 这样的版本号（从 GitHub Release 下载）。SHA256 在创建任何目录之前校验；解压到同级的暂存目录，检查路径穿越与重复条目，并验证包内 `SHA256SUMS`，之后才写入目标位置。
+`scripts/install.ps1` 是安装经过校验的发布包的用户入口；它加载 `scripts/common.ps1` 中的共享助手，使 shim 策略与安全解压和 EXE 安装包保持一致。输入可以是 ZIP 路径（读取旁边的 `.sha256`，或用 `-Sha256` 显式指定），也可以是 `0.4.3` 这样的版本号（从 GitHub Release 下载）。SHA256 在创建任何目录之前校验；解压到同级的暂存目录，检查路径穿越与重复条目，并验证包内 `SHA256SUMS`，之后才写入目标位置。若检测到独立 EXE 安装包的卸载注册表项，脚本会拒绝执行。
 
-布局：可执行文件直接进入 `-InstallDir`（默认 `C:\Users\Tim\Develop\RuxCmd\bin`，相当于归档中的 `bin/`），其余文件进入 `<InstallDir>\share`。`.ruxcmd-install.json` 记录版本、校验和、可执行文件名、shim 名称及旧版本备份，供重复执行与卸载使用。
+布局：可执行文件直接进入 `-InstallDir`（默认 `%LOCALAPPDATA%\RuxCmd\bin`，相当于归档中的 `bin/`），其余文件进入 `<InstallDir>\share`。`.ruxcmd-install.json` 记录版本、校验和、可执行文件名、shim 名称及旧版本备份，供重复执行与卸载使用。
 
 Windows 先搜索 `C:\Windows\System32`，再搜索用户 `PATH`；PowerShell 别名又会遮蔽许多命令名。因此裸名 `find`、`sort`、`where`、`cat`、`ls`、`cp`、`mv`、`rm`、`echo`、`pwd`、`ps`、`kill`、`sleep`、`tee`、`clear`、`curl`、`wget` 不能可靠地命中 RuxCmd。安装器只为包内实际存在的命令生成 `rux-<命令>.cmd` shim（`@echo off` 与 `"%~dp0<命令>.exe" %*`）；套件不含 `where.exe`，因此不会生成 `rux-where`。`%*` 在常规用法下保留调用方引号；需要让字面引号穿过多层 cmd.exe 的情形仍受 cmd.exe 限制。`rux` 预留给未来的多路复用入口。
 

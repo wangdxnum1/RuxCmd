@@ -22,13 +22,18 @@ are never touched. Set RUXCMD_INSTALL_USER_PATH_FILE to a file path to read
 and write the user PATH from that file instead; the test suite uses this seam
 so it never touches a real profile.
 
+This script and the standalone EXE installer are mutually exclusive: if the
+packaged installation is present, this script refuses to run. Uninstall the
+packaged version from Settings > Apps first.
+
 .PARAMETER Source
 Path to a release ZIP (with its .sha256 sidecar) or a version such as 0.4.3
 or v0.4.3, which is downloaded from the GitHub Release.
 
 .PARAMETER InstallDir
 Directory that receives the executables. Default:
-C:\Users\Tim\Develop\RuxCmd\bin.
+%LOCALAPPDATA%\RuxCmd\bin, the same default as the EXE installer's
+"only for me" mode.
 
 .PARAMETER Sha256
 Expected SHA256 of the ZIP. Overrides the .sha256 sidecar.
@@ -58,12 +63,14 @@ pwsh -File scripts/install.ps1 -Uninstall -Force
 param(
     [Parameter(Position = 0)]
     [string]$Source,
-    [string]$InstallDir = 'C:\Users\Tim\Develop\RuxCmd\bin',
+    [string]$InstallDir = '',
     [string]$Sha256,
     [switch]$Force,
     [switch]$Uninstall,
     [switch]$RemoveInstallDir
 )
+
+. (Join-Path $PSScriptRoot 'common.ps1')
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -73,10 +80,14 @@ $script:ReleaseTarget = 'x86_64-pc-windows-msvc'
 $script:ReleaseRepository = 'wangdxnum1/RuxCmd'
 $script:StateFileName = '.ruxcmd-install.json'
 $script:UserPathOverrideVariable = 'RUXCMD_INSTALL_USER_PATH_FILE'
-$script:PrefixShimCommands = @(
-    'find', 'sort', 'where',
-    'cat', 'ls', 'cp', 'mv', 'rm', 'echo', 'pwd', 'ps', 'kill', 'sleep', 'tee', 'clear', 'curl', 'wget'
-)
+$script:PackagedAppId = '{06BD23F3-4290-4F15-AEC6-55FD9DC91B9F}'
+$script:PrefixShimCommands = @(Get-RuxCmdPrefixShimCommands)
+
+if ([string]::IsNullOrWhiteSpace($InstallDir)) {
+    $localAppData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+    if ([string]::IsNullOrWhiteSpace($localAppData)) { throw 'Unable to resolve %LOCALAPPDATA% for the default install directory.' }
+    $InstallDir = Join-Path $localAppData 'RuxCmd\bin'
+}
 
 function Resolve-InstallDirectory {
     param([string]$Path)
@@ -197,36 +208,6 @@ function Save-ReleaseArchive {
     return $archive
 }
 
-function Expand-ReleaseArchive {
-    param([string]$ArchivePath, [string]$Destination)
-    $root = [IO.Path]::GetFullPath($Destination)
-    [IO.Directory]::CreateDirectory($root) | Out-Null
-    $prefix = [IO.Path]::TrimEndingDirectorySeparator($root) + [IO.Path]::DirectorySeparatorChar
-    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-    $zip = [IO.Compression.ZipFile]::OpenRead($ArchivePath)
-    try {
-        foreach ($entry in $zip.Entries) {
-            $relative = $entry.FullName.Replace('\', '/')
-            if ([string]::IsNullOrWhiteSpace($relative)) { continue }
-            if ($relative -match '(^/|^[A-Za-z]:|(^|/)\.\.(/|$))') { throw "Unsafe archive entry: $($entry.FullName)" }
-            if (-not $seen.Add($relative)) { throw "Duplicate archive entry: $($entry.FullName)" }
-            $parts = $relative.Split('/') | Where-Object { $_ -ne '' }
-            $target = [IO.Path]::GetFullPath((Join-Path $root ($parts -join [IO.Path]::DirectorySeparatorChar)))
-            if (-not $target.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
-                throw "Archive entry escapes the destination: $($entry.FullName)"
-            }
-            if ($relative.EndsWith('/')) {
-                [IO.Directory]::CreateDirectory($target) | Out-Null
-                continue
-            }
-            [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($target)) | Out-Null
-            [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $target, $true)
-        }
-    } finally {
-        $zip.Dispose()
-    }
-}
-
 function Assert-ArchiveContents {
     param([string]$Directory)
     $index = Join-Path $Directory 'SHA256SUMS'
@@ -246,11 +227,6 @@ function Assert-ArchiveContents {
     }
 }
 
-function Get-ShimContent {
-    param([string]$Command)
-    return "@echo off`r`n`"%~dp0$Command.exe`" %*`r`n"
-}
-
 function Install-Shims {
     param([string]$Directory, [hashtable]$Binaries)
     $names = @()
@@ -258,7 +234,7 @@ function Install-Shims {
     foreach ($command in $script:PrefixShimCommands) {
         if (-not $Binaries.ContainsKey($command)) { continue }
         $fileName = "rux-$command.cmd"
-        if (Write-TextIfChanged (Join-Path $Directory $fileName) (Get-ShimContent $command)) { $written++ }
+        if (Write-TextIfChanged (Join-Path $Directory $fileName) (Get-RuxCmdShimContent $command)) { $written++ }
         $names += $fileName
     }
     return [pscustomobject]@{ Names = $names; Written = $written }
@@ -537,7 +513,7 @@ function Invoke-Uninstall {
         # No state: only remove shims that exactly match the installed template.
         foreach ($command in $script:PrefixShimCommands) {
             $path = Join-Path $InstallDir "rux-$command.cmd"
-            if ((Test-Path -LiteralPath $path -PathType Leaf) -and [IO.File]::ReadAllText($path) -ceq (Get-ShimContent $command)) {
+            if ((Test-Path -LiteralPath $path -PathType Leaf) -and [IO.File]::ReadAllText($path) -ceq (Get-RuxCmdShimContent $command)) {
                 Remove-Item -LiteralPath $path -Force
                 $removedShims += "rux-$command.cmd"
             }
@@ -590,6 +566,23 @@ function Invoke-Uninstall {
     Write-Host "Rollback: reinstall with 'pwsh -File scripts/install.ps1 -Source <archive-or-version>'."
 }
 
+function Assert-NoPackagedInstall {
+    # The test suite points the PATH seam at a file and never touches a real
+    # profile, so skip the registry probe there to keep the suite hermetic.
+    if (-not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($script:UserPathOverrideVariable))) { return }
+    $keys = @(
+        "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$($script:PackagedAppId)_is1",
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$($script:PackagedAppId)_is1",
+        "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\$($script:PackagedAppId)_is1"
+    )
+    foreach ($key in $keys) {
+        if (Test-Path -LiteralPath $key) {
+            throw "RuxCmd is installed from the EXE installer ($key). Uninstall it from Settings > Apps before using install.ps1."
+        }
+    }
+}
+
+Assert-NoPackagedInstall
 $InstallDir = Resolve-InstallDirectory $InstallDir
 if ($Uninstall) {
     Invoke-Uninstall -InstallDir $InstallDir -Force:$Force.IsPresent -RemoveInstallDir:$RemoveInstallDir.IsPresent

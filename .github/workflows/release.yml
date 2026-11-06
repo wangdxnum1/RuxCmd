@@ -45,11 +45,37 @@ jobs:
         run: ./scripts/build.ps1 -Task Verify
       - name: Build and verify tagged release
         run: ./scripts/release.ps1 -RequireClean -Tag $env:RELEASE_TAG
+      - name: Install pinned Inno Setup
+        run: |
+          $toolchain = Get-Content -LiteralPath scripts/packaging/inno/toolchain.json -Raw | ConvertFrom-Json
+          $version = [string]$toolchain.innoSetupVersion
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          $installed = if (Test-Path -LiteralPath $iscc) { [Diagnostics.FileVersionInfo]::GetVersionInfo($iscc).ProductVersion } else { '' }
+          if ($installed -notmatch "^$([regex]::Escape($version))") {
+            $installer = Join-Path $env:RUNNER_TEMP "innosetup-$version.exe"
+            Invoke-WebRequest -Uri $toolchain.downloadUrl -OutFile $installer
+            $process = Start-Process -FilePath $installer -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-' -Wait -PassThru
+            if ($process.ExitCode -ne 0) { throw "Inno Setup installer exited $($process.ExitCode)." }
+          }
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path -LiteralPath $iscc)) { throw 'ISCC.exe was not installed.' }
+          $actual = [Diagnostics.FileVersionInfo]::GetVersionInfo($iscc).ProductVersion
+          if ($actual -notmatch "^$([regex]::Escape($version))") { throw "Inno Setup version mismatch: expected $version, found '$actual'." }
+          Write-Host "Inno Setup $actual at $iscc"
+      - name: Build EXE installer
+        run: |
+          $clock = [Diagnostics.Stopwatch]::StartNew()
+          $archive = @(Get-ChildItem -LiteralPath dist -Filter 'ruxcmd-*-x86_64-pc-windows-msvc.zip')[0]
+          if (-not $archive) { throw 'Release ZIP not found in dist.' }
+          ./scripts/package-installer.ps1 -Archive $archive.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host "Installer step finished in $([Math]::Round($clock.Elapsed.TotalSeconds, 1))s."
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ruxcmd-${{ inputs.tag }}-windows-x64
           path: |
             dist/*.zip
+            dist/*.exe
             dist/*.sha256
           if-no-files-found: error
           retention-days: 30
@@ -59,9 +85,15 @@ jobs:
         run: |
           $existing = gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY 2>$null
           if ($LASTEXITCODE -eq 0) { throw "Release $env:RELEASE_TAG already exists; refusing to overwrite." }
-          $zip = Get-ChildItem dist/*.zip | Select-Object -First 1
-          $sha = Get-ChildItem dist/*.sha256 | Select-Object -First 1
+          $zips = @(Get-ChildItem dist/*.zip)
+          $setups = @(Get-ChildItem dist/*.exe)
+          if ($zips.Count -ne 1) { throw "Expected exactly one release ZIP, found $($zips.Count)." }
+          if ($setups.Count -ne 1) { throw "Expected exactly one installer EXE, found $($setups.Count)." }
+          foreach ($asset in @($zips + $setups)) {
+            if (-not (Test-Path -LiteralPath "$($asset.FullName).sha256")) { throw "Missing checksum for $($asset.Name)." }
+          }
+          $paths = @($zips.FullName) + @($setups.FullName) + @(Get-ChildItem dist/*.sha256 | ForEach-Object FullName)
           $extra = @()
           if ($env:RELEASE_TAG -match '-') { $extra += '--prerelease' } else { $extra += '--latest' }
-          gh release create $env:RELEASE_TAG $zip.FullName $sha.FullName --repo $env:GITHUB_REPOSITORY --title "RuxCmd $($env:RELEASE_TAG)" --generate-notes @extra
+          gh release create $env:RELEASE_TAG @paths --repo $env:GITHUB_REPOSITORY --title "RuxCmd $($env:RELEASE_TAG)" --generate-notes @extra
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

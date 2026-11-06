@@ -37,7 +37,7 @@ pwsh -File scripts/install.ps1 -Source .\ruxcmd-0.4.4-x86_64-pc-windows-msvc.zip
 pwsh -File scripts/install.ps1 -Source 0.4.4
 ```
 
-安装器在写入任何内容之前校验 SHA256，默认把可执行文件放到 `C:\Users\Tim\Develop\RuxCmd\bin`（可用 `-InstallDir` 覆盖），把文档与构建清单放到 `<InstallDir>\share`，生成下述 `rux-` shim，并在显示变更前后的用户 `PATH` 后追加该目录（`-Force` 跳过确认）。相同版本重复执行不会改动任何文件；升级会先把旧可执行文件复制到 `<InstallDir>.old-<版本>`。`-Uninstall` 移除 shim 和 PATH 项，加 `-RemoveInstallDir` 还会删除已记录的文件。脚本只改用户级 PATH，绝不改机器级 PATH。
+安装器在写入任何内容之前校验 SHA256，默认把可执行文件放到 `%LOCALAPPDATA%\RuxCmd\bin`（可用 `-InstallDir` 覆盖），把文档与构建清单放到 `<InstallDir>\share`，生成下述 `rux-` shim，并在显示变更前后的用户 `PATH` 后追加该目录（`-Force` 跳过确认）。相同版本重复执行不会改动任何文件；升级会先把旧可执行文件复制到 `<InstallDir>.old-<版本>`。`-Uninstall` 移除 shim 和 PATH 项，加 `-RemoveInstallDir` 还会删除已记录的文件。脚本只改用户级 PATH，绝不改机器级 PATH。脚本与独立的 EXE 安装包互斥：已用安装包安装时，请先从“设置 → 应用”卸载再运行脚本。
 
 ### 为什么需要 `rux-` 前缀
 

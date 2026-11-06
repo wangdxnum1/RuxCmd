@@ -37,7 +37,7 @@ pwsh -File scripts/install.ps1 -Source .\ruxcmd-0.4.4-x86_64-pc-windows-msvc.zip
 pwsh -File scripts/install.ps1 -Source 0.4.4
 ```
 
-The installer verifies SHA256 before writing anything, places the executables in `C:\Users\Tim\Develop\RuxCmd\bin` by default (`-InstallDir` overrides it), puts documentation and the build manifest in `<InstallDir>\share`, creates the `rux-` shims described below, and appends the directory to your user `PATH` after showing the exact before/after value (`-Force` skips the confirmation). Running it again with the same version changes nothing. An upgrade copies the previous executables to `<InstallDir>.old-<version>` first. `-Uninstall` removes the shims and the PATH entry; add `-RemoveInstallDir` to delete the recorded files too. Only the user-level PATH is changed; the machine PATH is never touched.
+The installer verifies SHA256 before writing anything, places the executables in `%LOCALAPPDATA%\RuxCmd\bin` by default (`-InstallDir` overrides it), puts documentation and the build manifest in `<InstallDir>\share`, creates the `rux-` shims described below, and appends the directory to your user `PATH` after showing the exact before/after value (`-Force` skips the confirmation). Running it again with the same version changes nothing. An upgrade copies the previous executables to `<InstallDir>.old-<version>` first. `-Uninstall` removes the shims and the PATH entry; add `-RemoveInstallDir` to delete the recorded files too. Only the user-level PATH is changed; the machine PATH is never touched. The script and the standalone EXE installer are mutually exclusive: uninstall the packaged version from Settings > Apps before using the script.
 
 ### Why the `rux-` prefix
 

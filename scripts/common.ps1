@@ -164,6 +164,50 @@ function Get-FileDigest {
     (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 
+# Commands that clash with built-in shells/aliases get rux-* shims. The EXE
+# installer and install.ps1 must generate exactly the same names and bytes.
+function Get-RuxCmdPrefixShimCommands {
+    @(
+        'find', 'sort', 'where',
+        'cat', 'ls', 'cp', 'mv', 'rm', 'echo', 'pwd', 'ps', 'kill', 'sleep', 'tee', 'clear', 'curl', 'wget'
+    )
+}
+
+function Get-RuxCmdShimContent {
+    param([string]$Command)
+    "@echo off`r`n`"%~dp0$Command.exe`" %*`r`n"
+}
+
+function Expand-ReleaseArchive {
+    param([string]$ArchivePath, [string]$Destination)
+    $root = [IO.Path]::GetFullPath($Destination)
+    [IO.Directory]::CreateDirectory($root) | Out-Null
+    $prefix = [IO.Path]::TrimEndingDirectorySeparator($root) + [IO.Path]::DirectorySeparatorChar
+    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $zip = [IO.Compression.ZipFile]::OpenRead($ArchivePath)
+    try {
+        foreach ($entry in $zip.Entries) {
+            $relative = $entry.FullName.Replace('\', '/')
+            if ([string]::IsNullOrWhiteSpace($relative)) { continue }
+            if ($relative -match '(^/|^[A-Za-z]:|(^|/)\.\.(/|$))') { throw "Unsafe archive entry: $($entry.FullName)" }
+            if (-not $seen.Add($relative)) { throw "Duplicate archive entry: $($entry.FullName)" }
+            $parts = $relative.Split('/') | Where-Object { $_ -ne '' }
+            $target = [IO.Path]::GetFullPath((Join-Path $root ($parts -join [IO.Path]::DirectorySeparatorChar)))
+            if (-not $target.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+                throw "Archive entry escapes the destination: $($entry.FullName)"
+            }
+            if ($relative.EndsWith('/')) {
+                [IO.Directory]::CreateDirectory($target) | Out-Null
+                continue
+            }
+            [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($target)) | Out-Null
+            [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $target, $true)
+        }
+    } finally {
+        $zip.Dispose()
+    }
+}
+
 function Assert-ArchiveDirectory {
     param([string]$Directory, $Manifest)
     $expected = @('manifest.json', 'SHA256SUMS') + @($Manifest.files.path)
