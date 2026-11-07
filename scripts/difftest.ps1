@@ -236,6 +236,11 @@ $matrix = @(
     # --- checksums / base64 ---------------------------------------------------
     @{ cmd='md5sum'; argv=@('{in}');          shapes=@('ascii','nonutf8','empty'); fileArgs=$true }
     @{ cmd='sha256sum'; argv=@('{in}');       shapes=@('ascii','nonutf8','empty'); fileArgs=$true }
+    # -b/-t select the separator explicitly, matching MSYS2 coreutils output.
+    @{ cmd='md5sum'; argv=@('-b','{in}');     shapes=@('ascii','nonutf8','empty'); fileArgs=$true }
+    @{ cmd='sha256sum'; argv=@('-b','{in}');  shapes=@('ascii','nonutf8','empty'); fileArgs=$true }
+    @{ cmd='md5sum'; argv=@('-t','{in}');     shapes=@('ascii','empty'); fileArgs=$true }
+    @{ cmd='sha256sum'; argv=@('-t','{in}');  shapes=@('ascii','empty'); fileArgs=$true }
     @{ cmd='base64'; argv=@('-w','0');        shapes=@('nonutf8','empty') }
     @{ cmd='base64'; argv=@();                shapes=@('nonutf8') }
     # --- od -------------------------------------------------------------------
@@ -323,6 +328,10 @@ c');  shapes=@('empty') }
     @{ cmd='cksum';  argv=@('-');            shapes=@('ascii','nonutf8','empty') }
     @{ cmd='sha1sum';  argv=@('{in}');        shapes=@('ascii','nonutf8','empty'); fileArgs=$true }
     @{ cmd='sha512sum'; argv=@('{in}');       shapes=@('ascii','nonutf8','empty'); fileArgs=$true }
+    @{ cmd='sha1sum';  argv=@('-b','{in}');   shapes=@('ascii','nonutf8','empty'); fileArgs=$true }
+    @{ cmd='sha512sum'; argv=@('-b','{in}');  shapes=@('ascii','nonutf8','empty'); fileArgs=$true }
+    @{ cmd='sha1sum';  argv=@('-t','{in}');   shapes=@('ascii','empty'); fileArgs=$true }
+    @{ cmd='sha512sum'; argv=@('-t','{in}');  shapes=@('ascii','empty'); fileArgs=$true }
     @{ cmd='sha1sum'; argv=@('--check','good.sum'); shapes=@('ascii','nonutf8'); fixture=$true }
     @{ cmd='sha1sum'; argv=@('--check'); shapes=@('ascii'); fixture=$true; stdinFile='good.sum' }
     @{ cmd='sha1sum'; argv=@('--check','-'); shapes=@('empty'); fixture=$true }

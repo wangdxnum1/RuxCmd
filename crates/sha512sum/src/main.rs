@@ -14,6 +14,16 @@ fn main() {
         eprintln!("sha512sum: the --tag option is meaningless when verifying checksums");
         std::process::exit(1);
     }
+    if args.check && args.mode_explicit {
+        eprintln!(
+            "sha512sum: the --binary and --text options are meaningless when verifying checksums"
+        );
+        std::process::exit(1);
+    }
+    if args.tag && args.mode_explicit && !args.binary {
+        eprintln!("sha512sum: --tag does not support --text mode");
+        std::process::exit(1);
+    }
     let files = if args.files.is_empty() {
         vec![std::path::PathBuf::from("-")]
     } else {
@@ -37,7 +47,7 @@ fn main() {
             } else {
                 File::open(&path).and_then(|f| compute_hash(BufReader::new(f)))
             };
-            hash.map(|hash| print_hash(&name, &hash, args.tag, args.zero))
+            hash.map(|hash| print_hash(&name, &hash, args.tag, args.zero, args.binary))
         };
         if let Err(error) = result {
             if !args.status {
@@ -73,7 +83,7 @@ fn escaped_name(name: &str) -> String {
         .replace('\r', "\\r")
 }
 
-fn print_hash(name: &str, hash: &str, tag: bool, zero: bool) {
+fn print_hash(name: &str, hash: &str, tag: bool, zero: bool, binary: bool) {
     let escaped = !zero && name.contains(['\\', '\n', '\r']);
     let name = if escaped {
         escaped_name(name)
@@ -82,10 +92,12 @@ fn print_hash(name: &str, hash: &str, tag: bool, zero: bool) {
     };
     let end = if zero { '\0' } else { '\n' };
     let prefix = if escaped { "\\" } else { "" };
+    // Text mode separates with two spaces, binary mode with space-star (GNU).
+    let separator = if binary { " *" } else { "  " };
     if tag {
         print!("{prefix}SHA512 ({name}) = {hash}{end}");
     } else {
-        print!("{prefix}{hash}  {name}{end}");
+        print!("{prefix}{hash}{separator}{name}{end}");
     }
 }
 

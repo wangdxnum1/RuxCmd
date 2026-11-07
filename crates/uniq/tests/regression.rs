@@ -71,3 +71,64 @@ fn duplicate_and_unique_filters_unchanged() {
 fn plain_uniq_collapses_exact_repeats() {
     uniq_args(&[], "a\na\nb\na\n").success().stdout("a\nb\na\n");
 }
+
+// --- second operand: write filtered output to a file (GNU uniq IN OUT) ------
+
+/// `uniq IN OUT` writes the result to OUT instead of stdout, created or
+/// truncated like GNU.
+#[test]
+fn output_operand_writes_filtered_lines() {
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("in.txt");
+    let output = dir.path().join("out.txt");
+    std::fs::write(&input, "a\na\nb\nc\n").unwrap();
+    cargo_bin_cmd!("uniq")
+        .arg(&input)
+        .arg(&output)
+        .assert()
+        .success()
+        .stdout("");
+    assert_eq!(std::fs::read(&output).unwrap(), b"a\nb\nc\n");
+}
+
+/// Options combine with the output operand (`uniq -c IN OUT`).
+#[test]
+fn output_operand_with_count() {
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("in.txt");
+    let output = dir.path().join("out.txt");
+    std::fs::write(&input, "a\na\nb\n").unwrap();
+    cargo_bin_cmd!("uniq")
+        .arg("-c")
+        .arg(&input)
+        .arg(&output)
+        .assert()
+        .success();
+    assert_eq!(std::fs::read(&output).unwrap(), b"      2 a\n      1 b\n");
+}
+
+/// An unwritable output path is reported and exits 1.
+#[test]
+fn unwritable_output_operand_errors() {
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("in.txt");
+    let missing_dir = dir.path().join("no-such-dir").join("out.txt");
+    std::fs::write(&input, "a\n").unwrap();
+    cargo_bin_cmd!("uniq")
+        .arg(&input)
+        .arg(&missing_dir)
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("uniq:"));
+}
+
+/// A trailing `-` operand still reads stdin and writes to stdout.
+#[test]
+fn dash_operand_unchanged() {
+    cargo_bin_cmd!("uniq")
+        .arg("-")
+        .write_stdin("x\nx\ny\n")
+        .assert()
+        .success()
+        .stdout("x\ny\n");
+}

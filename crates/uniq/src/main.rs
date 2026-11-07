@@ -19,13 +19,18 @@ fn main() {
 }
 
 fn run(args: &cli::Cli) -> io::Result<()> {
-    let reader: Box<dyn BufRead> = match args.file.as_deref() {
+    let reader: Box<dyn BufRead> = match args.input.as_deref() {
         Some(path) if path != "-" => Box::new(BufReader::new(File::open(path)?)),
         _ => Box::new(BufReader::new(io::stdin())),
     };
     let separator = if args.zero_terminated { 0 } else { b'\n' };
     let mut previous: Option<(Vec<u8>, Vec<u8>, usize)> = None;
-    let mut out = io::BufWriter::new(io::stdout().lock());
+    // With a second operand the filtered output goes to that file, which is
+    // created or truncated (GNU uniq INPUT OUTPUT).
+    let mut out: Box<dyn Write> = match args.output.as_deref() {
+        Some(path) if path != "-" => Box::new(io::BufWriter::new(File::create(path)?)),
+        _ => Box::new(io::BufWriter::new(io::stdout().lock())),
+    };
     for record in ByteLines::with_separator(reader, separator) {
         let record = record?;
         let key = make_key(&record, args);

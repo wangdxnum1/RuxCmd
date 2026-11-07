@@ -1,21 +1,26 @@
 mod cli;
 
-use clap::Parser;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
 
 fn main() {
-    let args = cli::Args::parse();
-    if args.version {
-        println!("md5sum 0.1.0");
-        return;
-    }
+    let args = cli::parse_args();
     if args.zero && args.check {
         eprintln!("md5sum: the --zero option is not supported when verifying checksums");
         std::process::exit(1);
     }
     if args.tag && args.check {
         eprintln!("md5sum: the --tag option is meaningless when verifying checksums");
+        std::process::exit(1);
+    }
+    if args.check && args.mode_explicit {
+        eprintln!(
+            "md5sum: the --binary and --text options are meaningless when verifying checksums"
+        );
+        std::process::exit(1);
+    }
+    if args.tag && args.mode_explicit && !args.binary {
+        eprintln!("md5sum: --tag does not support --text mode");
         std::process::exit(1);
     }
     let files = if args.files.is_empty() {
@@ -41,7 +46,7 @@ fn main() {
             } else {
                 File::open(&path).and_then(|f| compute_hash(BufReader::new(f)))
             };
-            hash.map(|hash| print_hash(&name, &hash, args.tag, args.zero))
+            hash.map(|hash| print_hash(&name, &hash, args.tag, args.zero, args.binary))
         };
         if let Err(error) = result {
             if !args.status {
@@ -77,7 +82,7 @@ fn escaped_name(name: &str) -> String {
         .replace('\r', "\\r")
 }
 
-fn print_hash(name: &str, hash: &str, tag: bool, zero: bool) {
+fn print_hash(name: &str, hash: &str, tag: bool, zero: bool, binary: bool) {
     let escaped = !zero && name.contains(['\\', '\n', '\r']);
     let name = if escaped {
         escaped_name(name)
@@ -86,10 +91,12 @@ fn print_hash(name: &str, hash: &str, tag: bool, zero: bool) {
     };
     let end = if zero { '\0' } else { '\n' };
     let prefix = if escaped { "\\" } else { "" };
+    // Text mode separates with two spaces, binary mode with space-star (GNU).
+    let separator = if binary { " *" } else { "  " };
     if tag {
         print!("{prefix}MD5 ({name}) = {hash}{end}");
     } else {
-        print!("{prefix}{hash}  {name}{end}");
+        print!("{prefix}{hash}{separator}{name}{end}");
     }
 }
 

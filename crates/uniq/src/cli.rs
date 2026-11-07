@@ -37,6 +37,10 @@ pub struct Cli {
     #[arg(short = 'v', long = "version", help = "Print version information")]
     pub version: bool,
 
-    #[arg(help = "Input file (default: stdin)")]
-    pub file: Option<String>,
+    #[arg(value_name = "INPUT", help = "Input file (default: stdin)")]
+    pub input: Option<String>,
+
+    /// Write the filtered output to this file instead of standard output
+    #[arg(value_name = "OUTPUT", help = "Output file (default: stdout)")]
+    pub output: Option<String>,
 }

@@ -1,3 +1,4 @@
+use clap::parser::ValueSource;
 use clap::{Arg, ArgAction, Command};
 use std::path::PathBuf;
 
@@ -8,6 +9,11 @@ pub struct Args {
     pub quiet: bool,
     pub status: bool,
     pub tag: bool,
+    /// Resolved checksum mode: true = binary (`*` separator).  When both
+    /// -b and -t appear, the last one on the command line wins (GNU).
+    pub binary: bool,
+    /// True when -b or -t appeared at all; both are meaningless with --check.
+    pub mode_explicit: bool,
     pub files: Vec<PathBuf>,
 }
 
@@ -57,6 +63,20 @@ pub fn parse_args() -> Args {
                 .help("Create a BSD-style checksum (\"SHA512 (file) = hash\")"),
         )
         .arg(
+            Arg::new("binary")
+                .short('b')
+                .long("binary")
+                .action(ArgAction::SetTrue)
+                .help("Print the checksum with a star separator (binary mode)"),
+        )
+        .arg(
+            Arg::new("text")
+                .short('t')
+                .long("text")
+                .action(ArgAction::SetTrue)
+                .help("Print the checksum with two-space separator (text mode)"),
+        )
+        .arg(
             Arg::new("files")
                 .value_name("FILE")
                 .help("The file(s) to process")
@@ -64,12 +84,26 @@ pub fn parse_args() -> Args {
         )
         .get_matches();
 
+    // GNU: when both -b and -t are given, the last one wins.  Flags absent
+    // from the command line still carry a clap default index, so positions
+    // are only compared for flags actually passed on the command line.
+    let binary_given = matches.value_source("binary") == Some(ValueSource::CommandLine);
+    let text_given = matches.value_source("text") == Some(ValueSource::CommandLine);
+    let binary_last = matches.indices_of("binary").and_then(Iterator::max);
+    let text_last = matches.indices_of("text").and_then(Iterator::max);
+    let binary = match (binary_given, text_given) {
+        (true, true) => binary_last.unwrap_or(0) > text_last.unwrap_or(0),
+        (true, false) => true,
+        _ => false,
+    };
     Args {
         zero: matches.get_flag("zero"),
         check: matches.get_flag("check"),
         quiet: matches.get_flag("quiet"),
         status: matches.get_flag("status"),
         tag: matches.get_flag("tag"),
+        binary,
+        mode_explicit: binary_given || text_given,
         files: matches
             .get_many::<String>("files")
             .map(|v| v.map(PathBuf::from).collect())

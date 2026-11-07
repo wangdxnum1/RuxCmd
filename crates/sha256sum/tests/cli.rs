@@ -122,3 +122,81 @@ fn check_file_without_valid_lines_is_an_error() {
             "no properly formatted SHA256 checksum lines found",
         ));
 }
+
+#[test]
+fn binary_mode_uses_space_star_separator() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("f.txt"), b"hello").unwrap();
+    cargo_bin_cmd!("sha256sum")
+        .current_dir(dir.path())
+        .args(["-b", "f.txt"])
+        .assert()
+        .success()
+        .stdout(format!("{SHA_HELLO} *f.txt\n"));
+}
+
+#[test]
+fn text_mode_uses_two_space_separator() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("f.txt"), b"hello").unwrap();
+    cargo_bin_cmd!("sha256sum")
+        .current_dir(dir.path())
+        .args(["-t", "f.txt"])
+        .assert()
+        .success()
+        .stdout(format!("{SHA_HELLO}  f.txt\n"));
+}
+
+#[test]
+fn binary_and_text_last_flag_wins() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("f.txt"), b"hello").unwrap();
+    cargo_bin_cmd!("sha256sum")
+        .current_dir(dir.path())
+        .args(["-b", "-t", "f.txt"])
+        .assert()
+        .success()
+        .stdout(format!("{SHA_HELLO}  f.txt\n"));
+    cargo_bin_cmd!("sha256sum")
+        .current_dir(dir.path())
+        .args(["-t", "-b", "f.txt"])
+        .assert()
+        .success()
+        .stdout(format!("{SHA_HELLO} *f.txt\n"));
+}
+
+#[test]
+fn tag_with_text_mode_is_rejected() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("f.txt"), b"hello").unwrap();
+    cargo_bin_cmd!("sha256sum")
+        .current_dir(dir.path())
+        .args(["--tag", "-t", "f.txt"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "sha256sum: --tag does not support --text mode",
+        ));
+}
+
+#[test]
+fn binary_and_text_are_meaningless_with_check() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("good"), format!("{SHA_HELLO}  f.txt\n")).unwrap();
+    cargo_bin_cmd!("sha256sum")
+        .current_dir(dir.path())
+        .args(["-c", "-b", "good"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "sha256sum: the --binary and --text options are meaningless when verifying checksums",
+        ));
+    cargo_bin_cmd!("sha256sum")
+        .current_dir(dir.path())
+        .args(["-c", "-t", "good"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "sha256sum: the --binary and --text options are meaningless when verifying checksums",
+        ));
+}

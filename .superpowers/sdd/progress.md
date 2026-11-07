@@ -41092,3 +41092,11 @@ Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
 - Task 2: complete (diff 字节级读行改造(read_until + has_newline 跟踪);"\ No newline at end of file" 标记在普通格式与 -u 格式的 <、>、上下文行后按 GNU 输出;缺尾换行参与行相等比较(-b 例外折叠);`-` 读 stdin;-r 声明但使用报错退出 2;GNU 3.12 普通格式 56/56 逐字节一致)
 - Task 3: complete (compatibility 双语同步:sed 反向引用声明、diff 换行标记/stdin/-r 声明、expr BRE 反向引用声明;CHANGELOG 0.4.9 节;版本号 0.4.9;tag + Release workflow dispatch)
 - 最终状态: v0.4.9 tag 已推送,Release workflow dispatch(42317376720)
+
+
+## Round 25 bc ibase/obase + v0.5.1 release (2026-11-07)
+- bc 补齐 ibase/obase(2..=16):lexer 按当前 ibase 读数字(ibase≥11 时 A-F 大小写均可作数字位;非法数字位报 lex error);进制分数输入转十进制定点(十六进制 0.8→0.5,非 2/5 幂底数按每输入位 6 位十进制截断);obase≠10 时整数部分反复除、分数部分按 value scale 位反复乘(大写字母数字位);裸 ibase/obase 按当前 obase 打印;越界赋值报错退出 1。
+- 修复:LexError::Unsupported 从统一 "lex error" 改为 "bc: <关键字> is not supported in this build" 且不置失败状态(退出 0,与函数调用提示一致);删除从未构造的 SegmentFlow::Stop(run_segment 直接返回 Flow)。
+- 测试修正为 GNU 语义:ibase=16 后 obase 值本身按十六进制读(`ibase=16; obase=10` = 十六进制输出;hex 分数测试改为先 obase=10 再 ibase=16);新增 ibase/obase 越界用例。bc 49 测试全过,clippy 0 警告。
+- 发布:v0.5.1 tag 重打(旧 tag 指向含编译错误的 d49a490,删除后重发);本地 Verify 门禁 442.6s 全过;Release run 42342885791 成功(ZIP+setup.exe+sha256);scoop/winget 清单同步 0.5.1 与新 ZIP hash(ceedbba)。
+- 版本:0.5.0 → 0.5.1;main @ b5cf31e。
