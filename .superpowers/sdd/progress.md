@@ -41129,3 +41129,12 @@ Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
 - 教训①:timefmt 测试断言 offset==480 在 CI(UTC)失败——时间戳断言必须时区无关(纪元秒/纳秒/形状 + 真实时区健全性检查);test 解析 rsplit_once 而非 split_once(第一个空格在日期与时间之间)。教训②:Verify 的 clippy 是 -D warnings(to_string_in_format_args 等),本地须用同参数预检。
 - 发布:v0.5.4 首次 Release 失败(CI 时区测试),修后重发成功(run 42356241457);发布说明自动生成 ✓;清单 hash 同步 d18afa93;版本 0.5.3 → 0.5.4。
 - difftest:du --time 用例(--apparent-size 保证 size 列可比)46 pass / 0 fail。
+
+
+## Round 30 iostat/sar device reports + nslookup SRV (2026-11-07)
+- 基建:ruxcmd-core 新增 disk 模块——IOCTL_DISK_PERFORMANCE 采样 \\.\PhysicalDriveN(每盘读写字节/次数);windows-sys 0.61 的 CreateFileW 被 Win32_Security 特性门控(签名含 SECURITY_ATTRIBUTES),需显式启用。
+- iostat -d/--device:sysstat 同列设备报表(Device/tps/kB_read/s/kB_wrtn/s/kB_dscd/s/kB_read/kB_wrtn/kB_dscd);首帧开机累计(uptime 换算),后续帧区间增量;kB_dscd 恒 0(Windows 无 discard);-d 只打设备报表;原"removed_device_flags"测试改为设备报表断言。
+- sar -d/--device:带 HH:MM:SS 前缀的设备行(DEV/tps/rkB/s/wkB/s/kB_read/kB_wrtn);列宽加宽避免大数值挤压。
+- nslookup SRV:DNS_TYPE_SRV 输出 nslookup 同款 service location 布局;与 Windows nslookup 实测字段一致;原"不支持类型"测试的 SRV 项移除。
+- 发布:v0.5.6 成功(run 42360631976,notes 自动生成);清单 hash 同步 07352466;版本 0.5.5 → 0.5.6 → 0.5.7(Verify 后待发布)。
+- 教训:新增已实现能力时,原"不支持"断言测试必须同步删项(nslookup SRV 在不支持清单里);打印列宽要按最大值域预留( sar kB_read 1.6e9 超 10 位宽挤掉分隔符)。
