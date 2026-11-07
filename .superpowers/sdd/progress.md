@@ -41109,3 +41109,15 @@ Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
 - cut:-n 此前已实现,compat 文档修正标记。
 - 教训:compat-check 是 Verify 的一部分——新增 CLI 长选项后必须同步兼容表选项列(本次 8 个 FAIL 后补齐 --binary/--text)。
 - 发布:v0.5.2 tag 推送,Release run 42346050832 dispatch;Verify 门禁 189.1s 全过;版本 0.5.1 → 0.5.2;main @ f985618。
+
+
+## Round 27 cp hard links/backups + diff -r + release notes (2026-11-07)
+- 发布说明修复:gh --generate-notes 只产出 Full Changelog 链接;release.yml 发布前从 CHANGELOG 提取对应版本节写 dist/release-notes.md 走 --notes-file(无节时回退);v0.5.0/0.5.1/0.5.2 已用 gh release edit 回填,v0.5.3 起自动生成。
+- cp -l/--link:std hard_link(CreateHardLinkW);目标存在报 GNU 同款 File exists、-f 先删再链、-r 递归硬链接、-l -s 报 "cannot make both hard and symbolic links"。
+- cp -b/--backup/-S/--suffix:plain -b = GNU existing 模式(存在 .~N~ 编号备份则续编,否则 name~);--backup=numbered/existing/simple/none;-S 覆盖 simple 后缀;备份在覆盖确认后、ensure_replaceable 之前;-n 与 -b 互斥报错;递归内条目同样备份(clap require_equals+default_missing_value 支持 --backup=CONTROL 与裸 --backup)。
+- diff -r/--recursive:合并字母序遍历;Only in / Common subdirectories(不计差异)/ -r 递归;类型不匹配 GNU 措辞走 stdout 计差异;文件与目录配对按 GNU 目录/同名文件 比较;diff_entry_files 仅在内容不同时输出 diff [flags] L R 头行,flags 从 argv 原样回显(跳过操作数后停)。
+- diff -u:头行时间戳(FileTimeToSystemTime + SystemTimeToTzSpecificLocalTime + GetTimeZoneInformation, kernel32 直声明——workspace windows 特性集冻结);stdin 按读取时刻打戳;hunk 头 count==1 省略(@@ -1 +2,3 @@)。9 组场景与 MSYS2 GNU diffutils 3.x 逐字节一致(唯 argv[0] 前缀)。
+- 测试:cp 12 个新用例、diff 32 个用例(重写过时的 -r 不支持断言);difftest 不涉及;compat-check 通过。
+- 教训:compat 表 notes 列写 --backup=numbered|existing|... 的竖线会破坏列解析(compat-check 报 7 列);新长选项必须重建 Release 二进制后 compat-check 才能对上 --help。
+- 发布:v0.5.3 tag 推送,Release run 42351330364 成功且发布说明自动生成;版本 0.5.2 → 0.5.3;main @ 4a191f3(清单 hash 提交后为最终 HEAD)。
+- 清单:scoop/winget hash 同步至 v0.5.3 ZIP sha256(408966b0...)。
