@@ -41083,3 +41083,12 @@ Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
 - awk user functions: function/func keyword, return with value, recursion (depth cap 512), dynamic local params restored after call. Output redirection: print/printf > file, >> file, | cmd (cmd /C), /dev/stdout, /dev/stderr, close(). GNU open-once semantics.
 - Fixed: expr_end call-paren misclassification, print multi-arg loss after parenthesized first arg, missing Return arm in statement_end, wrapper-vs-call comma-depth confusion (rewritten as explicit depth scanner).
 - Release: v0.4.6 tag 已推送,Release workflow 已 dispatch(42268415881);scoop/winget 清单同步至 0.4.6;compat-check 通过(0 问题)。
+
+---
+
+# Round 19 Progress Ledger(sed 反向引用 + diff 换行标记)
+
+- Task 1: complete (sed BRE/ERE 反向引用支持——ruxcmd-core bre.rs 新增 to_regex_fancy/to_regex_ere_fancy,expr 路径共享;sed 全量换用 fancy-regex::bytes::Regex,非 UTF-8 语义不变;无效反向引用启动报错 Invalid back reference 退出 2;GNU sed 4.9 实测四条命令逐字节一致)
+- Task 2: complete (diff 字节级读行改造(read_until + has_newline 跟踪);"\ No newline at end of file" 标记在普通格式与 -u 格式的 <、>、上下文行后按 GNU 输出;缺尾换行参与行相等比较(-b 例外折叠);`-` 读 stdin;-r 声明但使用报错退出 2;GNU 3.12 普通格式 56/56 逐字节一致)
+- Task 3: complete (compatibility 双语同步:sed 反向引用声明、diff 换行标记/stdin/-r 声明、expr BRE 反向引用声明;CHANGELOG 0.4.9 节;版本号 0.4.9;tag + Release workflow dispatch)
+- 最终状态: v0.4.9 tag 已推送,Release workflow dispatch(42317376720)
