@@ -2,7 +2,17 @@
 //! subset: if/of/bs/ibs/obs/count/skip/seek/status, conv=notrunc/sync/
 //! fullblock/nocreat and iflag=fullblock.
 
+mod conv_tables;
+
 use std::io::{Read, Seek, SeekFrom, Write};
+
+/// Byte-level conversions selected by `conv=`.
+#[derive(Clone, Copy, PartialEq)]
+enum Conversion {
+    Ascii,
+    Ebcdic,
+    Ibm,
+}
 
 const HELP: &str = "Usage: dd [OPERAND]...\n  \
 or:    dd OPTION\n\
@@ -74,6 +84,8 @@ struct Opts {
     no_error: bool,
     ucase: bool,
     lcase: bool,
+    /// conv=ascii/ebcdic/ibm; mutually exclusive like GNU dd.
+    conversion: Option<Conversion>,
     full_block: bool,
     no_creat: bool,
 }
@@ -132,6 +144,9 @@ fn apply_operand(opts: &mut Opts, arg: &str) {
                     "noerror" => opts.no_error = true,
                     "ucase" => opts.ucase = true,
                     "lcase" => opts.lcase = true,
+                    "ascii" => set_conversion(opts, Conversion::Ascii),
+                    "ebcdic" => set_conversion(opts, Conversion::Ebcdic),
+                    "ibm" => set_conversion(opts, Conversion::Ibm),
                     other => {
                         eprintln!("dd: invalid conversion: '{}'", other);
                         eprintln!("Try 'dd --help' for more information.");
@@ -193,6 +208,18 @@ fn parse_size(raw: &str) -> u64 {
 fn bad_size(raw: &str) -> ! {
     eprintln!("dd: invalid number: '{}'", raw);
     std::process::exit(1);
+}
+
+/// Records conv=ascii/ebcdic/ibm, rejecting a second one like GNU dd
+/// ("conflicting conversion").
+/// Records conv=ascii/ebcdic/ibm, exiting on a second one like GNU dd
+/// ("cannot combine any two of {ascii,ebcdic,ibm}").
+fn set_conversion(opts: &mut Opts, conversion: Conversion) {
+    if opts.conversion.replace(conversion).is_some() {
+        eprintln!("dd: cannot combine any two of {{ascii,ebcdic,ibm}}");
+        eprintln!("Try 'dd --help' for more information.");
+        std::process::exit(1);
+    }
 }
 
 fn run_copy(opts: &Opts) -> Result<Stats, String> {
@@ -264,6 +291,16 @@ fn run_copy(opts: &Opts) -> Result<Stats, String> {
             block[..got].make_ascii_uppercase();
         } else if opts.lcase {
             block[..got].make_ascii_lowercase();
+        }
+        if let Some(conversion) = opts.conversion {
+            let table = match conversion {
+                Conversion::Ascii => conv_tables::EBCDIC_TO_ASCII,
+                Conversion::Ebcdic => conv_tables::ASCII_TO_EBCDIC,
+                Conversion::Ibm => conv_tables::ASCII_TO_IBM,
+            };
+            for b in &mut block[..got] {
+                *b = table[*b as usize];
+            }
         }
         if opts.sync_pad && got < block.len() {
             for b in &mut block[got..] {

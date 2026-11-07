@@ -104,8 +104,9 @@ fn missing_input_fails_with_a_message() {
         .code(1)
         .stderr(predicates::str::contains("zip:"));
 
-    // A failed run must not leave a half-written archive behind being valid.
-    assert!(tmp.path().join("out.zip").exists());
+    // The archive is written atomically via a temp file: a failed run must
+    // not leave any archive behind at all.
+    assert!(!tmp.path().join("out.zip").exists());
 }
 
 #[test]

@@ -4347,6 +4347,7 @@ dependencies = [
  "clap",
  "predicates",
  "ruxcmd-build",
+ "ruxcmd-core",
  "tempfile",
  "zip 2.6.1",
 ]

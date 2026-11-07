@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.6 — zip 追加更新与百分比、dd EBCDIC 转换(2026-11-07)
+
+- zip:重写为 GNU info-zip 的更新语义——对已存在归档：未提名的条目原样保留（压缩方法/权限/DOS 时间戳），同名条目以 `updating:` 替换、新条目以 `adding:` 追加；条目行带 GNU 同款 `(deflated NN%)`/`(stored 0%)` 百分比（写完后重开归档统计，小文件膨胀的负百分比照打）；写入经临时文件原子重建，失败不残留半成品归档。新增 `-u/--update`（源文件比归档副本新才替换，DOS 2 秒时间戳粒度）、`-j/--junk-paths`（只保留文件名）、`-0/--store`（全 Stored）、`-9`（最高 deflate 级）；新条目写入源文件本地时区修改时间（timefmt）。9 场景 E2E（Python zipfile 校验）全过。
+- dd:实现 `conv=ascii/ebcdic/ibm`——三张 256 字节表逐字节取自 GNU dd 3.12 实测（all256 探针），ascii 表证实为 ebcdic 表的逆（双射），IBM 变体在 GNU 文档的 5 个位置（5e/7e/cb/d5/e5）不同；`conv=ebcdic,ascii` 冲突报 GNU 同款 "cannot combine any two of {ascii,ebcdic,ibm}"；全值与随机数据 7 组对照与 GNU 逐字节一致（含 conv=ebcdic,ucase 组合）；表内建单元测试（字母映射/逆映射/IBM 差异位）。
+
 ## 0.5.5 — grep 二进制文件模式、mv 提示流(2026-11-07)
 
 - grep:对齐 GNU 二进制文件模式——输入含 NUL（无 -a/-z）时按块切换：-c 按 NUL 分段计数（空段如空行不匹配 `. ` 等），匹配时输出一次 `Binary file <名> matches`（stdin 为 (standard input)；-h 也带名；-l/-L/-q/-c 例外），不再输出原始行；上下文/-o/-n 在二进制模式下同样折叠为通知行。判定在 NUL 所在读取块生效，与 GNU 的分块策略一致。新增 `-a/--text` 强制文本（NUL 原样透传），`-z/--null-data` 不视为二进制。difftest 以 nulbinary 形状新增 4 组用例，与 MSYS2 GNU 逐字节一致（48 pass / 0 fail）。
