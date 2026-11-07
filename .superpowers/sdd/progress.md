@@ -41152,3 +41152,10 @@ Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
 - 清单 hash 同步至 v0.5.8 实际产物(check-manifests 门禁通过);Release 后"下载 .zip.sha256 → 核对清单 hash"已固化为流程收尾步骤。
 - 五版本连续发布全部成功:v0.5.4(du 时间列/块缩放 + timefmt 基建)、v0.5.5(grep 二进制模式 + mv stderr)、v0.5.6(zip 追加更新 + dd EBCDIC)、v0.5.7(iostat/sar 设备报表 + nslookup SRV + disk 基建)、v0.5.8(check-manifests 门禁)。
 - main @ hash 同步提交;版本 0.5.7 → 0.5.8。
+
+
+## Round 33 find relative dates + v0.5.9 release (2026-11-07)
+- find:-newermt/-newerat 日期解析对齐 GNU parse_datetime 子集——now/yesterday/tomorrow(相对当前时刻;实测 GNU yesterday = now−1 天保留时钟,非昨夜零点)、N unit(s) [ago](second/minute/hour/day/week/fortnight 时长 + month/year 日历移位夹紧月末 + a/an 计数)、紧凑 YYYYMMDD[Thh[mm[ss]]]、时区后缀 Z/+hh[[:]mm](固定距尾判定 + 基准须含时间分量,避免 YYYY-MM-DD 连字符误判);11 组语法与 MSYS2 GNU find 语义一致。
+- 文档:sed 嵌套替换分组核实为假缺口(GNU 与本实现逐字节一致);find 行残留差异重写。
+- 教训:find 会打印匹配的起始目录自身——集成测试必须加 -mindepth 1 排除刚创建的临时目录;时区敏感的日期边界(mtime=UTC 午夜 vs 本地午夜)要在测试里明确选点;bash 内嵌 python 的反引号会被命令替换吞掉,含反引号的文本改用 Edit/脚本文件。
+- 发布:v0.5.9 成功(run 42368769877,notes 自动生成);清单 hash 同步 2c7f2584;版本 0.5.8 → 0.5.9。
