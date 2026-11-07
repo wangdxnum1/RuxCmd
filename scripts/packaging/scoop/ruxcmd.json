@@ -1,12 +1,12 @@
 {
   "$schema": "https://raw.githubusercontent.com/ScoopInstaller/Scoop/master/schema.json",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Linux-style command-line tools for Windows, written in Rust.",
   "homepage": "https://github.com/wangdxnum1/RuxCmd",
   "license": "MIT",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/wangdxnum1/RuxCmd/releases/download/v0.5.0/ruxcmd-0.5.0-x86_64-pc-windows-msvc.zip",
+      "url": "https://github.com/wangdxnum1/RuxCmd/releases/download/v0.5.1/ruxcmd-0.5.1-x86_64-pc-windows-msvc.zip",
       "hash": "392b6accbbb448ce5654bfeee44f7374b3ca8889d05f9e7eba0ee1a04bd745fa"
     }
   },

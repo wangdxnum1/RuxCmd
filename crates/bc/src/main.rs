@@ -81,16 +81,15 @@ fn process_line(line: &str, interp: &mut Interp) -> Outcome {
     // like GNU bc (`ibase=16; FF` prints 255).
     let mut rest = line;
     loop {
-        let cut = rest.find(|c| c == ';' || c == '#');
+        let cut = rest.find([';', '#']);
         let (segment, tail) = match cut {
             Some(i) if rest.as_bytes()[i] == b';' => (&rest[..i], Some(&rest[i + 1..])),
             _ => (rest, None),
         };
         match run_segment(segment, interp) {
-            SegmentFlow::Continue(Flow::Quit) => return Outcome::Quit,
-            SegmentFlow::Continue(Flow::Error) => outcome = Outcome::Error,
-            SegmentFlow::Continue(Flow::Ok) => {}
-            SegmentFlow::Stop(outcome) => return outcome,
+            Flow::Quit => return Outcome::Quit,
+            Flow::Error => outcome = Outcome::Error,
+            Flow::Ok => {}
         }
         match tail {
             Some(next) => rest = next,
@@ -105,22 +104,25 @@ enum Flow {
     Quit,
 }
 
-/// Evaluates one `;`-separated segment of a bc line: lexes it, runs the
-/// statement, and wraps the resulting [`Flow`] so `process_line` can decide
-/// whether to keep going or stop.
-fn run_segment(segment: &str, interp: &mut Interp) -> SegmentFlow {
-    match lex(segment) {
-        Ok(tokens) => SegmentFlow::Continue(run_statement(&tokens, interp)),
-        Err(e) => {
+/// Evaluates one `;`-separated segment of a bc line: lexes it, then runs the
+/// statement; the resulting [`Flow`] tells `process_line` whether to keep
+/// going or stop.
+fn run_segment(segment: &str, interp: &mut Interp) -> Flow {
+    // Lex with the ibase in effect right now so later segments of the same
+    // line read their numbers in the updated base (`ibase=16; FF` → 255).
+    match lex(segment, interp.ibase) {
+        Ok(tokens) => run_statement(&tokens, interp),
+        // Unimplemented keywords report and let the program continue with
+        // exit status 0, like unsupported function calls (`foo(3)`).
+        Err(LexError::Unsupported(name)) => {
+            eprintln!("bc: {name} is not supported in this build");
+            Flow::Ok
+        }
+        Err(_) => {
             eprintln!("bc: lex error");
-            SegmentFlow::Continue(Flow::Error)
+            Flow::Error
         }
     }
-}
-
-enum SegmentFlow {
-    Continue(Flow),
-    Stop(Outcome),
 }
 
 fn run_statement(tokens: &[Token], interp: &mut Interp) -> Flow {
@@ -150,12 +152,16 @@ fn run_statement(tokens: &[Token], interp: &mut Interp) -> Flow {
         // print their value.
         Ok(value) => {
             if !matches!(expr, Expr::Assign(_, _)) {
-                println!("{}", format_value(&value));
+                println!("{}", format_value(&value, interp.obase));
             }
             Flow::Ok
         }
         Err(EvalError::DivisionByZero) => {
             eprintln!("bc: division by zero");
+            Flow::Error
+        }
+        Err(EvalError::BaseRange(name)) => {
+            eprintln!("bc: {name} must be between 2 and 16");
             Flow::Error
         }
         Err(EvalError::Overflow) => {
@@ -193,21 +199,31 @@ const ZERO: Value = Value {
     scale: 0,
 };
 
-#[derive(Default)]
 struct Interp {
     vars: HashMap<String, Value>,
     scale: u32,
+    ibase: u32,
+    obase: u32,
+}
+
+impl Default for Interp {
+    fn default() -> Self {
+        Self {
+            vars: HashMap::new(),
+            scale: 0,
+            ibase: 10,
+            obase: 10,
+        }
+    }
 }
 
 /// bc prints a non-zero number with exactly its own `scale` fractional
 /// digits (a leading zero before the point, unlike GNU bc's `0.33333` vs
-/// `.33333`); zero is always plain `0`.
-fn format_value(value: &Value) -> String {
+/// `.33333`); zero is always plain `0`.  `obase` (2-16) selects the radix;
+/// digits 10-15 print as uppercase letters like GNU bc.
+fn format_value(value: &Value, obase: u32) -> String {
     if value.digits == 0 {
         return "0".to_string();
-    }
-    if value.scale == 0 {
-        return value.digits.to_string();
     }
     let mut magnitude = value.digits.unsigned_abs().to_string();
     let scale = value.scale as usize;
@@ -219,9 +235,59 @@ fn format_value(value: &Value) -> String {
     if value.digits < 0 {
         out.push('-');
     }
-    out.push_str(&magnitude[..split]);
-    out.push('.');
-    out.push_str(&magnitude[split..]);
+    out.push_str(&integer_in_base(&magnitude[..split], obase));
+    if scale > 0 {
+        out.push('.');
+        out.push_str(&fraction_in_base(&magnitude[split..], obase));
+    }
+    out
+}
+
+/// One base-`obase` digit; 10-15 print as uppercase letters like GNU bc.
+fn base_digit(digit: u32) -> char {
+    if digit < 10 {
+        char::from(b'0' + digit as u8)
+    } else {
+        char::from(b'A' + (digit - 10) as u8)
+    }
+}
+
+/// Integer part in `obase` by repeated division; base 10 passes through
+/// verbatim.  Parsed as u128 so even the `i128::MIN` magnitude fits.
+fn integer_in_base(decimal: &str, obase: u32) -> String {
+    if obase == 10 {
+        return decimal.to_string();
+    }
+    let mut n: u128 = decimal.parse().unwrap_or(0);
+    if n == 0 {
+        return "0".to_string();
+    }
+    let mut out = Vec::new();
+    while n > 0 {
+        out.push(base_digit((n % u128::from(obase)) as u32));
+        n /= u128::from(obase);
+    }
+    out.iter().rev().collect()
+}
+
+/// Fraction part in `obase` with exactly the value's scale digits, by
+/// repeated multiplication of the decimal numerator (`0.5000` renders
+/// `.8000` in base 16); base 10 passes through.
+fn fraction_in_base(decimal: &str, obase: u32) -> String {
+    if obase == 10 {
+        return decimal.to_string();
+    }
+    let mut digits: Vec<u32> = decimal.bytes().map(|b| u32::from(b - b'0')).collect();
+    let mut out = String::new();
+    for _ in 0..digits.len() {
+        let mut carry = 0u32;
+        for d in digits.iter_mut().rev() {
+            let v = *d * obase + carry;
+            *d = v % 10;
+            carry = v / 10;
+        }
+        out.push(base_digit(carry));
+    }
     out
 }
 
@@ -279,13 +345,13 @@ enum LexError {
     Unsupported(String),
 }
 
-/// Keywords whose GNU bc behavior is not implemented in this build.
+/// Keywords whose GNU bc behavior is not implemented in this build.  `ibase`
+/// and `obase` are implemented as special variables, not keywords.
 const RESERVED: &[&str] = &[
-    "ibase", "obase", "define", "if", "while", "for", "return", "auto", "break", "halt", "print",
-    "read", "limits",
+    "define", "if", "while", "for", "return", "auto", "break", "halt", "print", "read", "limits",
 ];
 
-fn lex(line: &str) -> Result<Vec<Token>, LexError> {
+fn lex(line: &str, ibase: u32) -> Result<Vec<Token>, LexError> {
     let mut tokens = Vec::new();
     let mut chars = line.chars().peekable();
     while let Some(&c) = chars.peek() {
@@ -295,70 +361,33 @@ fn lex(line: &str) -> Result<Vec<Token>, LexError> {
             }
             // Comment: skip the rest of the line.
             '#' => break,
-            '0'..='9' | '.' => {
-                let mut int_digits = String::new();
-                let mut frac_digits = String::new();
-                if c == '.' {
-                    chars.next();
-                    if !matches!(chars.peek(), Some(d) if d.is_ascii_digit()) {
-                        return Err(LexError::Syntax);
-                    }
-                    while let Some(&d) = chars.peek() {
-                        if d.is_ascii_digit() {
-                            frac_digits.push(d);
-                            chars.next();
-                        } else {
-                            break;
-                        }
-                    }
+            '0'..='9' | 'a'..='z' | 'A'..='Z' | '_' | '.' => {
+                // Digits and '.' start a number; letters join a number as
+                // digits only when ibase > 10 (`ibase=16; FF` reads 255).  A
+                // digit invalid in the current base is a lex error.
+                if c.is_ascii_digit() && digit_value(c, ibase).is_none() {
+                    return Err(LexError::Syntax);
+                }
+                let may_start_number = c == '.'
+                    || c.is_ascii_digit()
+                    || (ibase > 10 && digit_value(c, ibase).is_some());
+                if may_start_number {
+                    tokens.push(Token::Num(lex_number(&mut chars, ibase)?));
                 } else {
-                    while let Some(&d) = chars.peek() {
-                        if d.is_ascii_digit() {
-                            int_digits.push(d);
+                    let mut name = String::new();
+                    while let Some(&c) = chars.peek() {
+                        if c.is_ascii_alphanumeric() || c == '_' {
+                            name.push(c);
                             chars.next();
                         } else {
                             break;
                         }
                     }
-                    if chars.peek() == Some(&'.') {
-                        chars.next();
-                        while let Some(&d) = chars.peek() {
-                            if d.is_ascii_digit() {
-                                frac_digits.push(d);
-                                chars.next();
-                            } else {
-                                break;
-                            }
-                        }
-                        if frac_digits.is_empty() {
-                            return Err(LexError::Syntax);
-                        }
+                    if RESERVED.contains(&name.as_str()) {
+                        return Err(LexError::Unsupported(name));
                     }
+                    tokens.push(Token::Ident(name));
                 }
-                let mut digits = int_digits;
-                digits.push_str(&frac_digits);
-                match digits.parse::<i128>() {
-                    Ok(value) => tokens.push(Token::Num(Value {
-                        digits: value,
-                        scale: frac_digits.len() as u32,
-                    })),
-                    Err(_) => return Err(LexError::NumberTooLarge),
-                }
-            }
-            'a'..='z' | 'A'..='Z' | '_' => {
-                let mut name = String::new();
-                while let Some(&c) = chars.peek() {
-                    if c.is_ascii_alphanumeric() || c == '_' {
-                        name.push(c);
-                        chars.next();
-                    } else {
-                        break;
-                    }
-                }
-                if RESERVED.contains(&name.as_str()) {
-                    return Err(LexError::Unsupported(name));
-                }
-                tokens.push(Token::Ident(name));
             }
             '+' => {
                 chars.next();
@@ -404,6 +433,119 @@ fn lex(line: &str) -> Result<Vec<Token>, LexError> {
         }
     }
     Ok(tokens)
+}
+
+/// Value of one number digit in `ibase`; letters become digits 10-15 (either
+/// case, like GNU bc) once the base allows them, everything else is None.
+fn digit_value(c: char, ibase: u32) -> Option<i128> {
+    let value = match c {
+        '0'..='9' => i128::from(c as u8 - b'0'),
+        'a'..='z' => 10 + i128::from(c as u8 - b'a'),
+        'A'..='Z' => 10 + i128::from(c as u8 - b'A'),
+        _ => return None,
+    };
+    if value < i128::from(ibase) {
+        Some(value)
+    } else {
+        None
+    }
+}
+
+/// Decimal places needed to render one `ibase` fraction digit exactly; only
+/// bases built from 2s and 5s terminate, so the rest spend six places per
+/// input digit and truncate.
+fn decimal_frac_factor(ibase: u32) -> u32 {
+    match ibase {
+        2 | 5 | 10 => 1,
+        4 => 2,
+        8 => 3,
+        16 => 4,
+        _ => 6,
+    }
+}
+
+/// Lexes one number in `ibase` and converts it to decimal fixed-point: an
+/// optional integer part, then an optional fraction.  Base-10 numbers keep
+/// their typed digits verbatim (scale = fraction length); other bases are
+/// converted with trailing zeros trimmed, so hex `0.8` becomes 0.5.
+fn lex_number(
+    chars: &mut std::iter::Peekable<std::str::Chars>,
+    ibase: u32,
+) -> Result<Value, LexError> {
+    let mut int_val: i128 = 0;
+    while let Some(&d) = chars.peek() {
+        match digit_value(d, ibase) {
+            Some(v) => {
+                int_val = int_val
+                    .checked_mul(i128::from(ibase))
+                    .and_then(|acc| acc.checked_add(v))
+                    .ok_or(LexError::NumberTooLarge)?;
+                chars.next();
+            }
+            None => break,
+        }
+    }
+    let mut frac_num: i128 = 0;
+    let mut frac_len: u32 = 0;
+    if chars.peek() == Some(&'.') {
+        chars.next();
+        while let Some(&d) = chars.peek() {
+            match digit_value(d, ibase) {
+                Some(v) => {
+                    frac_num = frac_num
+                        .checked_mul(i128::from(ibase))
+                        .and_then(|acc| acc.checked_add(v))
+                        .ok_or(LexError::NumberTooLarge)?;
+                    frac_len += 1;
+                    chars.next();
+                }
+                None => break,
+            }
+        }
+        if frac_len == 0 {
+            return Err(LexError::Syntax);
+        }
+    }
+    if frac_len == 0 {
+        return Ok(Value {
+            digits: int_val,
+            scale: 0,
+        });
+    }
+    // Render the fraction `frac_num / ibase^frac_len` in decimal; the long
+    // division in `divide` keeps intermediates small where a direct
+    // `frac_num * 10^scale` product would overflow i128.
+    let scale = frac_len * decimal_frac_factor(ibase);
+    let mut denom: i128 = 1;
+    for _ in 0..frac_len {
+        denom = denom
+            .checked_mul(i128::from(ibase))
+            .ok_or(LexError::NumberTooLarge)?;
+    }
+    let frac = match divide(
+        Value {
+            digits: frac_num,
+            scale: 0,
+        },
+        Value {
+            digits: denom,
+            scale: 0,
+        },
+        scale,
+    ) {
+        Ok(value) => value.digits,
+        Err(_) => return Err(LexError::NumberTooLarge),
+    };
+    let shifted = mul_pow10(int_val, scale).map_err(|_| LexError::NumberTooLarge)?;
+    let mut digits = shifted.checked_add(frac).ok_or(LexError::NumberTooLarge)?;
+    let mut scale = scale;
+    if ibase != 10 {
+        while digits != 0 && scale > 0 && digits % 10 == 0 {
+            digits /= 10;
+            scale -= 1;
+        }
+    }
+    Ok(Value { digits, scale })
 }
 
 // ------------------------------------------------------- recursive descent ---
@@ -570,17 +712,30 @@ enum EvalError {
     DivisionByZero,
     Overflow,
     ScaleRange,
+    /// A base assignment outside 2-16; the payload names the variable.
+    BaseRange(&'static str),
     NegativeSquareRoot,
 }
 
 fn eval(expr: &Expr, interp: &mut Interp) -> Result<Value, EvalError> {
     match expr {
         Expr::Num(value) => Ok(*value),
-        // Uninitialized variables are 0, like bc; `scale` reads the global.
+        // Uninitialized variables are 0, like bc; the special variables
+        // `scale`, `ibase` and `obase` read the globals.
         Expr::Var(name) => {
             if name == "scale" {
                 Ok(Value {
                     digits: interp.scale as i128,
+                    scale: 0,
+                })
+            } else if name == "ibase" {
+                Ok(Value {
+                    digits: i128::from(interp.ibase),
+                    scale: 0,
+                })
+            } else if name == "obase" {
+                Ok(Value {
+                    digits: i128::from(interp.obase),
                     scale: 0,
                 })
             } else {
@@ -595,6 +750,24 @@ fn eval(expr: &Expr, interp: &mut Interp) -> Result<Value, EvalError> {
                     return Err(EvalError::ScaleRange);
                 }
                 interp.scale = n as u32;
+                Ok(Value {
+                    digits: n,
+                    scale: 0,
+                })
+            } else if name == "ibase" || name == "obase" {
+                let n = integer_part(value);
+                if !(2..=16).contains(&n) {
+                    return Err(EvalError::BaseRange(if name == "ibase" {
+                        "ibase"
+                    } else {
+                        "obase"
+                    }));
+                }
+                if name == "ibase" {
+                    interp.ibase = n as u32;
+                } else {
+                    interp.obase = n as u32;
+                }
                 Ok(Value {
                     digits: n,
                     scale: 0,

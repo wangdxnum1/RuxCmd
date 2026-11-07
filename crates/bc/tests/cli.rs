@@ -203,8 +203,25 @@ fn ibase_hex_reads_lowercase_letters() {
 }
 
 #[test]
-fn ibase_and_obase_set_together() {
-    run_bc("ibase=16; obase=16; FF\n").success().stdout("FF\n");
+fn ibase_hex_input_with_hex_output() {
+    // After ibase=16, the obase value itself reads as hex: `10` is 16 — the
+    // GNU bc idiom `ibase=16; obase=10` selects hexadecimal output.
+    run_bc("ibase=16; obase=10; FF\n").success().stdout("FF\n");
+}
+
+#[test]
+fn ibase_out_of_range_is_reported() {
+    run_bc("ibase=20; 1+1\n")
+        .failure()
+        .stdout("2\n")
+        .stderr(str::contains("bc: ibase must be between 2 and 16"));
+}
+
+#[test]
+fn obase_out_of_range_is_reported() {
+    run_bc("obase=1\n")
+        .failure()
+        .stderr(str::contains("bc: obase must be between 2 and 16"));
 }
 
 #[test]
@@ -237,8 +254,9 @@ fn letters_are_variables_again_below_ibase_eleven() {
 
 #[test]
 fn hex_input_supports_fractions() {
-    // 0.8 in hex is 5/10, printed exactly.
-    run_bc("ibase=16; obase=10; 0.8\n")
+    // 0.8 in hex is 5/10.  obase must be set BEFORE ibase, otherwise the
+    // obase value itself reads as hex (`obase=10` is 16) — the GNU bc gotcha.
+    run_bc("obase=10; ibase=16; 0.8\n")
         .success()
         .stdout("0.5\n");
 }

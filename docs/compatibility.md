@@ -13,7 +13,7 @@
 | base32 | -d, --decode, --ignore-garbage, --wrap | 冒烟 + 行为测试 | 按 GNU 换行语义编解码 RFC 4648 base32（默认 76，0 为不换行）；解码始终容忍换行，-i 跳过其他非法字节；填充结束每组。 |
 | b2sum | --check, --length, --quiet, --status, --tag | 冒烟 + 行为测试 | BLAKE2b，沿用 sha1sum 家族的输出、--tag 与校验规则；--length 接受 8 的任意倍数且不超过 512。无 -b/-t/-z 标记；GNU (MSYS) 对 stdin 输出二进制标记，本实现从不输出。 |
 | basename | --multiple, --suffix, --version, --zero | 冒烟 + 行为测试 | -z/--zero 仅改变输出终止符，不改变输入解析。支持 NAME SUFFIX 和 -a/-s，保留操作数内 LF。Windows 路径解析规则保留：末尾 ./.. 输出 ./..，// 输出 /，盘符根输出 C:。 |
-| bc | --version | 冒烟 + 行为测试 | i128 整数运算，/ 与 % 向零截断（GNU scale=0 默认语义）；支持 + - * / % ^ ( )、变量赋值、; 分隔、# 注释与 quit。支持 `scale=N`（0..=64）赋值——scale>0 时 `/`/`%`/`^` 负指数/`sqrt()` 产生小数（i128 定点，约 38 位有效数字）；十进制字面量；非任意精度（超出报 overflow）；ibase/obase/define 遇到仍提示跳过。banner 为 bc 0.1.0 (RuxCmd)。 |
+| bc | --version | 冒烟 + 行为测试 | i128 整数运算，/ 与 % 向零截断（GNU scale=0 默认语义）；支持 + - * / % ^ ( )、变量赋值、; 分隔、# 注释与 quit。支持 `scale=N`（0..=64）赋值——scale>0 时 `/`/`%`/`^` 负指数/`sqrt()` 产生小数（i128 定点，约 38 位有效数字）；支持 `ibase`/`obase`（2..=16）：ibase≥11 时 A-F（大小写均可）作数字位、进制分数输入转十进制（十六进制 0.8→0.5），obase≠10 时整数与分数（按 scale 位）按 obase 输出（A-F 大写）、裸 ibase/obase 按当前 obase 打印，越界赋值报错退出 1；define/if 等关键字遇到提示跳过（退出 0）。banner 为 bc 0.1.0 (RuxCmd)。 |
 | cal | --version | 冒烟 + 行为测试 | 单参数 1-12 视为月份，100-9999 视为年份；13-99 被拒绝。完整 GNU 行为未验证。 |
 | cat | --number, --number-nonblank, --show-all, --show-ends, --show-nonprinting, --show-tabs, --unbuffered, --squeeze-blank | 冒烟 + 行为测试 | 默认字节透明（CRLF、二进制、非 ASCII 数据原样透传）；-v 使用字节级 ^/M- 记号；-E 不给未结尾的末行补 $。行号与空行压缩状态按文件重置。 |
 | chmod | --recursive, --verbose, --version | 冒烟 + 行为测试 | 符号模式（u/g/o/a 与 +-=rwx）映射到只读位；-R 不再跟随 junction。Windows 权限语义与 Unix mode 不等价。 |

@@ -1,9 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.5.1 — bc 进制转换与 scale 算术、cut/head 对齐(2026-11-07)
 
 - bc:支持 `scale=N`（0..=64）小数精度——scale>0 时 `/`、`%`、`^` 负指数、`sqrt()` 产生小数（i128 定点，约 38 位有效数字）；十进制字面量；非任意精度（超出报 overflow）。
-- bc:支持 `ibase`/`obase` 进制转换（2..=16，ibase ≥ 11 时 A-F 为数字位；obase ≠ 10 时整数按 obase 输出）。
+- bc:支持 `ibase`/`obase` 进制转换（2..=16）：ibase≥11 时 A-F（大小写均可）作数字位；进制分数输入转十进制（十六进制 0.8→0.5）；obase≠10 时整数与分数（按 scale 位）按 obase 输出；裸 ibase/obase 按当前 obase 打印；越界赋值报错退出 1。
+- bc:define/if 等未实现关键字的提示不再显示为 lex error（改为 `bc: <关键字> is not supported in this build`，退出 0 继续执行，与函数调用提示一致）。
 - cut:新增 `-n`（不拆分多字节 UTF-8 字符）与 `--complement`（反转选择集）。
 - head:`-n` 与 `-c` 后出现的选项生效（移除互斥报错，对齐 GNU）。
 
