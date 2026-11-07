@@ -589,14 +589,23 @@ fn parse_date(raw: &str) -> Option<SystemTime> {
         let seconds: i64 = seconds.parse().ok()?;
         return epoch_to_system_time(seconds);
     }
+    // Named moments and the "N unit(s) [ago]" grammar shift the current
+    // instant; GNU keeps the clock time (yesterday = now minus one day, not
+    // yesterday's midnight).
+    if let Some(shift) = parse_relative(raw) {
+        return apply_relative(shift);
+    }
+    // A timezone suffix pins the wall clock to that offset instead of the
+    // local zone: `2026-11-07 00:00:00+0800`, `...+08:00`, `...Z`.
+    let (raw, tz_offset_minutes) = split_tz_suffix(raw)?;
     let (date_part, time_part) = match raw.find(['T', ' ']) {
         Some(index) => (&raw[..index], Some(&raw[index + 1..])),
         None => (raw, None),
     };
-    let (year, month, day) = parse_ymd(date_part)?;
+    let (year, month, day) = parse_ymd(date_part).or_else(|| parse_compact_ymd(date_part))?;
     let (hour, minute, second) = match time_part {
         None => (0, 0, 0),
-        Some(time) => parse_hms(time)?,
+        Some(time) => parse_hms(time).or_else(|| parse_compact_hms(time))?,
     };
     if month == 0 || month > 12 || day == 0 || day > days_in_month(year, month) {
         return None;
@@ -604,14 +613,230 @@ fn parse_date(raw: &str) -> Option<SystemTime> {
     if hour > 23 || minute > 59 || second > 59 {
         return None;
     }
-    wall_to_system_time(WallClock {
+    let wall = WallClock {
         year,
         month,
         day,
         hour,
         minute,
         second,
-    })
+    };
+    match tz_offset_minutes {
+        // The suffix fixes the zone: the instant is wall-time minus offset.
+        Some(minutes) => civil_to_epoch(wall)
+            .map(|seconds| seconds - minutes * 60)
+            .and_then(epoch_to_system_time),
+        None => wall_to_system_time(wall),
+    }
+}
+
+/// A relative shift broken into calendar months (whole months move the same
+/// wall-clock day) plus a duration part.
+struct RelativeShift {
+    months: i64,
+    days: i64,
+    seconds: i64,
+}
+
+/// Recognizes GNU's `N unit(s) [ago]` grammar: units second/minute/hour/
+/// day/week/month/year (case-insensitive, optional plural), optional `a`/`an`
+/// as the count.
+fn parse_relative(raw: &str) -> Option<RelativeShift> {
+    let lower = raw.trim().to_ascii_lowercase();
+    if lower == "now" {
+        return Some(RelativeShift {
+            months: 0,
+            days: 0,
+            seconds: 0,
+        });
+    }
+    if lower == "yesterday" {
+        return Some(RelativeShift {
+            months: 0,
+            days: -1,
+            seconds: 0,
+        });
+    }
+    if lower == "tomorrow" {
+        return Some(RelativeShift {
+            months: 0,
+            days: 1,
+            seconds: 0,
+        });
+    }
+    let mut parts = lower.split_whitespace();
+    let count_part = parts.next()?;
+    let count: i64 = match count_part {
+        "a" | "an" => 1,
+        digits if digits.bytes().all(|b| b.is_ascii_digit()) => digits.parse().ok()?,
+        _ => return None,
+    };
+    let unit = parts.next()?;
+    let unit = unit.strip_suffix('s').unwrap_or(unit);
+    let unit_seconds = match unit {
+        "second" | "sec" => 1i64,
+        "minute" | "min" => 60,
+        "hour" => 3600,
+        "day" => 86400,
+        "week" => 7 * 86400,
+        "fortnight" => 14 * 86400,
+        // month/year are calendar units handled separately below.
+        "month" | "mon" => 0,
+        "year" => 0,
+        _ => return None,
+    };
+    let mut shift = RelativeShift {
+        months: 0,
+        days: 0,
+        seconds: 0,
+    };
+    match unit {
+        "month" | "mon" => shift.months = count,
+        "year" => shift.months = count * 12,
+        _ => shift.seconds += count * unit_seconds,
+    }
+    match parts.next() {
+        None => {}
+        Some("ago") => {
+            // "ago" reverses the whole shift.
+            shift.months = -shift.months;
+            shift.seconds = -shift.seconds;
+        }
+        _ => return None,
+    }
+    if parts.next().is_some() {
+        return None;
+    }
+    Some(shift)
+}
+
+/// Applies a relative shift to the current instant: calendar months move on
+/// the local wall clock (clamping the day, like GNU), then the duration part.
+fn apply_relative(shift: RelativeShift) -> Option<SystemTime> {
+    let now = SystemTime::now();
+    if shift.months == 0 {
+        return shift_by_seconds(now, shift.days * 86400 + shift.seconds);
+    }
+    let local = ruxcmd_core::timefmt::local_time(now)?;
+    let total_months = local.year as i64 * 12 + local.month as i64 - 1 + shift.months;
+    let year = total_months.div_euclid(12) as i32;
+    let month = (total_months.rem_euclid(12) + 1) as u32;
+    let day = local.day.min(days_in_month(year, month) as u16) as u32;
+    let wall = WallClock {
+        year,
+        month,
+        day,
+        hour: local.hour as u32,
+        minute: local.minute as u32,
+        second: local.second as u32,
+    };
+    let base = wall_to_system_time(wall)?;
+    shift_by_seconds(base, shift.days * 86400 + shift.seconds)
+}
+
+fn shift_by_seconds(instant: SystemTime, seconds: i64) -> Option<SystemTime> {
+    if seconds >= 0 {
+        instant.checked_add(Duration::from_secs(seconds as u64))
+    } else {
+        instant.checked_sub(Duration::from_secs(seconds.unsigned_abs()))
+    }
+}
+
+/// `YYYYMMDD` (8 digits), the compact form GNU also accepts.
+fn parse_compact_ymd(raw: &str) -> Option<(i32, u32, u32)> {
+    if raw.len() != 8 || !raw.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    Some((
+        raw[..4].parse().ok()?,
+        raw[4..6].parse().ok()?,
+        raw[6..8].parse().ok()?,
+    ))
+}
+
+/// `hhmm` or `hhmmss` (4 or 6 digits), the compact companion of YYYYMMDD.
+fn parse_compact_hms(raw: &str) -> Option<(u32, u32, u32)> {
+    let (hour, minute, second) = match raw.len() {
+        4 => (&raw[..2], &raw[2..4], "00"),
+        6 => (&raw[..2], &raw[2..4], &raw[4..6]),
+        _ => return None,
+    };
+    if !raw.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    Some((
+        hour.parse().ok()?,
+        minute.parse().ok()?,
+        second.parse().ok()?,
+    ))
+}
+
+/// Strips a trailing timezone suffix (`Z`, `+hh`, `+hhmm`, `+hh:mm`) and
+/// returns the offset in minutes east of UTC.  A suffix only counts when the
+/// base carries a time component (`:` or a date/time separator) — otherwise
+/// the dashes of `YYYY-MM-DD` would read as zone signs.
+fn split_tz_suffix(raw: &str) -> Option<(&str, Option<i64>)> {
+    if let Some(stripped) = raw.strip_suffix('Z') {
+        return Some((stripped, Some(0)));
+    }
+    let bytes = raw.as_bytes();
+    if bytes.len() < 3 {
+        return Some((raw, None));
+    }
+    // Zone suffixes sit at a fixed distance from the end: "+hh" (3),
+    // "+hhmm" (5), "+hh:mm" (6).
+    for distance in [3usize, 5, 6] {
+        if bytes.len() <= distance {
+            break;
+        }
+        let index = bytes.len() - distance;
+        if bytes[index] != b'+' && bytes[index] != b'-' {
+            continue;
+        }
+        // The sign must follow a digit of the time (hh:mm:ss…).
+        if !bytes[index - 1].is_ascii_digit() {
+            continue;
+        }
+        let base = &raw[..index];
+        let has_time = base.contains(':') || base.contains('T') || base.contains(' ');
+        if !has_time {
+            continue;
+        }
+        if let Some(offset) = parse_zone(&raw[index + 1..], bytes[index] == b'-') {
+            return Some((base, Some(offset)));
+        }
+    }
+    Some((raw, None))
+}
+
+/// Parses the digits of `hh[[:]mm]` into minutes; `west` flips the sign.
+fn parse_zone(digits: &str, west: bool) -> Option<i64> {
+    let (hour_part, minute_part) = match digits.len() {
+        2 => (digits, "00"),
+        4 => (&digits[..2], &digits[2..]),
+        5 if digits.as_bytes()[2] == b':' => (&digits[..2], &digits[3..]),
+        _ => return None,
+    };
+    let hour: i64 = hour_part.parse().ok()?;
+    let minute: i64 = minute_part.parse().ok()?;
+    if hour > 23 || minute > 59 {
+        return None;
+    }
+    let total = hour * 60 + minute;
+    Some(if west { -total } else { total })
+}
+
+/// Seconds from the Unix epoch for a wall clock read as UTC (no zone math).
+fn civil_to_epoch(wall: WallClock) -> Option<i64> {
+    let y = wall.year as i64;
+    let m = wall.month as i64;
+    let era = if y >= 0 { y } else { y - 399 } / 400;
+    let yoe = y - era * 400;
+    let mp = (m + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + wall.day as i64 - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146097 + doe - 719468;
+    Some(days * 86400 + wall.hour as i64 * 3600 + wall.minute as i64 * 60 + wall.second as i64)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1153,9 +1378,10 @@ mod tests {
             "2020-01-01 12:60",
             "@abc",
             "@12.5",
-            "2020-01-01Z",
         ] {
             assert_eq!(parse_date(bad), None, "{bad} should not parse");
         }
+        // The Z suffix pins UTC: 2020-01-01Z is 2020-01-01 00:00 UTC.
+        assert!(parse_date("2020-01-01Z").is_some());
     }
 }

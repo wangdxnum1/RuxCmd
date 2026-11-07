@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.9 — find 相对日期与时区后缀(2026-11-07)
+
+- find:`-newermt`/`-newerat` 日期解析对齐 GNU parse_datetime 子集——`now`/`yesterday`/`tomorrow`（相对当前时刻；实测 yesterday = now−1 天而非昨夜零点）、`N unit(s) [ago]`（second/minute/hour/day/week/fortnight 按时长，month/year 按日历移位并夹紧月末，`a/an` 计数）、紧凑 `YYYYMMDD[Thh[mm[ss]]]`、时区后缀 `Z`/`+hh[[:]mm]`（后缀固定距尾判定，仅当基准含时间分量，避免把 YYYY-MM-DD 的连字符误读为时区符号）。与 MSYS2 GNU find 11 组语义实测一致。
+- 文档:sed 兼容表核实——嵌套替换分组反向引用（GNU 与本实现逐字节一致，此前记忆为缺口，实为已实现）。
+
 ## 0.5.8 — 发布基础设施加固(2026-11-07)
 
 - 新增 `scripts/check-manifests.ps1` 并纳入 Verify 门禁：校验 scoop/winget 清单与 README 的版本号与 Cargo.toml 工作区版本一致、下载 URL 指向对应版本的 zip、SHA256 字段为 64 位十六进制、winget 与 scoop 哈希相等——版本号推进时遗漏清单更新会在门禁即失败，不再等到发布。
