@@ -41100,3 +41100,12 @@ Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
 - 测试修正为 GNU 语义:ibase=16 后 obase 值本身按十六进制读(`ibase=16; obase=10` = 十六进制输出;hex 分数测试改为先 obase=10 再 ibase=16);新增 ibase/obase 越界用例。bc 49 测试全过,clippy 0 警告。
 - 发布:v0.5.1 tag 重打(旧 tag 指向含编译错误的 d49a490,删除后重发);本地 Verify 门禁 442.6s 全过;Release run 42342885791 成功(ZIP+setup.exe+sha256);scoop/winget 清单同步 0.5.1 与新 ZIP hash(ceedbba)。
 - 版本:0.5.0 → 0.5.1;main @ b5cf31e。
+
+
+## Round 26 checksum -b/-t + uniq output + truncate adjusting (2026-11-07)
+- sha 系列(md5sum/sha1sum/sha256sum/sha512sum):-b/--binary 输出 GNU 二进制格式 `hash *name`(星号前有空格),-t/--text 显式文本模式;同给时最后者生效(clap indices_of + value_source 门控——SetTrue 缺省时 default value 的 index 会污染位置比较,已实测修正);-c 下报 GNU 同款 meaningless 错误,--tag -t 报错、--tag -b 允许。md5sum cli.rs 由 derive 改为手工 builder 统一。difftest 新增 20 个 -b/-t 用例,与 MSYS2 coreutils 逐字节一致(100 pass / 0 fail)。
+- uniq:第二操作数 OUTPUT——`uniq IN OUT` 结果写入文件(创建/截断),`-` 语义不变;新增 4 个测试(11 全过)。
+- truncate:-o/--io-blocks(4096 字节块,Linux 典型 st_blksize;MSYS2 参考端为 64K 固定值,属平台差异,不纳入 difftest)+ GNU 全部调整符 `+`(增加到)/`-`(减少)/`<`(至多)/`>`(至少)/`/`(向下取整倍)/`%`(向上取整倍);行为修正:+ 原先误作"不小于"(GNU 实测 `50+200→250`);%0//0 报 division by zero;-r 配 -s 仅接受 +N/-N 相对调整(GNU 同款错误消息);i128 div_ceil 未稳定改手动取整。12 测试全过。
+- cut:-n 此前已实现,compat 文档修正标记。
+- 教训:compat-check 是 Verify 的一部分——新增 CLI 长选项后必须同步兼容表选项列(本次 8 个 FAIL 后补齐 --binary/--text)。
+- 发布:v0.5.2 tag 推送,Release run 42346050832 dispatch;Verify 门禁 189.1s 全过;版本 0.5.1 → 0.5.2;main @ f985618。
