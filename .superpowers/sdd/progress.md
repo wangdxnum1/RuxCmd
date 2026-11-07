@@ -41159,3 +41159,10 @@ Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
 - 文档:sed 嵌套替换分组核实为假缺口(GNU 与本实现逐字节一致);find 行残留差异重写。
 - 教训:find 会打印匹配的起始目录自身——集成测试必须加 -mindepth 1 排除刚创建的临时目录;时区敏感的日期边界(mtime=UTC 午夜 vs 本地午夜)要在测试里明确选点;bash 内嵌 python 的反引号会被命令替换吞掉,含反引号的文本改用 Edit/脚本文件。
 - 发布:v0.5.9 成功(run 42368769877,notes 自动生成);清单 hash 同步 2c7f2584;版本 0.5.8 → 0.5.9。
+
+
+## Round 34 cp VERSION_CONTROL + grep dir counts + v0.5.10 release (2026-11-07)
+- cp:VERSION_CONTROL 环境变量——裸 -b 的模式取自环境(none/numbered/existing/simple 四组别名,无效值报 GNU 同款四行 Valid arguments 错误);--backup=CONTROL 显式覆盖;无旗标时不启用备份。实现拆分:-b 短旗与 --backup= 长选分立(derive 下 default_missing_value 无法区分裸旗与显式值)。7 场景矩阵实测与 GNU 一致。
+- grep:未加 -r 的目录操作数——stderr 报 Is a directory + -c 输出 0 计数行(单操作数裸计数、多操作数 name:0)+ 退出码 2(trouble)。
+- 发布:v0.5.10 成功(run 42371701422,notes 自动生成);清单 hash 同步 145bb6c1;check-manifests 门禁通过;版本 0.5.9 → 0.5.10。
+- 教训:发布后必须 git rm 掉杂散文件(一次 cp 测试在仓库根留下 d.txt 被误提交);compat 行的旧文本在多轮后措辞漂移——脚本替换前先 grep 现文,失败即改用 Read+Edit。
