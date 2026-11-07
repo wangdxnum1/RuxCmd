@@ -1,7 +1,7 @@
 mod cli;
 
-use clap::Parser;
 use cli::Cli;
+use std::fs;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -22,7 +22,7 @@ struct Line {
 }
 
 fn main() {
-    let cli = Cli::parse();
+    let cli = cli::parse_args();
 
     if cli.version {
         println!("diff 0.1.0");
@@ -52,30 +52,57 @@ fn main() {
         }
     };
 
-    // Declared but not implemented: recursive directory comparison.
-    if cli.recursive {
-        eprintln!("diff: --recursive is not supported");
-        process::exit(2);
+    // GNU: a file operand paired with a directory compares that file with the
+    // file of the same name inside the directory.
+    let meta1 = fs::metadata(file1).ok();
+    let meta2 = fs::metadata(file2).ok();
+    let (left, right) = match (&meta1, &meta2) {
+        (Some(a), Some(b)) if a.is_dir() && !b.is_dir() => {
+            let name = Path::new(file2).file_name().unwrap_or_default();
+            let joined = Path::new(file1).join(name);
+            (ruxcmd_core::paths::display(&joined), file2.clone())
+        }
+        (Some(a), Some(b)) if !a.is_dir() && b.is_dir() => {
+            let name = Path::new(file1).file_name().unwrap_or_default();
+            let joined = Path::new(file2).join(name);
+            (file1.clone(), ruxcmd_core::paths::display(&joined))
+        }
+        _ => (file1.clone(), file2.clone()),
+    };
+
+    let left_is_dir = fs::metadata(&left).map(|m| m.is_dir()).unwrap_or(false);
+    let right_is_dir = fs::metadata(&right).map(|m| m.is_dir()).unwrap_or(false);
+
+    if left_is_dir && right_is_dir {
+        let (found, trouble) = diff_directories(Path::new(&left), Path::new(&right), &cli);
+        // GNU diff exit codes: 0 = identical, 1 = differences found, 2 = trouble.
+        if trouble {
+            process::exit(2);
+        }
+        if found {
+            process::exit(1);
+        }
+        process::exit(0);
     }
 
-    let lines1 = match read_input(file1) {
+    let lines1 = match read_input(&left) {
         Ok(lines) => lines,
-        Err(e) => {
-            eprintln!("Error reading {}: {}", file1, e);
+        Err(message) => {
+            eprintln!("diff: {}: {}", left, message);
             process::exit(2);
         }
     };
 
-    let lines2 = match read_input(file2) {
+    let lines2 = match read_input(&right) {
         Ok(lines) => lines,
-        Err(e) => {
-            eprintln!("Error reading {}: {}", file2, e);
+        Err(message) => {
+            eprintln!("diff: {}: {}", right, message);
             process::exit(2);
         }
     };
 
     let found_diff = if cli.unified {
-        print_unified_diff(file1, file2, &lines1, &lines2, &cli)
+        print_unified_diff(&left, &right, &lines1, &lines2, &cli)
     } else {
         print_normal_diff(&lines1, &lines2, &cli)
     };
@@ -83,6 +110,280 @@ fn main() {
     // GNU diff exit codes: 0 = identical, 1 = differences found, 2 = trouble.
     if found_diff {
         process::exit(1);
+    }
+}
+
+/// GNU-style single-line io error: the OS message without Rust's
+/// "(os error N)" suffix.
+fn io_message(error: &std::io::Error) -> String {
+    match error.kind() {
+        std::io::ErrorKind::NotFound => "No such file or directory".to_string(),
+        std::io::ErrorKind::PermissionDenied => "Permission denied".to_string(),
+        _ => error.to_string(),
+    }
+}
+
+/// GNU directory comparison: one merged alphabetical pass over the entries of
+/// both trees.  With -r subdirectories are compared recursively, without it
+/// they are only reported.  Returns (differences_found, trouble).
+fn diff_directories(dir1: &Path, dir2: &Path, cli: &Cli) -> (bool, bool) {
+    use std::collections::BTreeSet;
+
+    let mut names: BTreeSet<String> = BTreeSet::new();
+    let mut trouble = false;
+    for dir in [dir1, dir2] {
+        match fs::read_dir(dir) {
+            Ok(entries) => {
+                for entry in entries {
+                    match entry {
+                        Ok(entry) => {
+                            names.insert(entry.file_name().to_string_lossy().into_owned());
+                        }
+                        Err(error) => {
+                            eprintln!(
+                                "diff: {}: {}",
+                                ruxcmd_core::paths::display(dir),
+                                io_message(&error)
+                            );
+                            trouble = true;
+                        }
+                    }
+                }
+            }
+            Err(error) => {
+                eprintln!(
+                    "diff: {}: {}",
+                    ruxcmd_core::paths::display(dir),
+                    io_message(&error)
+                );
+                trouble = true;
+            }
+        }
+    }
+
+    let mut found = false;
+    for name in &names {
+        let path1 = dir1.join(name);
+        let path2 = dir2.join(name);
+        let is_dir1 = path1.is_dir();
+        let is_dir2 = path2.is_dir();
+        match (path1.exists(), path2.exists()) {
+            (true, false) => {
+                println!("Only in {}: {}", ruxcmd_core::paths::display(dir1), name);
+                found = true;
+            }
+            (false, true) => {
+                println!("Only in {}: {}", ruxcmd_core::paths::display(dir2), name);
+                found = true;
+            }
+            (false, false) => {}
+            (true, true) if is_dir1 && is_dir2 => {
+                if cli.recursive {
+                    let (sub_found, sub_trouble) = diff_directories(&path1, &path2, cli);
+                    found |= sub_found;
+                    trouble |= sub_trouble;
+                } else {
+                    // GNU reports common subdirectories without recursing, and
+                    // they alone do not count as a difference.
+                    println!(
+                        "Common subdirectories: {} and {}",
+                        ruxcmd_core::paths::display(&path1),
+                        ruxcmd_core::paths::display(&path2)
+                    );
+                }
+            }
+            // A file on one side and a directory on the other: GNU reports
+            // the type mismatch on stderr and counts it as a difference.
+            (true, true) if is_dir1 != is_dir2 => {
+                if is_dir1 {
+                    println!(
+                        "File {} is a directory while file {} is a regular file",
+                        ruxcmd_core::paths::display(&path1),
+                        ruxcmd_core::paths::display(&path2)
+                    );
+                } else {
+                    println!(
+                        "File {} is a regular file while file {} is a directory",
+                        ruxcmd_core::paths::display(&path1),
+                        ruxcmd_core::paths::display(&path2)
+                    );
+                }
+                found = true;
+            }
+            (true, true) => {
+                let (differed, sub_trouble) = diff_entry_files(&path1, &path2, cli);
+                found |= differed;
+                trouble |= sub_trouble;
+            }
+        }
+    }
+    (found, trouble)
+}
+
+/// Compare two files at the same relative position in both trees, printing
+/// the `diff [options] left right` header GNU emits before each differing
+/// pair.  Returns (differences_found, trouble).
+fn diff_entry_files(path1: &Path, path2: &Path, cli: &Cli) -> (bool, bool) {
+    let (lines1, trouble1) = read_entry(path1);
+    let (lines2, trouble2) = read_entry(path2);
+    if trouble1 || trouble2 {
+        return (true, true);
+    }
+    let identical = lines1.len() == lines2.len()
+        && lines1
+            .iter()
+            .zip(lines2.iter())
+            .all(|(a, b)| lines_equal(a, b, cli));
+    if identical {
+        return (false, false);
+    }
+    let options = header_options(&cli.header_flags);
+    println!(
+        "diff{} {} {}",
+        options,
+        ruxcmd_core::paths::display(path1),
+        ruxcmd_core::paths::display(path2)
+    );
+    let differed = if cli.unified {
+        print_unified_diff(
+            &ruxcmd_core::paths::display(path1),
+            &ruxcmd_core::paths::display(path2),
+            &lines1,
+            &lines2,
+            cli,
+        )
+    } else {
+        print_normal_diff(&lines1, &lines2, cli)
+    };
+    (differed, false)
+}
+
+/// Read one entry of a directory walk; read errors are reported and mark the
+/// walk as troubled without stopping it.
+fn read_entry(path: &Path) -> (Vec<Line>, bool) {
+    match read_input(&path.display().to_string()) {
+        Ok(lines) => (lines, false),
+        Err(message) => {
+            eprintln!("diff: {}: {}", ruxcmd_core::paths::display(path), message);
+            (Vec::new(), true)
+        }
+    }
+}
+
+/// Directory-walk header options: GNU echoes the comparison flags as typed
+/// (`diff -ru ...`, `diff -B -i -r ...`).
+fn header_options(flags: &[String]) -> String {
+    if flags.is_empty() {
+        String::new()
+    } else {
+        format!(" {}", flags.join(" "))
+    }
+}
+
+#[cfg(windows)]
+mod timestamp {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    use windows::Win32::Foundation::{FILETIME, SYSTEMTIME};
+
+    // GNU unified-format header timestamp: local wall-clock time with the
+    // full nanosecond remainder and the wall-clock offset from UTC
+    // (2026-11-07 14:52:29.173703200 +0800).  A - operand is stamped with
+    // the time the input was read, like GNU.  Declared directly against
+    // kernel32 because the workspace windows-feature set is frozen.
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn FileTimeToSystemTime(file_time: *const FILETIME, system_time: *mut SYSTEMTIME) -> i32;
+        fn SystemTimeToTzSpecificLocalTime(
+            timezone: *const core::ffi::c_void,
+            universal: *const SYSTEMTIME,
+            local: *mut SYSTEMTIME,
+        ) -> i32;
+        fn GetTimeZoneInformation(time_zone_information: *mut TIME_ZONE_INFORMATION) -> i32;
+    }
+
+    #[repr(C)]
+    struct TIME_ZONE_INFORMATION {
+        bias: i32,
+        standard_name: [u16; 32],
+        standard_date: SYSTEMTIME,
+        standard_bias: i32,
+        daylight_name: [u16; 32],
+        daylight_date: SYSTEMTIME,
+        daylight_bias: i32,
+    }
+
+    const TIME_ZONE_ID_STANDARD: i32 = 1;
+    const TIME_ZONE_ID_DAYLIGHT: i32 = 2;
+
+    pub fn stamp(name: &str) -> Option<String> {
+        let when = if name == "-" {
+            SystemTime::now()
+        } else {
+            std::fs::metadata(name).ok()?.modified().ok()?
+        };
+        let since_epoch = when.duration_since(UNIX_EPOCH).ok()?;
+        let nanos = since_epoch.subsec_nanos();
+        let intervals = since_epoch.as_nanos() / 100 + 116_444_736_000_000_000;
+        let filetime = FILETIME {
+            dwLowDateTime: (intervals & 0xFFFF_FFFF) as u32,
+            dwHighDateTime: (intervals >> 32) as u32,
+        };
+        let mut utc = SYSTEMTIME::default();
+        if unsafe { FileTimeToSystemTime(&filetime, &mut utc) } == 0 {
+            return None;
+        }
+        let mut local = SYSTEMTIME::default();
+        if unsafe { SystemTimeToTzSpecificLocalTime(std::ptr::null(), &utc, &mut local) } == 0 {
+            return None;
+        }
+        let mut tzi = TIME_ZONE_INFORMATION {
+            bias: 0,
+            standard_name: [0; 32],
+            standard_date: SYSTEMTIME::default(),
+            standard_bias: 0,
+            daylight_name: [0; 32],
+            daylight_date: SYSTEMTIME::default(),
+            daylight_bias: 0,
+        };
+        let state = unsafe { GetTimeZoneInformation(&mut tzi) };
+        let extra = match state {
+            TIME_ZONE_ID_DAYLIGHT => tzi.daylight_bias,
+            TIME_ZONE_ID_STANDARD => tzi.standard_bias,
+            _ => 0,
+        };
+        // UTC = local + bias, so the printed offset is the negated bias.
+        let offset = -(tzi.bias + extra);
+        let (sign, minutes) = if offset >= 0 {
+            ('+', offset)
+        } else {
+            ('-', -offset)
+        };
+        Some(format!(
+            "{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:09} {}{:02}{:02}",
+            local.wYear,
+            local.wMonth,
+            local.wDay,
+            local.wHour,
+            local.wMinute,
+            local.wSecond,
+            nanos,
+            sign,
+            minutes / 60,
+            minutes % 60
+        ))
+    }
+}
+
+/// GNU unified-format header timestamp, when the platform can produce one.
+fn unified_timestamp(name: &str) -> Option<String> {
+    #[cfg(windows)]
+    {
+        timestamp::stamp(name)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = name;
+        None
     }
 }
 
@@ -99,7 +400,7 @@ fn read_input(name: &str) -> Result<Vec<Line>, String> {
         return Err("Is a directory".to_string());
     }
 
-    let file = File::open(path).map_err(|e| e.to_string())?;
+    let file = File::open(path).map_err(|e| io_message(&e))?;
     read_lines(BufReader::new(file), name)
 }
 
@@ -433,8 +734,14 @@ fn print_unified_diff(
         return false;
     }
 
-    println!("--- {}", file1);
-    println!("+++ {}", file2);
+    match unified_timestamp(file1) {
+        Some(stamp) => println!("--- {file1}\t{stamp}"),
+        None => println!("--- {file1}"),
+    }
+    match unified_timestamp(file2) {
+        Some(stamp) => println!("+++ {file2}\t{stamp}"),
+        None => println!("+++ {file2}"),
+    }
 
     let mut i = 1;
     let mut j = 1;
@@ -491,13 +798,16 @@ fn print_unified_diff(
 }
 
 fn print_hunk(start: usize, lines1: usize, lines2: usize, content: &[String]) {
-    if lines1 == 0 {
-        println!("@@ -{} +{},{} @@", start, start, lines2);
-    } else if lines2 == 0 {
-        println!("@@ -{},{} +{} @@", start, lines1, start);
-    } else {
-        println!("@@ -{},{} +{},{} @@", start, lines1, start, lines2);
-    }
+    // GNU omits a count of exactly 1 (`@@ -1 +2,3 @@`) and keeps `,0` for
+    // empty sides (`@@ -0,0 +1 @@`).
+    let range = |start: usize, count: usize| {
+        if count == 1 {
+            format!("{start}")
+        } else {
+            format!("{start},{count}")
+        }
+    };
+    println!("@@ -{} +{} @@", range(start, lines1), range(start, lines2));
 
     for line in content {
         println!("{}", line);

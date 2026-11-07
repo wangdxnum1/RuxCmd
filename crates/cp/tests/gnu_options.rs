@@ -499,3 +499,278 @@ fn update_applies_per_entry_in_recursive_copy() {
         "newer source entry must be copied"
     );
 }
+
+// --- hard links (-l/--link) -------------------------------------------------
+
+/// `cp -l` creates a hard link: writing through the link changes the source.
+#[test]
+fn link_shares_content_with_source() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.txt");
+    let dest = dir.path().join("dest.txt");
+    fs::write(&src, "original").unwrap();
+    cargo_bin_cmd!("cp")
+        .args(["-l"])
+        .arg(&src)
+        .arg(&dest)
+        .assert()
+        .success();
+    fs::write(&dest, "modified").unwrap();
+    assert_eq!(fs::read_to_string(&src).unwrap(), "modified");
+}
+
+/// Without -f an existing destination rejects the hard link like GNU.
+#[test]
+fn link_to_existing_destination_errors() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.txt");
+    let dest = dir.path().join("dest.txt");
+    fs::write(&src, "new").unwrap();
+    fs::write(&dest, "old").unwrap();
+    cargo_bin_cmd!("cp")
+        .args(["-l"])
+        .arg(&src)
+        .arg(&dest)
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("File exists"))
+        .stderr(predicates::str::contains("cannot create hard link"));
+    assert_eq!(fs::read_to_string(&dest).unwrap(), "old");
+}
+
+/// -f unlinks the existing destination and links anyway.
+#[test]
+fn link_force_replaces_existing_destination() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.txt");
+    let dest = dir.path().join("dest.txt");
+    fs::write(&src, "new").unwrap();
+    fs::write(&dest, "old").unwrap();
+    cargo_bin_cmd!("cp")
+        .args(["-lf"])
+        .arg(&src)
+        .arg(&dest)
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(&dest).unwrap(), "new");
+    fs::write(&dest, "via-link").unwrap();
+    assert_eq!(fs::read_to_string(&src).unwrap(), "via-link");
+}
+
+/// -l with -r hard-links every file in the tree.
+#[test]
+fn link_recursive_hard_links_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let sub = dir.path().join("sub");
+    fs::create_dir(&sub).unwrap();
+    fs::write(sub.join("inner.txt"), "inner").unwrap();
+    cargo_bin_cmd!("cp")
+        .args(["-lr"])
+        .arg(sub.join("sub"))
+        .arg(dir.path().join("copy"))
+        .assert()
+        .failure();
+    // retry with correct operand order (source dir, dest dir)
+    let out = dir.path().join("tree-copy");
+    cargo_bin_cmd!("cp")
+        .args(["-lr"])
+        .arg(&sub)
+        .arg(&out)
+        .assert()
+        .success();
+    fs::write(out.join("inner.txt"), "via-link").unwrap();
+    assert_eq!(
+        fs::read_to_string(sub.join("inner.txt")).unwrap(),
+        "via-link"
+    );
+}
+
+/// GNU refuses -l with -s.
+#[test]
+fn hard_and_symbolic_links_conflict() {
+    cargo_bin_cmd!("cp")
+        .args(["-l", "-s", "src.txt", "dest.txt"])
+        .assert()
+        .failure()
+        .stderr(
+            "cp: cannot make both hard and symbolic links\nTry 'cp --help' for more information.\n",
+        );
+}
+
+// --- backups (-b/--backup, -S/--suffix) -------------------------------------
+
+/// Plain -b renames the destination to `name~` before copying.
+#[test]
+fn backup_simple_default_suffix() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.txt");
+    let dest = dir.path().join("dest.txt");
+    fs::write(&src, "new").unwrap();
+    fs::write(&dest, "old").unwrap();
+    cargo_bin_cmd!("cp")
+        .args(["-b"])
+        .arg(&src)
+        .arg(&dest)
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(dir.path().join("dest.txt~")).unwrap(),
+        "old"
+    );
+    assert_eq!(fs::read_to_string(&dest).unwrap(), "new");
+}
+
+/// A new destination gets no backup.
+#[test]
+fn backup_not_made_for_new_destination() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.txt");
+    fs::write(&src, "new").unwrap();
+    cargo_bin_cmd!("cp")
+        .args(["-b"])
+        .arg(&src)
+        .arg(dir.path().join("fresh.txt"))
+        .assert()
+        .success();
+    let leftovers: Vec<_> = fs::read_dir(dir.path())
+        .unwrap()
+        .filter_map(Result::ok)
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(leftovers.len(), 2);
+}
+
+/// --backup=numbered produces name.~1~, name.~2~, ... and plain -b continues
+/// numbering when numbered backups already exist (GNU "existing" mode).
+#[test]
+fn backup_numbered_sequence_and_existing_mode() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.txt");
+    let dest = dir.path().join("dest.txt");
+    fs::write(&src, "new").unwrap();
+    fs::write(&dest, "v0").unwrap();
+    cargo_bin_cmd!("cp")
+        .args(["--backup=numbered"])
+        .arg(&src)
+        .arg(&dest)
+        .assert()
+        .success();
+    fs::write(&dest, "v1").unwrap();
+    cargo_bin_cmd!("cp")
+        .args(["--backup=numbered"])
+        .arg(&src)
+        .arg(&dest)
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(dir.path().join("dest.txt.~1~")).unwrap(),
+        "v0"
+    );
+    assert_eq!(
+        fs::read_to_string(dir.path().join("dest.txt.~2~")).unwrap(),
+        "v1"
+    );
+    fs::write(&dest, "v2").unwrap();
+    cargo_bin_cmd!("cp")
+        .args(["-b"])
+        .arg(&src)
+        .arg(&dest)
+        .assert()
+        .success();
+    // existing mode keeps numbering while numbered backups are around
+    assert_eq!(
+        fs::read_to_string(dir.path().join("dest.txt.~3~")).unwrap(),
+        "v2"
+    );
+}
+
+/// -S overrides the simple backup suffix; --backup=simple forces it even
+/// when numbered backups exist.
+#[test]
+fn backup_suffix_override() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.txt");
+    let dest = dir.path().join("dest.txt");
+    fs::write(&src, "new").unwrap();
+    fs::write(&dest, "old").unwrap();
+    cargo_bin_cmd!("cp")
+        .args(["--backup=simple", "-S", ".bak"])
+        .arg(&src)
+        .arg(&dest)
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(dir.path().join("dest.txt.bak")).unwrap(),
+        "old"
+    );
+}
+
+/// --backup=none makes no backups at all.
+#[test]
+fn backup_none_disables_backups() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.txt");
+    let dest = dir.path().join("dest.txt");
+    fs::write(&src, "new").unwrap();
+    fs::write(&dest, "old").unwrap();
+    cargo_bin_cmd!("cp")
+        .args(["--backup=none"])
+        .arg(&src)
+        .arg(&dest)
+        .assert()
+        .success();
+    let leftovers: Vec<_> = fs::read_dir(dir.path())
+        .unwrap()
+        .filter_map(Result::ok)
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(leftovers.len(), 2);
+}
+
+/// GNU rejects -b with -n and invalid --backup values.
+#[test]
+fn backup_option_conflicts_and_validation() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.txt");
+    fs::write(&src, "new").unwrap();
+    cargo_bin_cmd!("cp")
+        .args(["-b", "-n"])
+        .arg(&src)
+        .arg(dir.path().join("dest.txt"))
+        .assert()
+        .failure()
+        .stderr(
+            "cp: options --backup and --no-clobber are mutually exclusive\nTry 'cp --help' for more information.\n",
+        );
+    cargo_bin_cmd!("cp")
+        .args(["--backup=bogus"])
+        .arg(&src)
+        .arg(dir.path().join("dest.txt"))
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "cp: invalid argument 'bogus' for '--backup'",
+        ));
+}
+
+/// Backups also happen inside recursive copies when a tree entry is replaced.
+#[test]
+fn backup_applies_inside_recursive_copy() {
+    let dir = tempfile::tempdir().unwrap();
+    let src_sub = dir.path().join("src-sub");
+    let dst_sub = dir.path().join("dst-sub");
+    fs::create_dir(&src_sub).unwrap();
+    fs::create_dir(&dst_sub).unwrap();
+    fs::write(src_sub.join("f.txt"), "new").unwrap();
+    fs::write(dst_sub.join("f.txt"), "old").unwrap();
+    // Copy the contents of src-sub into the existing dst-sub (src/. form).
+    cargo_bin_cmd!("cp")
+        .args(["-rb"])
+        .arg(src_sub.join("."))
+        .arg(&dst_sub)
+        .assert()
+        .success();
+    // dst-sub/f.txt was overwritten; the old content went to f.txt~
+    assert_eq!(fs::read_to_string(dst_sub.join("f.txt~")).unwrap(), "old");
+    assert_eq!(fs::read_to_string(dst_sub.join("f.txt")).unwrap(), "new");
+}

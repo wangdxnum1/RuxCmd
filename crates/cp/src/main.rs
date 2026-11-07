@@ -21,6 +21,40 @@ fn main() {
         eprintln!("cp: cannot combine --target-directory (-t) and --no-target-directory (-T)");
         std::process::exit(1);
     }
+    if args.link && args.symbolic_link {
+        eprintln!("cp: cannot make both hard and symbolic links");
+        usage_error();
+    }
+    if args.backup.is_some() && args.no_clobber {
+        eprintln!("cp: options --backup and --no-clobber are mutually exclusive");
+        usage_error();
+    }
+    let backup = match args.backup.as_deref() {
+        None => Backup {
+            mode: None,
+            suffix: args.suffix.clone().unwrap_or_else(|| "~".to_string()),
+        },
+        Some("none") | Some("off") | Some("0") => Backup {
+            mode: None,
+            suffix: args.suffix.clone().unwrap_or_else(|| "~".to_string()),
+        },
+        Some("numbered") | Some("t") | Some("1") => Backup {
+            mode: Some(BackupMode::Numbered),
+            suffix: args.suffix.clone().unwrap_or_else(|| "~".to_string()),
+        },
+        Some("existing") | Some("nil") | Some("2") => Backup {
+            mode: Some(BackupMode::Existing),
+            suffix: args.suffix.clone().unwrap_or_else(|| "~".to_string()),
+        },
+        Some("simple") | Some("never") | Some("3") => Backup {
+            mode: Some(BackupMode::Simple),
+            suffix: args.suffix.clone().unwrap_or_else(|| "~".to_string()),
+        },
+        Some(other) => {
+            eprintln!("cp: invalid argument '{other}' for '--backup'");
+            usage_error();
+        }
+    };
 
     // Which operand is the destination follows GNU's position rules: with -t
     // every operand is a source and the option value is the destination, with
@@ -85,7 +119,7 @@ fn main() {
     let mut had_error = false;
 
     for source in sources {
-        if let Err(e) = copy_file(source, destination, &args, &mut had_error) {
+        if let Err(e) = copy_file(source, destination, &args, &backup, &mut had_error) {
             eprintln!("cp: {}", e);
             exit_code = 1;
         }
@@ -96,6 +130,20 @@ fn main() {
     }
 
     std::process::exit(exit_code);
+}
+
+/// Backup settings parsed once in main: `--backup=CONTROL` (plain -b is
+/// GNU's "existing" mode) and the -S suffix, which defaults to `~`.
+#[derive(Clone, Copy, PartialEq)]
+enum BackupMode {
+    Numbered,
+    Existing,
+    Simple,
+}
+
+struct Backup {
+    mode: Option<BackupMode>,
+    suffix: String,
 }
 
 fn usage_error() -> ! {
@@ -174,6 +222,7 @@ fn copy_file(
     source: &Path,
     dest: &Path,
     args: &cli::Args,
+    backup: &Backup,
     had_error: &mut bool,
 ) -> Result<(), String> {
     if !source.exists() {
@@ -193,7 +242,7 @@ fn copy_file(
                 source.display()
             ));
         }
-        return copy_directory(source, dest, args, had_error);
+        return copy_directory(source, dest, args, backup, had_error);
     }
 
     // GNU -T: the destination is never entered, so an existing directory
@@ -225,23 +274,20 @@ fn copy_file(
         return Ok(());
     }
 
-    if dest_path.exists() {
-        match overwrite_decision(args) {
-            Overwrite::Skip => return Ok(()),
-            Overwrite::Prompt => {
-                if !prompt_yes_no(&format!("cp: overwrite '{}'? ", dest_path.display())) {
-                    return Ok(());
-                }
-            }
-            Overwrite::Allow => {}
-        }
+    if !prepare_replace(source, &dest_path, args, backup)? {
+        return Ok(());
     }
 
-    if dest_path.exists() {
-        ensure_replaceable(&dest_path, args.force)?;
-    }
-
-    if args.symbolic_link {
+    if args.link {
+        fs::hard_link(source, &dest_path).map_err(|e| {
+            format!(
+                "cannot create hard link '{}' to '{}': {}",
+                dest_path.display(),
+                source.display(),
+                e
+            )
+        })?;
+    } else if args.symbolic_link {
         #[cfg(windows)]
         symlink_file(source, &dest_path).map_err(|e| {
             format!(
@@ -280,9 +326,99 @@ fn copy_file(
     Ok(())
 }
 
+/// Runs the overwrite, backup and hard-link pre-replace rules shared by
+/// top-level copies and in-tree entries.  Returns false when the caller
+/// should skip this destination entirely.
+fn prepare_replace(
+    source: &Path,
+    dest_path: &Path,
+    args: &cli::Args,
+    backup: &Backup,
+) -> Result<bool, String> {
+    if dest_path.exists() {
+        match overwrite_decision(args) {
+            Overwrite::Skip => return Ok(false),
+            Overwrite::Prompt => {
+                if !prompt_yes_no(&format!("cp: overwrite '{}'? ", dest_path.display())) {
+                    return Ok(false);
+                }
+            }
+            Overwrite::Allow => {}
+        }
+    }
+    let mut still_there = dest_path.exists();
+    if let (true, Some(mode)) = (still_there, backup.mode) {
+        make_backup(dest_path, mode, &backup.suffix)?;
+        still_there = false;
+    }
+    if still_there && args.link && !args.force {
+        return Err(format!(
+            "cannot create hard link '{}' to '{}': File exists",
+            dest_path.display(),
+            source.display()
+        ));
+    }
+    if still_there {
+        if args.link {
+            // GNU -f replaces an existing destination with the hard link.
+            fs::remove_file(dest_path)
+                .map_err(|e| format!("cannot remove '{}': {}", dest_path.display(), e))?;
+        } else {
+            ensure_replaceable(dest_path, args.force)?;
+        }
+    }
+    Ok(true)
+}
+
+/// Rename an existing destination to its backup name: `name` + suffix for
+/// simple backups, or the next free `name.~N~` for numbered ones.  GNU
+/// "existing" numbers only when a numbered backup is already present.
+fn make_backup(dest: &Path, mode: BackupMode, suffix: &str) -> Result<(), String> {
+    let parent = dest
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .to_path_buf();
+    let Some(name) = dest.file_name().and_then(|n| n.to_str()) else {
+        return Err(format!("cannot back up '{}'", dest.display()));
+    };
+    let next_numbered = |start: usize| -> PathBuf {
+        let mut n = start;
+        loop {
+            let candidate = parent.join(format!("{name}.~{n}~"));
+            if !candidate.exists() {
+                return candidate;
+            }
+            n += 1;
+        }
+    };
+    let backup_path = match mode {
+        BackupMode::Simple => parent.join(format!("{name}{suffix}")),
+        BackupMode::Numbered => next_numbered(1),
+        BackupMode::Existing => {
+            if next_numbered(1) != parent.join(format!("{name}.~1~")) {
+                next_numbered(1)
+            } else {
+                parent.join(format!("{name}{suffix}"))
+            }
+        }
+    };
+    fs::rename(dest, &backup_path).map_err(|e| {
+        format!(
+            "cannot create backup file '{}': {}",
+            backup_path.display(),
+            e
+        )
+    })
+}
+
 /// Copy one file entry from inside a directory tree, applying the same
 /// update, overwrite and read-only rules as a top-level copy.
-fn copy_entry_file(source: &Path, dest_path: &Path, args: &cli::Args) -> Result<(), String> {
+fn copy_entry_file(
+    source: &Path,
+    dest_path: &Path,
+    args: &cli::Args,
+    backup: &Backup,
+) -> Result<(), String> {
     if args.update {
         let source_metadata = fs::metadata(source)
             .map_err(|e| format!("cannot stat '{}': {}", source.display(), e))?;
@@ -291,27 +427,29 @@ fn copy_entry_file(source: &Path, dest_path: &Path, args: &cli::Args) -> Result<
         }
     }
 
-    if dest_path.exists() {
-        match overwrite_decision(args) {
-            Overwrite::Skip => return Ok(()),
-            Overwrite::Prompt => {
-                if !prompt_yes_no(&format!("cp: overwrite '{}'? ", dest_path.display())) {
-                    return Ok(());
-                }
-            }
-            Overwrite::Allow => {}
-        }
-        ensure_replaceable(dest_path, args.force)?;
+    if !prepare_replace(source, dest_path, args, backup)? {
+        return Ok(());
     }
 
-    fs::copy(source, dest_path).map_err(|e| {
-        format!(
-            "cannot copy '{}' to '{}': {}",
-            source.display(),
-            dest_path.display(),
-            e
-        )
-    })?;
+    if args.link {
+        fs::hard_link(source, dest_path).map_err(|e| {
+            format!(
+                "cannot create hard link '{}' to '{}': {}",
+                dest_path.display(),
+                source.display(),
+                e
+            )
+        })?;
+    } else {
+        fs::copy(source, dest_path).map_err(|e| {
+            format!(
+                "cannot copy '{}' to '{}': {}",
+                source.display(),
+                dest_path.display(),
+                e
+            )
+        })?;
+    }
 
     if args.verbose {
         println!("'{}' -> '{}'", source.display(), dest_path.display());
@@ -424,6 +562,7 @@ fn copy_directory(
     source: &Path,
     dest: &Path,
     args: &cli::Args,
+    backup: &Backup,
     had_error: &mut bool,
 ) -> Result<(), String> {
     let dest_path = if args.no_target_directory {
@@ -479,11 +618,11 @@ fn copy_directory(
         if entry_metadata.is_dir() {
             // A failing entry must not abort the remaining tree, but it does
             // make the overall cp fail (GNU exits 1 after reporting it).
-            if let Err(e) = copy_directory(&entry_path, &dest_entry_path, args, had_error) {
+            if let Err(e) = copy_directory(&entry_path, &dest_entry_path, args, backup, had_error) {
                 eprintln!("cp: {}", e);
                 *had_error = true;
             }
-        } else if let Err(e) = copy_entry_file(&entry_path, &dest_entry_path, args) {
+        } else if let Err(e) = copy_entry_file(&entry_path, &dest_entry_path, args, backup) {
             eprintln!("cp: {}", e);
             *had_error = true;
         }

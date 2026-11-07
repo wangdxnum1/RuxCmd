@@ -1,9 +1,15 @@
 use assert_cmd::cargo::cargo_bin_cmd;
+use std::fs;
 
 fn write_file(dir: &tempfile::TempDir, name: &str, content: &str) -> String {
     let path = dir.path().join(name);
     std::fs::write(&path, content).unwrap();
     path.to_string_lossy().into_owned()
+}
+
+/// Paths the walk renders use forward-slash display form (ruxcmd-core).
+fn shown(path: &std::path::Path) -> String {
+    path.display().to_string().replace('\\', "/")
 }
 
 #[test]
@@ -212,7 +218,7 @@ fn missing_file_exits_two_with_error_on_stderr() {
         .arg(&missing)
         .assert()
         .code(2)
-        .stderr(predicates::str::contains("Error reading"));
+        .stderr(predicates::str::contains("No such file or directory"));
 }
 
 #[test]
@@ -353,10 +359,12 @@ fn no_newline_marker_in_unified_format() {
         .arg(&f2)
         .assert()
         .code(1)
-        .stdout(format!(
-            "--- {}\n+++ {}\n@@ -1,2 +1,2 @@\n-x\n-b\n{}\n+y\n+c\n",
-            f1, f2, NO_NEWLINE
-        ));
+        .stdout(predicates::str::starts_with(format!("--- {f1}\t")))
+        .stdout(predicates::str::contains(format!("\n+++ {f2}\t")))
+        .stdout(predicates::str::contains(format!(
+            "@@ -1,2 +1,2 @@\n-x\n-b\n{}\n+y\n+c\n",
+            NO_NEWLINE
+        )));
 }
 
 #[test]
@@ -373,10 +381,12 @@ fn unified_marker_after_context_line() {
         .arg(&f2)
         .assert()
         .code(1)
-        .stdout(format!(
-            "--- {}\n+++ {}\n@@ -1,3 +1,3 @@\n-p\n+P\n q\n b\n{}\n",
-            f1, f2, NO_NEWLINE
-        ));
+        .stdout(predicates::str::starts_with(format!("--- {f1}\t")))
+        .stdout(predicates::str::contains(format!("\n+++ {f2}\t")))
+        .stdout(predicates::str::contains(format!(
+            "@@ -1,3 +1,3 @@\n-p\n+P\n q\n b\n{}\n",
+            NO_NEWLINE
+        )));
 }
 
 #[test]
@@ -439,38 +449,123 @@ fn unified_stdin_operand_uses_dash_label() {
         .write_stdin("goodbye\n")
         .assert()
         .code(1)
-        .stdout(predicates::str::contains("--- -\n+++ "))
+        .stdout(predicates::str::contains("--- -\t"))
+        .stdout(predicates::str::contains("\n+++ "))
         .stdout(predicates::str::contains("-goodbye\n+hello"));
 }
 
 #[test]
-fn recursive_flag_is_declared_unsupported() {
-    // -r/--recursive exists on the CLI but directory recursion is not
-    // implemented; using it must fail loudly instead of being a silent no-op.
+fn recursive_walk_reports_only_in_and_differences() {
     let dir = tempfile::tempdir().unwrap();
-    let f1 = write_file(&dir, "f1.txt", "a\n");
-    let f2 = write_file(&dir, "f2.txt", "b\n");
+    let left = dir.path().join("left");
+    let right = dir.path().join("right");
+    fs::create_dir(&left).unwrap();
+    fs::create_dir(&right).unwrap();
+    fs::write(left.join("a.txt"), "1\n").unwrap();
+    fs::write(right.join("a.txt"), "2\n").unwrap();
+    fs::write(left.join("same.txt"), "same\n").unwrap();
+    fs::write(right.join("same.txt"), "same\n").unwrap();
+    fs::write(left.join("gone.txt"), "only-left\n").unwrap();
+    fs::write(right.join("new.txt"), "only-right\n").unwrap();
 
     cargo_bin_cmd!("diff")
         .arg("-r")
-        .arg(&f1)
-        .arg(&f2)
+        .arg(&left)
+        .arg(&right)
         .assert()
-        .code(2)
-        .stderr(predicates::str::contains("not supported"));
+        .code(1)
+        .stdout(predicates::str::contains(format!(
+            "diff -r {}/a.txt {}/a.txt\n1c1\n< 1\n---\n> 2\n",
+            shown(&left),
+            shown(&right)
+        )))
+        .stdout(predicates::str::contains(format!(
+            "Only in {}: gone.txt\nOnly in {}: new.txt\n",
+            shown(&left),
+            shown(&right)
+        )));
 }
 
 #[test]
-fn directory_operand_is_rejected() {
-    // Without recursion a directory operand cannot be compared; GNU would
-    // need -r, which is unsupported.
+fn recursive_walk_descends_into_subdirectories() {
     let dir = tempfile::tempdir().unwrap();
-    let f1 = write_file(&dir, "f1.txt", "a\n");
+    let left = dir.path().join("l");
+    let right = dir.path().join("r");
+    fs::create_dir_all(left.join("sub")).unwrap();
+    fs::create_dir_all(right.join("sub")).unwrap();
+    fs::write(left.join("sub").join("f.txt"), "l1\n").unwrap();
+    fs::write(right.join("sub").join("f.txt"), "l2\n").unwrap();
 
     cargo_bin_cmd!("diff")
-        .arg(dir.path())
-        .arg(&f1)
+        .arg("-r")
+        .arg(&left)
+        .arg(&right)
         .assert()
-        .code(2)
-        .stderr(predicates::str::contains("Is a directory"));
+        .code(1)
+        .stdout(predicates::str::contains(format!(
+            "diff -r {}/sub/f.txt {}/sub/f.txt\n1c1\n< l1\n---\n> l2\n",
+            shown(&left),
+            shown(&right)
+        )));
+}
+
+#[test]
+fn non_recursive_walk_reports_common_subdirectories() {
+    let dir = tempfile::tempdir().unwrap();
+    let left = dir.path().join("l");
+    let right = dir.path().join("r");
+    fs::create_dir_all(left.join("sub")).unwrap();
+    fs::create_dir_all(right.join("sub")).unwrap();
+    fs::write(left.join("f.txt"), "same\n").unwrap();
+    fs::write(right.join("f.txt"), "same\n").unwrap();
+
+    cargo_bin_cmd!("diff")
+        .arg(&left)
+        .arg(&right)
+        .assert()
+        .code(0)
+        .stdout(predicates::str::contains(format!(
+            "Common subdirectories: {}/sub and {}/sub\n",
+            shown(&left),
+            shown(&right)
+        )));
+}
+
+#[test]
+fn walk_reports_type_mismatch_on_stdout() {
+    let dir = tempfile::tempdir().unwrap();
+    let left = dir.path().join("t1");
+    let right = dir.path().join("t2");
+    fs::create_dir(&left).unwrap();
+    fs::create_dir(&right).unwrap();
+    fs::write(left.join("x"), "file\n").unwrap();
+    fs::create_dir(right.join("x")).unwrap();
+
+    cargo_bin_cmd!("diff")
+        .arg("-r")
+        .arg(&left)
+        .arg(&right)
+        .assert()
+        .code(1)
+        .stdout(predicates::str::contains(format!(
+            "File {}/x is a regular file while file {}/x is a directory",
+            shown(&left),
+            shown(&right)
+        )));
+}
+
+#[test]
+fn file_against_directory_compares_same_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let subdir = dir.path().join("dir");
+    fs::create_dir(&subdir).unwrap();
+    fs::write(dir.path().join("f.txt"), "outside\n").unwrap();
+    fs::write(subdir.join("f.txt"), "inside\n").unwrap();
+
+    cargo_bin_cmd!("diff")
+        .arg(dir.path().join("f.txt"))
+        .arg(&subdir)
+        .assert()
+        .code(1)
+        .stdout(predicates::str::contains("1c1\n< outside\n---\n> inside\n"));
 }

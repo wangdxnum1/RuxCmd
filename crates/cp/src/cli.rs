@@ -52,6 +52,26 @@ pub struct Args {
     #[arg(short = 's', long = "symbolic-link")]
     pub symbolic_link: bool,
 
+    /// Hard-link files instead of copying (directory trees link each file)
+    #[arg(short = 'l', long = "link")]
+    pub link: bool,
+
+    /// Make a backup of each existing destination file before replacing it.
+    /// Plain -b/-backup behaves like --backup=existing; an explicit control
+    /// comes via `--backup=numbered|existing|simple|none` (also t/nil/never/off).
+    #[arg(
+        short = 'b',
+        long = "backup",
+        require_equals = true,
+        num_args = 0..=1,
+        default_missing_value = "existing"
+    )]
+    pub backup: Option<String>,
+
+    /// Override the usual backup suffix (~)
+    #[arg(short = 'S', long = "suffix", value_name = "SUFFIX")]
+    pub suffix: Option<String>,
+
     /// Explain what is being done
     #[arg(short = 'v', long = "verbose")]
     pub verbose: bool,

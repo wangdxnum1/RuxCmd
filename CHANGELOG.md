@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.3 — cp 硬链接与备份、diff 递归与时间戳(2026-11-07)
+
+- cp:新增 `-l/--link` 硬链接（std hard_link/CreateHardLinkW）：目标存在报 GNU 同款 "cannot create hard link ...: File exists"、`-f` 先删再链、`-r` 递归硬链接树中每个文件、与 `-s` 组合报 "cannot make both hard and symbolic links"；新增 `-b/--backup` 与 `-S/--suffix`：备份在确认覆盖后进行，plain `-b` 为 GNU existing 模式（存在 `.~N~` 编号备份则继续编号，否则加 `~` 后缀），`--backup=numbered/existing/simple/none` 显式选择，`-S` 覆盖 simple 后缀；`-n` 与 `-b` 互斥报 GNU 同款错误，新目标不产生备份，递归复制中的条目同样备份。
+- diff:实现 `-r/--recursive` 目录树比较：单次合并字母序遍历，仅一侧存在的条目输出 `Only in`，公共子目录（无 `-r`）输出 `Common subdirectories` 且不计入差异，`-r` 递归，类型不匹配输出 GNU 措辞的 File ... while file ...（stdout）并计为差异；每个差异对输出 `diff [flags] L R` 头行，flags 按命令行原样回显（`-ru`、`-B -i -r`、长选项均保留）。文件操作数与目录配对时按 GNU 与 `目录/同名文件` 比较（缺同名文件报 GNU 同款错误退出 2）。
+- diff:`-u` 头行补齐 GNU 时间戳（本地时间 + 9 位纳秒 + UTC 偏移，经 FileTimeToSystemTime/SystemTimeToTzSpecificLocalTime，stdin 按读取时刻打戳）；hunk 头 count=1 时按 GNU 省略（`@@ -1 +2,3 @@`）。目录遍历与直接比较的全部 9 组场景与 MSYS2 GNU diffutils 3.x 逐字节一致（唯 argv[0] 前缀差异不可比）。
+- ci(release):Release 工作流发布时从 CHANGELOG 提取对应版本节作为发布说明（--notes-file），替代只生成比较链接的 --generate-notes；v0.5.0-v0.5.2 已回填。
+
 ## 0.5.2 — 校验和二进制模式、uniq 输出文件、truncate 调整符(2026-11-07)
 
 - md5sum/sha1sum/sha256sum/sha512sum:新增 `-b/--binary` 与 `-t/--text`。`-b` 按 GNU 二进制格式输出 `hash *name`（星号前有空格），`-t` 显式文本模式（双空格）；同一命令行两者都给出时最后一个生效（GNU）；`--tag` 与 `-t` 组合报错退出 1，`--tag -b` 允许；`-c` 下任一模式报 GNU 同款 "meaningless" 错误；与 `-z` 组合保持 NUL 结尾。`-b`/`-t` 输出与 MSYS2 coreutils 逐字节一致，纳入 difftest（20 个新用例）。
