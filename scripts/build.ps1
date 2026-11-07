@@ -4,7 +4,7 @@
 Build, check, test, verify, or clean RuxCmd from any working directory.
 .DESCRIPTION
 Defaults to a locked Windows x64 release build. Verify runs all checks,
-tests, builds, smoke/behavior checks and script tests. Use -WhatIf to preview.
+tests, builds, compatibility, smoke/behavior checks and script tests. Use -WhatIf to preview.
 .EXAMPLE
 ./scripts/build.ps1 -Package ps -Configuration Debug -Jobs 4
 .EXAMPLE
@@ -72,10 +72,12 @@ try {
         if ($Configuration -eq 'Release') { $buildArguments += '--release' }
         Invoke-CargoStep 'Build' $buildArguments
     }
-    if ($Task -eq 'Verify' -and $PSCmdlet.ShouldProcess($binaryDirectory, 'Run smoke, behavior and script tests')) {
+    if ($Task -eq 'Verify' -and $PSCmdlet.ShouldProcess($binaryDirectory, 'Run compatibility, smoke, behavior and script tests')) {
         & (Join-Path $PSScriptRoot 'verify-version-info.ps1') -BinDir $binaryDirectory -DebugBuild:($Configuration -eq 'Debug')
+        & (Join-Path $PSScriptRoot 'compat-check.ps1') -BinDir $binaryDirectory
         & (Join-Path $PSScriptRoot 'smoke-test.ps1') -BinDir $binaryDirectory
         & (Join-Path $PSScriptRoot 'verify-behavior.ps1') -BinDir $binaryDirectory
+        & (Join-Path $PSScriptRoot 'tests/file-batch-tests.ps1') -BinDir $binaryDirectory
         & (Join-Path $PSScriptRoot 'tests/version-resource-tests.ps1')
         & (Join-Path $PSScriptRoot 'tests/package-tests.ps1') -BinDir $binaryDirectory -DebugBuild:($Configuration -eq 'Debug')
         & (Join-Path $PSScriptRoot 'tests/entrypoint-tests.ps1')

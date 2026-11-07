@@ -30,6 +30,7 @@ function Invoke-ToolProcess {
     # with the console codepage (e.g. GBK), corrupting non-ASCII descriptions.
     $info.StandardOutputEncoding = [Text.Encoding]::UTF8
     $info.StandardErrorEncoding = [Text.Encoding]::UTF8
+    $info.StandardInputEncoding = [Text.UTF8Encoding]::new($false)
     foreach ($argument in $Arguments) { $info.ArgumentList.Add($argument) }
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = $info

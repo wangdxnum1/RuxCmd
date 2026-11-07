@@ -35,15 +35,11 @@ jobs:
           # changes. A miss simply rebuilds; `cache-workspace-crates: false` keeps
           # this run's crates out of the cache, so a hit can never substitute the
           # 142 release binaries that the compatibility check reads.
-          key: ${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', '.cargo/config.toml', '.github/workflows/ci.yml') }}
+          key: ${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', '.cargo/config.toml', '.github/workflows/ci.yml', '.github/workflows/release.yml') }}
           cache-targets: true
           cache-workspace-crates: false
       - name: Verify workspace and build release binaries
         run: ./scripts/build.ps1 -Task Verify
-      - name: Confirm the release binaries were produced by this build
-        run: ./scripts/verify-version-info.ps1
-      - name: Check compatibility tables and documented counts
-        run: ./scripts/compat-check.ps1
       - name: Build and verify ZIP
         run: ./scripts/release.ps1
       - name: Install supported Inno Setup

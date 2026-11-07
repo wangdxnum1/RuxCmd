@@ -9,11 +9,13 @@ description = "Build and execute command lines from standard input — a Windows
 authors = ["Tim"]
 
 [dependencies]
+ruxcmd-core = { path = "../ruxcmd-core" }
 clap = { version = "4", features = ["derive"] }
 windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem", "Win32_Foundation", "Win32_Security", "Win32_System_IO"] }
 
 [dev-dependencies]
 assert_cmd.workspace = true
+tempfile.workspace = true
 
 [build-dependencies]
 ruxcmd-build.workspace = true

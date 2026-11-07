@@ -9,6 +9,7 @@ description = "A Windows find clone — search for files in a directory hierarch
 authors = ["Tim"]
 
 [dependencies]
+ruxcmd-core = { path = "../ruxcmd-core" }
 regex = "1"
 
 [dev-dependencies]

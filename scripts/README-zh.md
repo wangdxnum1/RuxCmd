@@ -25,7 +25,7 @@ pwsh -File scripts/build.ps1 -Task Verify -Jobs 4
 pwsh -File scripts/build.ps1 -Task Clean -Configuration Debug -WhatIf
 ```
 
-`Verify` 必须覆盖整个 workspace，不接受 `-Package`。依次执行格式/check/Clippy、Rust 测试、编译、原生版本资源检查、全部命令冒烟、代表性行为及全部脚本测试。任何一步失败均立即停止。实际产物目录由 Cargo metadata 确定，也支持 `CARGO_TARGET_DIR`；普通配置为 `target/x86_64-pc-windows-msvc/{release|debug}/`。
+`Verify` 必须覆盖整个 workspace，不接受 `-Package`。依次执行格式/check/Clippy、Rust 测试、编译、原生版本资源检查、针对本次构建目录的兼容表检查、全部命令冒烟、代表性行为及全部脚本测试。任何一步失败均立即停止。实际产物目录由 Cargo metadata 确定，也支持 `CARGO_TARGET_DIR`；普通配置为 `target/x86_64-pc-windows-msvc/{release|debug}/`。
 
 `Clean` 使用 `cargo clean`，显式选择 workspace 或指定包，只处理选定目标和配置的项目编译产物，保留第三方依赖缓存；不清理 `dist`、源码或用户文件。`Check` 只检查格式，不修改源码。`-WhatIf` 不能替代实际验证。
 
@@ -73,7 +73,7 @@ Round 16 为专属用例增加 NUL、未终止 NUL、二进制 NUL 和连续空�
 
 默认使用当前 release 二进制（缺失时回退 debug）和 Git for Windows 自带 GNU 工具；请先构建或显式指定 `-BinDir`。所选 RuxCmd 二进制必须存在；缺失 GNU 参照及声明的平台差异计为跳过。比较原始 stdout 和退出码；修改文件的命令使用两份独立 fixture，另比较文件内容与目录状态。仅 mktemp 随机名作规范化，需要正常 Windows 硬链接支持。SHA 校验模式会实际验证清单，不受 MSYS 二进制生成格式豁免影响。不声明文件系统 stderr 文案、ACL、WTS/utmp 身份及长列表格式逐字节等价。
 
-CI workflow 调用 `build.ps1 -Task Verify`、`compat-check.ps1` 和 `release.ps1`。Release workflow 检出已存在的版本 tag，调用相同 Verify 入口，再运行 `release.ps1 -Tag <tag> -RequireClean`；它仅上传 Actions artifact，不执行 `-Publish`。远程发布需要维护者明确运行本地发布命令。
+CI 与 Release 都调用 `build.ps1 -Task Verify`，其中包含针对本次构建目录的兼容表检查。两者缓存依赖但不缓存工作区命令产物。CI 随后执行 `release.ps1`；Release 检出已存在的版本 tag，再执行 `release.ps1 -Tag <tag> -RequireClean`，上传 Actions artifact 并自动发布包含 ZIP、安装包 EXE 及其校验文件的 GitHub Release。本地发布仍需显式运行 `release.ps1 -Publish`。
 
 脚本测试：
 
@@ -108,3 +108,7 @@ pwsh -File scripts/tests/ps-refactor-compare.ps1 -BaselineBinary target/ps-befor
 该对比查询自己的进程，检查 stdout/stderr/退出码与文件输出，不发送进程信号或
 打开桌面窗口。`docs/ps/docs/superpowers` 内的原始计划保留为历史资料，不代表
 当前包布局。
+
+## 文件批处理场景
+
+`tests/file-batch-tests.ps1 -BinDir <目录>` 直接连接原生字节流，验证 find → xargs → cp、find -exec +、81 个中文/元字符文件的多批次复制与 SHA256、空选择及失败传播。Verify 和 ZIP 解压验证自动执行。见[使用与限制](../docs/file-batch-usage.md)。

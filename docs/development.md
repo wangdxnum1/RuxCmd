@@ -20,7 +20,7 @@ The five `open` desktop integration checks are marked `#[ignore]`: they launch E
 
 Paths are resolved against the PowerShell current directory, so relative BinDir/OutputDir values keep working even after Set-Location when the .NET process directory has not been synced. Process waits, stdin writes, and output pipes share a common deadline; a Windows Job Object owns the lifetime of the spawned child tree, including descendants that outlive a parent already exited while still holding output pipes.
 
-CI additionally runs `scripts/compat-check.ps1`: it compares the compatibility tables with `cargo metadata` and each command's `--help`, and checks the command/package counts quoted in the READMEs and development pages. Table structure damage, a missing or duplicate row, an option that exists in only one place, or a stale count fails the job. Commands whose help text is not a reliable option inventory are skipped explicitly and the reasons are printed.
+`scripts/build.ps1 -Task Verify` runs `scripts/compat-check.ps1` against its exact build directory, so local validation, CI and Release share this gate: it compares the compatibility tables with `cargo metadata` and each command's `--help`, and checks the command/package counts quoted in the READMEs and development pages. Table structure damage, a missing or duplicate row, an option that exists in only one place, or a stale count fails the job. Commands whose help text is not a reliable option inventory are skipped explicitly and the reasons are printed.
 
 The 21 tests in `scripts/tests/package-tests.ps1` cover failure conditions such as paths containing spaces, relative paths after Set-Location, arguments, timeouts, descendants inheriting output pipes, blocking stdin, large outputs, ps-bin/ps naming, manifest omissions, stale artifacts, checksum tampering, release tags, and refusing overwrites.
 
@@ -52,7 +52,7 @@ Scoop and winget sources live in `scripts/packaging/`. `scoop/ruxcmd.json` uses 
 
 ## Known issues
 
-- Historical code contains unused imports/variables, dead code, and Clippy style warnings; the baseline gate is that check commands exit successfully, to be cleaned up incrementally.
+- Clippy runs with `-D warnings`; warnings fail verification.
 - Behavior testing surfaced and fixed the cp/mv source-argument requiredness declarations and grep's no-match exit code; csplit's overflow check was changed to checked_add.
 - `wc` reading stdin prints a bare count with no name suffix, matching GNU; the `<stdin>` label appears only in error messages.
 - `whereis` still contains historical fixed search paths; its behavioral compatibility needs a dedicated fix, and the build/release pipeline does not depend on them.

@@ -34,13 +34,12 @@ jobs:
           $version = (Select-String -Path rust-toolchain.toml -Pattern '^channel = "([^"]+)"').Matches[0].Groups[1].Value
           rustup toolchain install $version --profile minimal --component rustfmt --component clippy --target x86_64-pc-windows-msvc
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      - uses: Swatinem/rust-cache@e9d7b9f1e587218970671bac74e5511ed9506e6a # v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-msvc-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', '.cargo/config.toml') }}
+          # Match CI: keep dependencies, but rebuild workspace command artifacts.
+          key: ${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', '.cargo/config.toml', '.github/workflows/ci.yml', '.github/workflows/release.yml') }}
+          cache-targets: true
+          cache-workspace-crates: false
       - name: Validate source
         run: ./scripts/build.ps1 -Task Verify
       - name: Build and verify tagged release

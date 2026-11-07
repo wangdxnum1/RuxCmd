@@ -9,6 +9,7 @@
 //! - [`fsutil`]: clearing the read-only attribute before overwrites
 
 pub mod bre;
+pub mod command_batch;
 pub mod cpu;
 pub mod fsutil;
 pub mod lines;

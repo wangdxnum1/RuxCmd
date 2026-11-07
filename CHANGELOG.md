@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0 — 文件批处理联合迭代与发布基线稳定(2026-11-07)
+
+- 文件批处理联合迭代：xargs 改为 UTF-8 流式解析，支持引号/转义、-I/-r、完整标记替换、NUL 空参数与明确子状态处理；子命令参数不再被误作 xargs 选项，未启用替换时花括号保持字面值。
+- xargs 与 find -exec + 共用含引用开销的 8000 UTF-16 单位预算；-n 不绕过长度限制，find 每个动作独立分批并继续汇总失败。满批即执行可能影响后续遍历；非法 UTF-8 和超长项明确报错。
+- 新增真实 find→xargs→cp 字节管道、find -exec + 与逐文件 SHA256 场景，纳入 Verify 和 ZIP 解压验证；测试工具 stdin 显式使用 UTF-8，避免本机代码页破坏中文校验清单。详见 docs/file-batch-usage.md。
+- 稳定发布基线：兼容表校验纳入 `build.ps1 -Task Verify`，检查本次构建的 Debug/Release 目录并在失败时停止；CI、Release 与本地发布共用该门禁。
+- Release 与 CI 使用相同的依赖缓存策略，不缓存工作区命令产物；补齐 cut/diff/mktemp 选项清单及中文 diff 说明。
+- 新增按版本号与提交定位的迭代状态页，保留历史轮次记录。
+
 ## 0.4.9 — sed 反向引用、diff 换行标记(2026-11-07)
 
 - sed:BRE 与 ERE 模式的反向引用 `\1`-`\9` 支持（经 ruxcmd-core 翻译器 fancy-regex 路径，地址与 s 命令均适用）；无效反向引用（前向/越界/引用未闭合分组）启动报错 Invalid back reference 退出 2；非 UTF-8 数据按原始字节匹配不变。

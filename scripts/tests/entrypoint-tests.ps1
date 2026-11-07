@@ -167,6 +167,53 @@ throw 'Offline child confirmed; controlled failure.'
         Assert-EntryProcess $result 1 'Offline child confirmed; controlled failure'
         if ($result.Output -match 'Verify completed') { throw 'Verify claimed success after child failure.' }
     }
+    foreach ($configuration in @('Release', 'Debug')) {
+        Test-Entry "$configuration Verify uses built artifacts and stops on compatibility failure" {
+            'param([string]$BinDir, [switch]$DebugBuild)' | Set-Content -LiteralPath (Join-Path $fixture 'scripts/verify-version-info.ps1') -Encoding utf8NoBOM
+            @'
+param([string]$BinDir)
+throw 'Smoke reached before compatibility gate.'
+'@ | Set-Content -LiteralPath (Join-Path $fixture 'scripts/smoke-test.ps1') -Encoding utf8NoBOM
+            $fixtureProfile = $configuration.ToLowerInvariant()
+            @"
+param([string]`$BinDir)
+`$expected = Join-Path (Split-Path `$PSScriptRoot -Parent) 'custom target/x86_64-pc-windows-msvc/$fixtureProfile'
+if ([IO.Path]::GetFullPath(`$BinDir) -cne [IO.Path]::GetFullPath(`$expected)) { throw "Wrong compatibility binary directory: `$BinDir" }
+if (-not (Test-Path -LiteralPath (Join-Path `$BinDir 'fixture-command.exe'))) { throw 'Compatibility ran before build.' }
+if (`$env:CARGO_NET_OFFLINE -ne 'true') { throw 'Compatibility did not inherit Offline.' }
+throw 'Compatibility gate confirmed; controlled failure.'
+"@ | Set-Content -LiteralPath (Join-Path $fixture 'scripts/compat-check.ps1') -Encoding utf8NoBOM
+            $previousTarget = [Environment]::GetEnvironmentVariable('CARGO_TARGET_DIR', 'Process')
+            try {
+                $env:CARGO_TARGET_DIR = Join-Path $fixture 'custom target'
+                $result = Invoke-ToolProcess $pwsh @('-NoProfile', '-File', $build, '-Task', 'Verify', '-Configuration', $configuration, '-Offline') -TimeoutSeconds 120
+            } finally {
+                if ([string]::IsNullOrEmpty($previousTarget)) {
+                    Remove-Item Env:CARGO_TARGET_DIR -ErrorAction SilentlyContinue
+                } else {
+                    $env:CARGO_TARGET_DIR = $previousTarget
+                }
+            }
+            Assert-EntryProcess $result 1 'Compatibility gate confirmed; controlled failure'
+            if (($result.Output + $result.Error) -match 'Smoke reached|Verify completed') { throw 'Verify continued after compatibility failure.' }
+        }
+    }
+    Test-Entry 'Verify forwards artifacts and Offline to file batch scenarios and stops on failure' {
+        foreach ($name in @('verify-version-info.ps1', 'compat-check.ps1', 'smoke-test.ps1', 'verify-behavior.ps1')) {
+            'param([string]$BinDir, [switch]$DebugBuild)' | Set-Content -LiteralPath (Join-Path $fixture "scripts/$name") -Encoding utf8NoBOM
+        }
+        [IO.Directory]::CreateDirectory((Join-Path $fixture 'scripts/tests')) | Out-Null
+        '# controlled no-op' | Set-Content -LiteralPath (Join-Path $fixture 'scripts/tests/version-resource-tests.ps1') -Encoding utf8NoBOM
+        "throw 'Package reached before file batch gate.'" | Set-Content -LiteralPath (Join-Path $fixture 'scripts/tests/package-tests.ps1') -Encoding utf8NoBOM
+        @'
+param([string]$BinDir)
+if (-not $BinDir.EndsWith('release') -or $env:CARGO_NET_OFFLINE -ne 'true') { throw 'File batch configuration was not forwarded.' }
+throw 'File batch gate confirmed; controlled failure.'
+'@ | Set-Content -LiteralPath (Join-Path $fixture 'scripts/tests/file-batch-tests.ps1') -Encoding utf8NoBOM
+        $result = Invoke-ToolProcess $pwsh @('-NoProfile', '-File', $build, '-Task', 'Verify', '-Offline') -TimeoutSeconds 120
+        Assert-EntryProcess $result 1 'File batch gate confirmed; controlled failure'
+        if (($result.Output + $result.Error) -match 'Package reached|Verify completed') { throw 'Verify continued after file batch failure.' }
+    }
     Test-Entry 'Debug Verify forwards configuration to package resource checks' {
         @'
 param([string]$BinDir, [switch]$DebugBuild)
@@ -175,7 +222,15 @@ if (-not $DebugBuild) { throw 'Debug resource configuration was not forwarded.' 
         foreach ($name in @('smoke-test.ps1', 'verify-behavior.ps1')) {
             'param([string]$BinDir)' | Set-Content -LiteralPath (Join-Path $fixture "scripts/$name") -Encoding utf8NoBOM
         }
+        @'
+param([string]$BinDir)
+if (-not $BinDir.EndsWith('debug')) { throw 'Compatibility did not receive Debug artifacts.' }
+'@ | Set-Content -LiteralPath (Join-Path $fixture 'scripts/compat-check.ps1') -Encoding utf8NoBOM
         [IO.Directory]::CreateDirectory((Join-Path $fixture 'scripts/tests')) | Out-Null
+        @'
+param([string]$BinDir)
+if (-not $BinDir.EndsWith('debug')) { throw 'File batch scenario did not receive Debug artifacts.' }
+'@ | Set-Content -LiteralPath (Join-Path $fixture 'scripts/tests/file-batch-tests.ps1') -Encoding utf8NoBOM
         '# controlled no-op' | Set-Content -LiteralPath (Join-Path $fixture 'scripts/tests/version-resource-tests.ps1') -Encoding utf8NoBOM
         @'
 param([string]$BinDir, [switch]$DebugBuild)

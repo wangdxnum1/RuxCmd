@@ -872,6 +872,7 @@ dependencies = [
  "predicates",
  "regex",
  "ruxcmd-build",
+ "ruxcmd-core",
  "tempfile",
 ]
 
@@ -4197,6 +4198,8 @@ dependencies = [
  "assert_cmd",
  "clap",
  "ruxcmd-build",
+ "ruxcmd-core",
+ "tempfile",
  "windows-sys 0.61.2",
 ]
 

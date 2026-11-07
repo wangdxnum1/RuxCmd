@@ -97,14 +97,19 @@ function New-RandText([int]$lines) {
 # Input shapes: each variant produces one file per shape.
 $shapes = @('ascii', 'crlf', 'nonutf8', 'empty', 'notrail', 'long')
 $recordShapes = @('nul', 'nulnotrail', 'nulbinary', 'nulemptyrecords')
+$batchShapes = @('xargsquoted', 'xargslines', 'xargsnul', 'xargsbadquote')
 $work = Join-Path ([System.IO.Path]::GetTempPath()) ("difftest-" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $work | Out-Null
 
 $inputs = @{}   # "$shape$variant" -> file path
 for ($v = 0; $v -lt $Variants; $v++) {
-    foreach ($shape in ($shapes + $recordShapes)) {
+    foreach ($shape in ($shapes + $recordShapes + $batchShapes)) {
         $path = Join-Path $work ("$shape$v.in")
         switch ($shape) {
+            'xargsquoted' { [IO.File]::WriteAllText($path, ('"alpha beta" ''中文 😀'' '''' escaped\ space' + "`n")) }
+            'xargslines' { [IO.File]::WriteAllText($path, "  alpha beta`n'中文 😀'`n`n") }
+            'xargsnul' { [IO.File]::WriteAllBytes($path, [Text.Encoding]::UTF8.GetBytes("a`0`0中文 '\tail`0")) }
+            'xargsbadquote' { [IO.File]::WriteAllText($path, "'unfinished") }
             { $_ -in @('nul','nulnotrail') } {
                 $records = @((New-RandText 20).TrimEnd("`n") -split "`n")
                 $records[0] += "`nembedded"
@@ -147,7 +152,18 @@ for ($v = 0; $v -lt $Variants; $v++) {
 # ---------------------------------------------------------------------------
 $allShapes = $shapes
 $allRecords = $recordShapes + @('empty')
+$batchBinaryDirectory = (Get-Item -LiteralPath $BinDir).FullName
+$batchPrintf = Join-Path $batchBinaryDirectory 'printf.exe'
 $matrix = @(
+    # Same native formatter on both sides isolates argument construction from MSYS formatting.
+    @{ cmd='xargs'; argv=@(); shapes=@('ascii','crlf','empty','notrail') }
+    @{ cmd='xargs'; argv=@('-n','2',$batchPrintf,'<%s>\n'); shapes=@('xargsquoted') }
+    @{ cmd='xargs'; argv=@('-I','{}',$batchPrintf,'<%s>\n','{}:{}'); shapes=@('xargslines','empty') }
+    @{ cmd='xargs'; argv=@('-0',$batchPrintf,'<%s>\n'); shapes=@('xargsnul','nulemptyrecords') }
+    @{ cmd='xargs'; argv=@('-0','-I','@',$batchPrintf,'<%s>\n','@:@'); shapes=@('xargsnul') }
+    @{ cmd='xargs'; argv=@('-r',$batchPrintf,'ran\n'); shapes=@('empty') }
+    @{ cmd='xargs'; argv=@('-I','{}','-n','2',$batchPrintf,'<%s>\n','{}'); shapes=@('xargslines') }
+    @{ cmd='xargs'; argv=@($batchPrintf,'<%s>\n'); shapes=@('xargsbadquote') }
     # --- cat -------------------------------------------------------------
     @{ cmd='cat';    argv=@();                shapes=$allShapes }
     @{ cmd='cat';    argv=@('-n');            shapes=@('ascii','notrail','empty') }
@@ -707,10 +723,14 @@ $failures = [System.Collections.Generic.List[string]]::new()
 $skipReported = @{}
 $referenceHelp = @{}
 
-$selected = if ($Cases) { $matrix | Where-Object { $_.cmd -cin $Cases } } else { $matrix }
+$selected = @($matrix | Where-Object { -not $Cases -or $_.cmd -cin $Cases })
+if ($selected.Count -eq 0) { throw 'No differential cases selected; check -Cases.' }
 Write-Host ("inputs=" + $inputs.Count + " cases=" + $selected.Count)
 foreach ($case in $selected) {
     $key = $case.cmd + '|' + ($case.argv -join ' ')
+    if ($case.cmd -eq 'xargs' -and $batchPrintf -in $case.argv -and -not (Test-Path -LiteralPath $batchPrintf -PathType Leaf)) {
+        throw "The selected xargs case needs the native printf formatter: $batchPrintf"
+    }
     if (-not (Test-Path (Join-Path $BinDir ($case.cmd + '.exe')))) { throw "Missing RuxCmd executable: $($case.cmd)" }
     # Skip the whole case when the GNU reference tool is not installed
     # (Git for Windows ships only a subset of coreutils, e.g. no rev).

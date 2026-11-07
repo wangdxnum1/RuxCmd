@@ -61,6 +61,12 @@ try {
         Assert-Equal $result.ExitCode 0
         Assert-Equal $result.Output.TrimEnd() 'an argument with spaces'
     }
+    Test-Case 'UTF-8 stdin survives the host console codepage' {
+        $text = "中文😀`n"
+        $result = Invoke-ToolProcess (Join-Path $BinDir 'cat.exe') -InputText $text
+        Assert-ToolSuccess $result 'UTF-8 input roundtrip'
+        Assert-Equal $result.Output $text
+    }
     Test-Case 'relative binary paths follow PowerShell Set-Location' {
         $relativeBins = Join-Path $temporary 'relative binaries'
         [IO.Directory]::CreateDirectory($relativeBins) | Out-Null

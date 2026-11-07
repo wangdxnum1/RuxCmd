@@ -1,173 +1,161 @@
 mod cli;
+mod input;
 
-use std::io::{self, Read, Write};
+use ruxcmd_core::command_batch::{CommandBudget, MAX_COMMAND_UNITS, command_units};
+use std::io::{self, Write};
 use std::process::{Command, Stdio};
 
 fn main() {
-    let args = cli::Args::parse();
-
-    let mut raw_input: Vec<u8> = Vec::new();
-    if let Err(e) = io::stdin().read_to_end(&mut raw_input) {
-        eprintln!("xargs: error reading stdin: {}", e);
-        std::process::exit(1);
-    }
-
-    let input_args: Vec<String> = if args.null_delimited {
-        raw_input
-            .split(|&b| b == 0)
-            .filter(|s| !s.is_empty())
-            .map(|s| String::from_utf8_lossy(s).into_owned())
-            .collect()
-    } else {
-        let text = String::from_utf8_lossy(&raw_input);
-        text.split_whitespace().map(|s| s.to_string()).collect()
-    };
-
-    // GNU xargs runs the command once even with empty input; the old
-    // built-in -r silently skipped it.
-    let replace_str = &args.replace;
-    let replace_set = args.replace_set;
-    let uses_replace = args
-        .command
-        .iter()
-        .any(|arg| arg == replace_str || arg.contains(replace_str));
-    let max_args_val = args.max_args;
-
-    let mut command_template = args.command;
-    if command_template.is_empty() {
-        command_template.push("echo".to_string());
-    }
-
-    let (max_args, is_replace_mode) = if replace_set || uses_replace {
-        (1, true)
-    } else if max_args_val == 0 {
-        (input_args.len(), false)
-    } else {
-        (max_args_val, false)
-    };
-
-    const MAX_COMMAND_CHARS: usize = 8000;
-
-    // GNU xargs (without -r) runs the command once even with empty input.
-    if input_args.is_empty() {
-        let program = &command_template[0];
-        if args.verbose {
-            eprintln!("{} {}", program, command_template[1..].join(" "));
+    let code = match cli::Args::parse() {
+        Ok(args) => match run(args) {
+            Ok(code) => code,
+            Err(code) => code,
+        },
+        Err(error) => {
+            eprintln!("xargs: {error}");
+            1
         }
-        let status = Command::new(program)
-            .args(&command_template[1..])
-            .stdin(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .status();
-        match status {
-            Ok(s) if s.success() => return,
-            Ok(s) => std::process::exit(s.code().unwrap_or(1)),
-            Err(e) => {
-                eprintln!("xargs: {}: {}", program, e);
-                std::process::exit(1);
-            }
+    };
+    std::process::exit(code);
+}
+
+fn fail(message: impl std::fmt::Display) -> i32 {
+    eprintln!("xargs: {message}");
+    1
+}
+
+fn run(mut args: cli::Args) -> Result<i32, i32> {
+    let internal_echo = args.command.is_empty();
+    if internal_echo {
+        args.command.push("echo".into());
+    }
+    let mut executor = Executor {
+        internal_echo,
+        verbose: args.verbose,
+        interactive: args.interactive,
+        status: 0,
+    };
+    let stdin = io::stdin();
+    let mut items = input::Items::new(stdin.lock(), args.null_delimited, args.replace.is_some());
+    if let Some(marker) = &args.replace {
+        while let Some(item) = items.next().map_err(fail)? {
+            let command = replacement_command(&args.command, marker, &item)?;
+            executor.execute(&command)?;
+        }
+        return Ok(executor.status);
+    }
+    let mut budget = CommandBudget::new(&args.command).map_err(fail)?;
+    let mut batch = args.command.clone();
+    let fixed_len = batch.len();
+    let mut seen = false;
+    while let Some(item) = items.next().map_err(fail)? {
+        seen = true;
+        if !budget.can_fit_item(&item) {
+            return Err(fail("input item exceeds command-line limit"));
+        }
+        if !budget.try_add(&item) {
+            executor.execute(&batch)?;
+            batch.truncate(fixed_len);
+            budget.reset();
+            assert!(budget.try_add(&item));
+        }
+        batch.push(item);
+        if batch.len() - fixed_len >= args.max_args {
+            executor.execute(&batch)?;
+            batch.truncate(fixed_len);
+            budget.reset();
         }
     }
+    if batch.len() > fixed_len || (!seen && !args.no_run_if_empty) {
+        executor.execute(&batch)?;
+    }
+    Ok(executor.status)
+}
 
-    let mut i = 0;
-    while i < input_args.len() {
-        // Respect -n but never exceed the Windows command-line length limit.
-        let mut end = std::cmp::min(i + max_args, input_args.len());
-        if !is_replace_mode && max_args_val == 0 {
-            let mut used: usize = command_template.iter().map(|a| a.len() + 1).sum();
-            end = i;
-            while end < input_args.len() {
-                used += input_args[end].len() + 1;
-                if used > MAX_COMMAND_CHARS && end > i {
-                    break;
+fn replacement_command(template: &[String], marker: &str, item: &str) -> Result<Vec<String>, i32> {
+    let mut command = Vec::new();
+    let mut used = 1; // terminating NUL
+    for argument in template {
+        let mut replaced = String::new();
+        let mut argument_units = 0;
+        for (index, part) in argument.split(marker).enumerate() {
+            for text in [if index == 0 { "" } else { item }, part] {
+                argument_units += text.encode_utf16().count();
+                if argument_units > MAX_COMMAND_UNITS {
+                    return Err(fail("expanded command exceeds command-line limit"));
                 }
-                end += 1;
+                replaced.push_str(text);
             }
         }
-        let batch_args = &input_args[i..end];
+        used += command_units(&[replaced.as_str()]) - 1 + usize::from(!command.is_empty());
+        if used > MAX_COMMAND_UNITS {
+            return Err(fail("expanded command exceeds command-line limit"));
+        }
+        command.push(replaced);
+    }
+    Ok(command)
+}
 
-        let mut cmd_args: Vec<String> = Vec::new();
+struct Executor {
+    internal_echo: bool,
+    verbose: bool,
+    interactive: bool,
+    status: i32,
+}
 
-        if is_replace_mode {
-            for arg in &command_template {
-                if arg == replace_str {
-                    for input_arg in batch_args {
-                        cmd_args.push(input_arg.clone());
-                    }
-                } else if arg.contains(replace_str) {
-                    let replaced = arg.replace(replace_str, "{}");
-                    let mut has_placeholder = false;
-                    let mut replaced_arg = String::new();
-                    for part in replaced.split("{}") {
-                        replaced_arg.push_str(part);
-                        if !has_placeholder && !batch_args.is_empty() {
-                            replaced_arg.push_str(&batch_args[0]);
-                            has_placeholder = true;
-                        }
-                    }
-                    cmd_args.push(replaced_arg);
+impl Executor {
+    fn execute(&mut self, command: &[String]) -> Result<(), i32> {
+        if command_units(command) > MAX_COMMAND_UNITS {
+            return Err(fail("expanded command exceeds command-line limit"));
+        }
+        if self.verbose || self.interactive {
+            eprintln!(
+                "{}",
+                command
+                    .iter()
+                    .map(|a| format!("{a:?}"))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            );
+        }
+        if self.interactive {
+            eprint!("?... ");
+            io::stderr().flush().map_err(fail)?;
+            if !matches!(
+                read_console_line().trim().to_lowercase().as_str(),
+                "y" | "yes"
+            ) {
+                return Ok(());
+            }
+        }
+        if self.internal_echo {
+            let mut out = io::stdout().lock();
+            writeln!(out, "{}", command[1..].join(" ")).map_err(fail)?;
+            return Ok(());
+        }
+        match Command::new(&command[0])
+            .args(&command[1..])
+            .stdin(Stdio::null())
+            .status()
+        {
+            Ok(status) if status.success() => Ok(()),
+            Ok(status) if status.code() == Some(255) => {
+                eprintln!("xargs: {}: exited with status 255; aborting", command[0]);
+                Err(124)
+            }
+            Ok(_) => {
+                self.status = 123;
+                Ok(())
+            }
+            Err(error) => {
+                eprintln!("xargs: {}: {error}", command[0]);
+                Err(if error.kind() == io::ErrorKind::NotFound {
+                    127
                 } else {
-                    cmd_args.push(arg.clone());
-                }
-            }
-
-            if !uses_replace {
-                for input_arg in batch_args {
-                    cmd_args.push(input_arg.clone());
-                }
-            }
-        } else {
-            cmd_args.extend_from_slice(&command_template);
-            cmd_args.extend_from_slice(batch_args);
-        }
-
-        if cmd_args.is_empty() {
-            cmd_args.extend_from_slice(batch_args);
-        }
-
-        let program = &cmd_args[0];
-        let cmd_args_slice = if cmd_args.len() > 1 {
-            &cmd_args[1..]
-        } else {
-            &[]
-        };
-
-        if args.verbose {
-            eprintln!("{} {}", program, cmd_args_slice.join(" "));
-        }
-
-        if args.interactive {
-            print!("{} {} ?...", program, cmd_args_slice.join(" "));
-            io::stdout().flush().unwrap();
-            let response = read_console_line();
-            let response = response.trim().to_lowercase();
-            if response != "y" && response != "yes" {
-                i = end;
-                continue;
+                    126
+                })
             }
         }
-
-        let status = Command::new(program)
-            .args(cmd_args_slice)
-            .stdin(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .status();
-
-        match status {
-            Ok(s) => {
-                if !s.success() {
-                    std::process::exit(s.code().unwrap_or(1));
-                }
-            }
-            Err(e) => {
-                eprintln!("xargs: {}: {}", program, e);
-                std::process::exit(1);
-            }
-        }
-
-        i = end;
     }
 }
 
@@ -213,4 +201,17 @@ fn read_console_line() -> String {
         return String::new();
     }
     String::from_utf8_lossy(&buf[..read as usize]).into_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn replacement_expansion_is_bounded_across_all_arguments() {
+        let template = vec!["{}".to_string(); 3000];
+        assert!(super::replacement_command(&template, "{}", &"a".repeat(500)).is_err());
+        assert_eq!(
+            super::replacement_command(&["{}:{}".into()], "{}", "{}").unwrap(),
+            ["{}:{}"]
+        );
+    }
 }

@@ -1,6 +1,6 @@
 # Generated source template for microsoft/winget-pkgs; submit via pull request.
 PackageIdentifier: wangdxnum1.RuxCmd
-PackageVersion: 0.4.9
+PackageVersion: 0.5.0
 PackageLocale: en-US
 Publisher: Tim and RuxCmd contributors
 PublisherUrl: https://github.com/wangdxnum1

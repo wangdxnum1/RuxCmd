@@ -1,7 +1,8 @@
 mod cli;
 
-use cli::{Args, Expr, Node, StampKind};
+use cli::{Args, ExecAction, Expr, Node, StampKind};
 use regex::Regex;
+use ruxcmd_core::command_batch::CommandBudget;
 use std::fs;
 use std::io::{self, BufWriter, Write};
 use std::path::{Path, PathBuf};
@@ -29,7 +30,7 @@ fn main() {
         args: &args,
         out: BufWriter::new(io::stdout().lock()),
         // One buffer per `-exec ... +` action, keyed by its parse-time id.
-        batch: vec![Vec::new(); args.exec_count],
+        batch: (0..args.exec_count).map(|_| ExecBatch::default()).collect(),
         had_error: false,
     };
 
@@ -47,8 +48,15 @@ struct Walker<'a> {
     args: &'a Args,
     out: BufWriter<io::StdoutLock<'static>>,
     /// Paths collected for each `-exec ... {} +` action, keyed by action id.
-    batch: Vec<Vec<String>>,
+    batch: Vec<ExecBatch>,
     had_error: bool,
+}
+
+#[derive(Default)]
+struct ExecBatch {
+    items: Vec<String>,
+    budget: Option<CommandBudget>,
+    initialized: bool,
 }
 
 impl Walker<'_> {
@@ -200,7 +208,7 @@ impl Walker<'_> {
             Node::Exec(action) => {
                 let text = path_text(path);
                 if action.batch {
-                    self.batch[action.id].push(text);
+                    self.queue_exec(action, text);
                     true
                 } else {
                     let status = Command::new(&action.program)
@@ -265,24 +273,63 @@ impl Walker<'_> {
         self.flush_batches(expr);
     }
 
-    /// Flushes the `+` batches once the whole walk is done, in tree order.
+    fn queue_exec(&mut self, action: &ExecAction, text: String) {
+        let id = action.id;
+        if !self.batch[id].initialized {
+            self.batch[id].initialized = true;
+            let fixed: Vec<_> = std::iter::once(action.program.as_str())
+                .chain(
+                    action.args[..action.args.len() - 1]
+                        .iter()
+                        .map(String::as_str),
+                )
+                .collect();
+            match CommandBudget::new(&fixed) {
+                Ok(budget) => self.batch[id].budget = Some(budget),
+                Err(error) => {
+                    eprintln!("find: {}: {error}", action.program);
+                    self.had_error = true;
+                }
+            }
+        }
+        let Some(budget) = &self.batch[id].budget else {
+            return;
+        };
+        if !budget.can_fit_item(&text) {
+            self.flush_exec(action);
+            eprintln!("find: argument exceeds command-line limit: '{text}'");
+            self.had_error = true;
+            return;
+        }
+        if !self.batch[id].budget.as_mut().unwrap().try_add(&text) {
+            self.flush_exec(action);
+            assert!(self.batch[id].budget.as_mut().unwrap().try_add(&text));
+        }
+        self.batch[id].items.push(text);
+    }
+
+    fn flush_exec(&mut self, action: &ExecAction) {
+        let batch = &mut self.batch[action.id];
+        if batch.items.is_empty() {
+            return;
+        }
+        let paths = std::mem::take(&mut batch.items);
+        batch.budget.as_mut().unwrap().reset();
+        let status = Command::new(&action.program)
+            .args(&action.args[..action.args.len() - 1])
+            .args(paths)
+            .status();
+        self.record_status(&action.program, status);
+    }
+
+    /// Flush remaining `+` batches at the end, in tree order.
     fn flush_batches(&mut self, expr: &Expr) {
         match expr {
             Expr::Primary(node) => {
-                if let Node::Exec(action) = node {
-                    if !action.batch || self.batch[action.id].is_empty() {
-                        return;
-                    }
-                    let paths = std::mem::take(&mut self.batch[action.id]);
-                    // Parsing guaranteed `{}` is the last argument, so it
-                    // expands to every collected path as separate arguments
-                    // (GNU's `+` form).
-                    let fixed = &action.args[..action.args.len() - 1];
-                    let status = Command::new(&action.program)
-                        .args(fixed)
-                        .args(&paths)
-                        .status();
-                    self.record_status(&action.program, status);
+                if let Node::Exec(action) = node
+                    && action.batch
+                {
+                    self.flush_exec(action);
                 }
             }
             Expr::Not(inner) => self.flush_batches(inner),

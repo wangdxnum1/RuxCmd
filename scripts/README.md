@@ -25,7 +25,7 @@ pwsh -File scripts/build.ps1 -Task Verify -Jobs 4
 pwsh -File scripts/build.ps1 -Task Clean -Configuration Debug -WhatIf
 ```
 
-`Verify` must cover the whole workspace and does not accept `-Package`. It runs formatting/check/Clippy, the Rust tests, compilation, native version-resource checks, all command smoke checks, representative behavior checks, and all script test suites in order, stopping at the first failure. The actual artifact directory is determined by Cargo metadata, and `CARGO_TARGET_DIR` is supported; the normal configuration is `target/x86_64-pc-windows-msvc/{release|debug}/`.
+`Verify` must cover the whole workspace and does not accept `-Package`. It runs formatting/check/Clippy, the Rust tests, compilation, native version-resource checks, compatibility-table checks against the exact build directory, all command smoke checks, representative behavior checks, and all script test suites in order, stopping at the first failure. The actual artifact directory is determined by Cargo metadata, and `CARGO_TARGET_DIR` is supported; the normal configuration is `target/x86_64-pc-windows-msvc/{release|debug}/`.
 
 `Clean` uses `cargo clean`, explicitly selecting the workspace or given packages, and only removes this repository's build artifacts for the selected targets and configuration, keeping third-party dependency caches; it does not clean `dist`, sources, or user files. `Check` inspects formatting only and never modifies sources. `-WhatIf` is not a substitute for real verification.
 
@@ -73,7 +73,7 @@ Round 16 adds dedicated NUL, unterminated NUL, binary NUL and consecutive-empty-
 
 The default uses current release binaries (debug fallback) and Git for Windows GNU tools. Build first, or pass `-BinDir` explicitly. Each selected RuxCmd binary must exist; missing GNU tools and declared platform differences are reported as skips. Comparisons cover raw stdout bytes and exit codes; mutating commands use separate fixtures and compare file contents/directory state. Only mktemp's random name is normalized. Native Windows hardlink support is required. SHA check mode runs against real manifests even though MSYS binary-mode generation is exempted. Filesystem stderr wording, ACL equivalence, WTS/utmp identities and long-list formatting are not bytewise compatibility claims.
 
-The CI workflow calls `build.ps1 -Task Verify`, `compat-check.ps1` and `release.ps1`. The Release workflow checks out an existing version tag, runs the same Verify entry point, then `release.ps1 -Tag <tag> -RequireClean`; it only uploads Actions artifacts and does not perform `-Publish`. Remote publishing requires the maintainer to explicitly run the local publish command.
+CI and Release both call `build.ps1 -Task Verify`, including compatibility checks against that build's binary directory. Both cache dependencies without caching workspace command artifacts. CI then runs `release.ps1`; Release checks out an existing version tag and runs `release.ps1 -Tag <tag> -RequireClean`. Release uploads Actions artifacts and automatically publishes the tagged GitHub Release with ZIP, setup EXE and their checksums. The separate local publishing path requires an explicit `release.ps1 -Publish`.
 
 Script tests:
 
@@ -111,3 +111,7 @@ pwsh -File scripts/tests/ps-refactor-compare.ps1 -BaselineBinary target/ps-befor
 The comparison queries its own process and checks stdout/stderr/exit codes and
 file output; it never signals processes or opens desktop windows. Source plans
 under `docs/ps/docs/superpowers` are historical, not the current crate layout.
+
+## File batching scenarios
+
+`tests/file-batch-tests.ps1 -BinDir <directory>` connects native byte streams for find → xargs → cp, validates find -exec +, checks exact names and SHA256 content for 81 Unicode/metacharacter filenames across multiple batches, and tests empty selections and failure propagation. Verify and ZIP extraction validation run it automatically. See [usage and limits](../docs/file-batch-usage.md).

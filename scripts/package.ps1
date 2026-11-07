@@ -67,6 +67,7 @@ try {
     }
     & (Join-Path $PSScriptRoot 'smoke-test.ps1') -BinDir (Join-Path $verify 'bin')
     & (Join-Path $PSScriptRoot 'verify-behavior.ps1') -BinDir (Join-Path $verify 'bin')
+    & (Join-Path $PSScriptRoot 'tests/file-batch-tests.ps1') -BinDir (Join-Path $verify 'bin')
     # Reserve the final paths exclusively after verification. Never overwrite a concurrent run.
     $destinationStream = [IO.File]::Open($archive, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
     $createdArchive = $true
