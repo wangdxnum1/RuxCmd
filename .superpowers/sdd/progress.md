@@ -41138,3 +41138,10 @@ Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
 - nslookup SRV:DNS_TYPE_SRV 输出 nslookup 同款 service location 布局;与 Windows nslookup 实测字段一致;原"不支持类型"测试的 SRV 项移除。
 - 发布:v0.5.6 成功(run 42360631976,notes 自动生成);清单 hash 同步 07352466;版本 0.5.5 → 0.5.6 → 0.5.7(Verify 后待发布)。
 - 教训:新增已实现能力时,原"不支持"断言测试必须同步删项(nslookup SRV 在不支持清单里);打印列宽要按最大值域预留( sar kB_read 1.6e9 超 10 位宽挤掉分隔符)。
+
+
+## Round 31 v0.5.7 release + manifest consistency gate (2026-11-07)
+- 发布:v0.5.7 成功(run 42362525342,notes 自动生成,4 资产);zip hash 38e5a45e。
+- **发现清单 hash 断链**:v0.5.5/v0.5.6 的 hash 更新实际从未落盘(脚本断言失败→未写盘→误读"成功"),manifest 一直停在 v0.5.4 的 hash——scoop/winget 用户以校验和安装 0.5.5/0.5.6 会失败。本次同步至 0.5.7 实际 hash;已回溯核对 v0.5.4-0.5.7 五个 zip 的 sha256。
+- 基建:scripts/check-manifests.ps1 纳入 Verify——校验 scoop/winget/README 三处版本与 Cargo.toml 一致、URL 指向对应 zip、hash 为 64 位十六进制、winget 与 scoop hash 相等;防止"版本推了清单忘更/哈希断链"再次发生。
+- 教训:发布后必须把 Release 产物的 .zip.sha256 下载回来与清单 hash 核对(此步此前缺失);长链 bash 命令中 `set -e` 语义不可靠,关键写盘操作后应立即独立验证。

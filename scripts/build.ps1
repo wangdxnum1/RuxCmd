@@ -75,6 +75,7 @@ try {
     if ($Task -eq 'Verify' -and $PSCmdlet.ShouldProcess($binaryDirectory, 'Run compatibility, smoke, behavior and script tests')) {
         & (Join-Path $PSScriptRoot 'verify-version-info.ps1') -BinDir $binaryDirectory -DebugBuild:($Configuration -eq 'Debug')
         & (Join-Path $PSScriptRoot 'compat-check.ps1') -BinDir $binaryDirectory
+        & (Join-Path $PSScriptRoot 'check-manifests.ps1')
         & (Join-Path $PSScriptRoot 'smoke-test.ps1') -BinDir $binaryDirectory
         & (Join-Path $PSScriptRoot 'verify-behavior.ps1') -BinDir $binaryDirectory
         & (Join-Path $PSScriptRoot 'tests/file-batch-tests.ps1') -BinDir $binaryDirectory
