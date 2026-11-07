@@ -774,3 +774,79 @@ fn backup_applies_inside_recursive_copy() {
     assert_eq!(fs::read_to_string(dst_sub.join("f.txt~")).unwrap(), "old");
     assert_eq!(fs::read_to_string(dst_sub.join("f.txt")).unwrap(), "new");
 }
+
+// --- VERSION_CONTROL environment variable -----------------------------------
+
+/// Bare -b takes its mode from VERSION_CONTROL: numbered produces .~N~,
+/// none produces no backup.
+#[test]
+fn version_control_env_selects_mode() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.txt");
+    let dest = dir.path().join("dest.txt");
+    fs::write(&src, "new").unwrap();
+    fs::write(&dest, "old").unwrap();
+    cargo_bin_cmd!("cp")
+        .env("VERSION_CONTROL", "numbered")
+        .args(["-b"])
+        .arg(&src)
+        .arg(&dest)
+        .assert()
+        .success();
+    assert!(dir.path().join("dest.txt.~1~").exists());
+
+    fs::write(&dest, "newer").unwrap();
+    cargo_bin_cmd!("cp")
+        .env("VERSION_CONTROL", "none")
+        .args(["-b"])
+        .arg(&src)
+        .arg(&dest)
+        .assert()
+        .success();
+    // none: the old backup stays, no new file appears.
+    let leftovers: Vec<_> = fs::read_dir(dir.path())
+        .unwrap()
+        .filter_map(Result::ok)
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(leftovers.len(), 3);
+}
+
+/// An invalid VERSION_CONTROL value fails with GNU's argument error.
+#[test]
+fn version_control_invalid_value_errors() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.txt");
+    fs::write(&src, "new").unwrap();
+    cargo_bin_cmd!("cp")
+        .env("VERSION_CONTROL", "bogus")
+        .args(["-b"])
+        .arg(&src)
+        .arg(dir.path().join("dest.txt"))
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "cp: invalid argument 'bogus' for '$VERSION_CONTROL'",
+        ))
+        .stderr(predicates::str::contains("  - 'numbered', 't'"));
+}
+
+/// Without -b, VERSION_CONTROL does not enable backups.
+#[test]
+fn version_control_without_backup_flag_makes_no_backup() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.txt");
+    fs::write(&src, "new").unwrap();
+    cargo_bin_cmd!("cp")
+        .env("VERSION_CONTROL", "simple")
+        .arg(&src)
+        .arg(dir.path().join("dest.txt"))
+        .assert()
+        .success();
+    let leftovers: Vec<_> = fs::read_dir(dir.path())
+        .unwrap()
+        .filter_map(Result::ok)
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(leftovers.len(), 2);
+}

@@ -25,34 +25,75 @@ fn main() {
         eprintln!("cp: cannot make both hard and symbolic links");
         usage_error();
     }
-    if args.backup.is_some() && args.no_clobber {
+    if (args.backup_bare || args.backup.is_some()) && args.no_clobber {
         eprintln!("cp: options --backup and --no-clobber are mutually exclusive");
         usage_error();
     }
-    let backup = match args.backup.as_deref() {
-        None => Backup {
+    // Without -b/--backup, the VERSION_CONTROL environment variable selects
+    // the default backup control (coreutils); an invalid value fails with
+    // the documented argument error.
+    // Backup selection: --backup=CONTROL overrides; bare -b takes the mode
+    // from the VERSION_CONTROL environment (default existing); with neither,
+    // no backups happen.  An invalid VERSION_CONTROL fails like GNU.
+    let default_suffix = args.suffix.clone().unwrap_or_else(|| "~".to_string());
+    let env_mode = |spec: &str| -> Option<Option<BackupMode>> {
+        match spec {
+            "none" | "off" | "0" => Some(None),
+            "numbered" | "t" | "1" => Some(Some(BackupMode::Numbered)),
+            "existing" | "nil" | "2" => Some(Some(BackupMode::Existing)),
+            "simple" | "never" | "3" => Some(Some(BackupMode::Simple)),
+            _ => None,
+        }
+    };
+    let backup = if args.backup.is_some() {
+        match args.backup.as_deref() {
+            Some("none") | Some("off") | Some("0") => Backup {
+                mode: None,
+                suffix: default_suffix,
+            },
+            Some("numbered") | Some("t") | Some("1") => Backup {
+                mode: Some(BackupMode::Numbered),
+                suffix: default_suffix,
+            },
+            Some("existing") | Some("nil") | Some("2") => Backup {
+                mode: Some(BackupMode::Existing),
+                suffix: default_suffix,
+            },
+            Some("simple") | Some("never") | Some("3") => Backup {
+                mode: Some(BackupMode::Simple),
+                suffix: default_suffix,
+            },
+            Some(other) => {
+                eprintln!("cp: invalid argument '{other}' for '--backup'");
+                usage_error();
+            }
+            None => unreachable!("require_equals keeps --backup valued"),
+        }
+    } else if args.backup_bare {
+        let mode = match std::env::var("VERSION_CONTROL").ok().as_deref() {
+            None => Some(BackupMode::Existing),
+            Some(spec) => match env_mode(spec) {
+                Some(mode) => mode,
+                None => {
+                    eprintln!("cp: invalid argument '{spec}' for '$VERSION_CONTROL'");
+                    eprintln!("Valid arguments are:");
+                    eprintln!("  - 'none', 'off'");
+                    eprintln!("  - 'simple', 'never'");
+                    eprintln!("  - 'existing', 'nil'");
+                    eprintln!("  - 'numbered', 't'");
+                    eprintln!("Try 'cp --help' for more information.");
+                    std::process::exit(1);
+                }
+            },
+        };
+        Backup {
+            mode,
+            suffix: default_suffix,
+        }
+    } else {
+        Backup {
             mode: None,
-            suffix: args.suffix.clone().unwrap_or_else(|| "~".to_string()),
-        },
-        Some("none") | Some("off") | Some("0") => Backup {
-            mode: None,
-            suffix: args.suffix.clone().unwrap_or_else(|| "~".to_string()),
-        },
-        Some("numbered") | Some("t") | Some("1") => Backup {
-            mode: Some(BackupMode::Numbered),
-            suffix: args.suffix.clone().unwrap_or_else(|| "~".to_string()),
-        },
-        Some("existing") | Some("nil") | Some("2") => Backup {
-            mode: Some(BackupMode::Existing),
-            suffix: args.suffix.clone().unwrap_or_else(|| "~".to_string()),
-        },
-        Some("simple") | Some("never") | Some("3") => Backup {
-            mode: Some(BackupMode::Simple),
-            suffix: args.suffix.clone().unwrap_or_else(|| "~".to_string()),
-        },
-        Some(other) => {
-            eprintln!("cp: invalid argument '{other}' for '--backup'");
-            usage_error();
+            suffix: default_suffix,
         }
     };
 

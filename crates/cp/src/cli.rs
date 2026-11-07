@@ -56,16 +56,15 @@ pub struct Args {
     #[arg(short = 'l', long = "link")]
     pub link: bool,
 
-    /// Make a backup of each existing destination file before replacing it.
-    /// Plain -b/-backup behaves like --backup=existing; an explicit control
-    /// comes via `--backup=numbered|existing|simple|none` (also t/nil/never/off).
-    #[arg(
-        short = 'b',
-        long = "backup",
-        require_equals = true,
-        num_args = 0..=1,
-        default_missing_value = "existing"
-    )]
+    /// Make a backup of each existing destination file before replacing it;
+    /// the mode comes from the VERSION_CONTROL environment variable
+    /// (default existing)
+    #[arg(short = 'b')]
+    pub backup_bare: bool,
+
+    /// Make a backup with an explicit control: numbered|existing|simple|none
+    /// (also t/nil/never/off)
+    #[arg(long = "backup", value_name = "CONTROL", require_equals = true, num_args = 0..=1)]
     pub backup: Option<String>,
 
     /// Override the usual backup suffix (~)

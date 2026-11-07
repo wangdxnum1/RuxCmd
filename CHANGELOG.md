@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.10 — cp VERSION_CONTROL、grep 目录计数(2026-11-07)
+
+- cp:VERSION_CONTROL 环境变量支持——裸 `-b` 的备份模式取自该变量（none/off/0、simple/never/3、existing/nil/2、numbered/t/1，无效值报 GNU 同款四行 Valid arguments 错误），`--backup=CONTROL` 显式控制仍覆盖环境变量；无 -b/--backup 时环境变量不启用备份（coreutils 同语义）。
+- grep:未加 -r 的显式目录操作数对齐 GNU——stderr 报 Is a directory 的同时，`-c` 仍输出 0 计数行（单操作数裸计数、多操作数 name:0），退出码为 2（trouble）。
+
 ## 0.5.9 — find 相对日期与时区后缀(2026-11-07)
 
 - find:`-newermt`/`-newerat` 日期解析对齐 GNU parse_datetime 子集——`now`/`yesterday`/`tomorrow`（相对当前时刻；实测 yesterday = now−1 天而非昨夜零点）、`N unit(s) [ago]`（second/minute/hour/day/week/fortnight 按时长，month/year 按日历移位并夹紧月末，`a/an` 计数）、紧凑 `YYYYMMDD[Thh[mm[ss]]]`、时区后缀 `Z`/`+hh[[:]mm]`（后缀固定距尾判定，仅当基准含时间分量，避免把 YYYY-MM-DD 的连字符误读为时区符号）。与 MSYS2 GNU find 11 组语义实测一致。

@@ -183,6 +183,9 @@ fn main() {
 
     let multiple_files = args.files.len() > 1;
     let mut total_count = 0;
+    // GNU sets exit status 2 ("trouble") when a directory operand is met
+    // without -r, while -c still prints the `name:0` count line.
+    let mut trouble = false;
 
     let stdout = std::io::stdout();
     let mut out = std::io::BufWriter::new(stdout.lock());
@@ -210,6 +213,12 @@ fn main() {
                     total_count += grep_directory(file, &matcher, &args, &mut out);
                 } else {
                     eprintln!("grep: {}: Is a directory", file_name);
+                    trouble = true;
+                    if count_output(&args) {
+                        // GNU prints a bare count for a single operand.
+                        let show_name = !args.no_filename && (args.with_filename || multiple_files);
+                        emit_count(&mut out, &file_name, show_name, 0);
+                    }
                 }
             } else {
                 // GNU behavior: a single file operand prints bare lines;
@@ -236,6 +245,9 @@ fn main() {
 
     let _ = out.flush();
 
+    if trouble {
+        std::process::exit(2);
+    }
     std::process::exit(if total_count > 0 { 0 } else { 1 });
 }
 
