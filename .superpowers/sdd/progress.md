@@ -41145,3 +41145,10 @@ Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
 - **发现清单 hash 断链**:v0.5.5/v0.5.6 的 hash 更新实际从未落盘(脚本断言失败→未写盘→误读"成功"),manifest 一直停在 v0.5.4 的 hash——scoop/winget 用户以校验和安装 0.5.5/0.5.6 会失败。本次同步至 0.5.7 实际 hash;已回溯核对 v0.5.4-0.5.7 五个 zip 的 sha256。
 - 基建:scripts/check-manifests.ps1 纳入 Verify——校验 scoop/winget/README 三处版本与 Cargo.toml 一致、URL 指向对应 zip、hash 为 64 位十六进制、winget 与 scoop hash 相等;防止"版本推了清单忘更/哈希断链"再次发生。
 - 教训:发布后必须把 Release 产物的 .zip.sha256 下载回来与清单 hash 核对(此步此前缺失);长链 bash 命令中 `set -e` 语义不可靠,关键写盘操作后应立即独立验证。
+
+
+## Round 32 v0.5.8 release + manifest hash verification (2026-11-07)
+- 发布:v0.5.8 成功(run 42364643266,notes 自动生成,4 资产);zip hash dfc5681f。
+- 清单 hash 同步至 v0.5.8 实际产物(check-manifests 门禁通过);Release 后"下载 .zip.sha256 → 核对清单 hash"已固化为流程收尾步骤。
+- 五版本连续发布全部成功:v0.5.4(du 时间列/块缩放 + timefmt 基建)、v0.5.5(grep 二进制模式 + mv stderr)、v0.5.6(zip 追加更新 + dd EBCDIC)、v0.5.7(iostat/sar 设备报表 + nslookup SRV + disk 基建)、v0.5.8(check-manifests 门禁)。
+- main @ hash 同步提交;版本 0.5.7 → 0.5.8。
