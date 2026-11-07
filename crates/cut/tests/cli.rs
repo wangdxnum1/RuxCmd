@@ -125,3 +125,116 @@ fn complement_field_mode_passes_delimiterless_lines_through() {
     assert_eq!(code, Some(0));
     assert_eq!(stdout, b"plain\n");
 }
+
+// --- 0.5.1: -n with -b never splits multibyte characters ---------------------
+//
+// "你好世界" is four 3-byte UTF-8 characters: 你 at bytes 1-3, 好 at 4-6,
+// 世 at 7-9, 界 at 10-12. GNU coreutils 8.32 (the local reference) documents
+// -n as "(ignored)" — its -b 1-4 -n output still carries a partial 好 — so
+// these tests pin the POSIX-documented semantics instead: a byte selection
+// point that falls inside a character extends to the whole character.
+
+#[test]
+fn n_with_byte_range_aligned_to_character_outputs_whole_char() {
+    // echo 你好世界 | cut -b 1-3 -n  =>  你 (3 bytes = 1 complete character).
+    let path = write_file("n-aligned.txt", "你好世界\n".as_bytes());
+    let (stdout, code) = cut(&["-b", "1-3", "-n"], &path);
+    assert_eq!(code, Some(0));
+    assert_eq!(stdout, "你\n".as_bytes());
+}
+
+#[test]
+fn n_without_flag_keeps_raw_byte_selection() {
+    // Without -n the selection stays raw bytes: -b 1-4 emits the first four
+    // bytes (你 + 好's first byte 0xE5), cutting 好 in half (pre-existing
+    // behavior).
+    let path = write_file("n-absent.txt", "你好世界\n".as_bytes());
+    let (stdout, code) = cut(&["-b", "1-4"], &path);
+    assert_eq!(code, Some(0));
+    assert_eq!(stdout, &[0xE4, 0xBD, 0xA0, 0xE5, b'\n']);
+}
+
+#[test]
+fn n_extends_end_point_forward_to_character_end() {
+    // -b 1-4 -n: byte 4 is 好's first byte, so the range extends to the
+    // whole character => 你好.
+    let path = write_file("n-end.txt", "你好世界\n".as_bytes());
+    let (stdout, code) = cut(&["-b", "1-4", "-n"], &path);
+    assert_eq!(code, Some(0));
+    assert_eq!(stdout, "你好\n".as_bytes());
+}
+
+#[test]
+fn n_extends_start_point_back_to_character_start() {
+    // -b 2-3 -n: both bytes sit inside 你, so the whole character is output.
+    // -b 2 -n behaves the same for the same reason.
+    let path = write_file("n-start.txt", "你好世界\n".as_bytes());
+    let (stdout, code) = cut(&["-b", "2-3", "-n"], &path);
+    assert_eq!(code, Some(0));
+    assert_eq!(stdout, "你\n".as_bytes());
+    let (stdout, code) = cut(&["-b", "2", "-n"], &path);
+    assert_eq!(code, Some(0));
+    assert_eq!(stdout, "你\n".as_bytes());
+}
+
+#[test]
+fn n_does_not_extend_beyond_an_aligned_end_point() {
+    // -b 4-6 -n selects exactly 好; the extension must not swallow 世.
+    let path = write_file("n-exact.txt", "你好世界\n".as_bytes());
+    let (stdout, code) = cut(&["-b", "4-6", "-n"], &path);
+    assert_eq!(code, Some(0));
+    assert_eq!(stdout, "好\n".as_bytes());
+}
+
+#[test]
+fn n_mixed_ascii_and_multibyte_expands_only_the_multibyte_char() {
+    // "a你b": -b 1-3 covers `a` plus two bytes of 你; only 你 is expanded.
+    let path = write_file("n-mixed.txt", "a你b\n".as_bytes());
+    let (stdout, code) = cut(&["-b", "1-3", "-n"], &path);
+    assert_eq!(code, Some(0));
+    assert_eq!(stdout, "a你\n".as_bytes());
+}
+
+#[test]
+fn n_ascii_selection_is_unchanged() {
+    // echo hello | cut -b 1-3 -n  =>  hel (ASCII has no characters to split).
+    let path = write_file("n-ascii.txt", b"hello\n");
+    let (stdout, code) = cut(&["-b", "1-3", "-n"], &path);
+    assert_eq!(code, Some(0));
+    assert_eq!(stdout, b"hel\n");
+}
+
+#[test]
+fn n_falls_back_to_bytes_on_non_utf8_input() {
+    // Input that is not valid UTF-8 keeps the raw byte selection (same
+    // output as without -n).
+    let path = write_file("n-bin.txt", b"ab\xFFcd\n");
+    let (stdout, code) = cut(&["-b", "1-3", "-n"], &path);
+    assert_eq!(code, Some(0));
+    assert_eq!(stdout, b"ab\xFF\n");
+}
+
+#[test]
+fn n_complement_selects_whole_characters() {
+    // The -n mapping applies before --complement, so the complement of a
+    // partial character is the remaining whole characters: -b 2 -n
+    // --complement on 你好世界 => 好世界.
+    let path = write_file("n-comp.txt", "你好世界\n".as_bytes());
+    let (stdout, code) = cut(&["-b", "2", "-n", "--complement"], &path);
+    assert_eq!(code, Some(0));
+    assert_eq!(stdout, "好世界\n".as_bytes());
+}
+
+#[test]
+fn n_is_ignored_for_character_and_field_selection() {
+    // -c already selects whole characters and -f does not split them, so
+    // -n must not change either.
+    let path = write_file("n-other-modes.txt", "你好世界\n".as_bytes());
+    let (stdout, code) = cut(&["-c", "1-2", "-n"], &path);
+    assert_eq!(code, Some(0));
+    assert_eq!(stdout, "你好\n".as_bytes());
+    let path = write_file("n-fields.txt", b"a,b\n");
+    let (stdout, code) = cut(&["-d", ",", "-f", "1", "-n"], &path);
+    assert_eq!(code, Some(0));
+    assert_eq!(stdout, b"a\n");
+}

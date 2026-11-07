@@ -35,31 +35,59 @@ impl Count {
     }
 }
 
+/// Which of `-n`/`-c` governs the output. GNU head does not reject the
+/// combination: the option appearing LAST on the command line wins
+/// (`head -n 5 -c 3` prints 3 bytes). With neither given, GNU defaults
+/// to the first 10 lines.
+#[derive(Clone, Copy)]
+enum Selection {
+    None,
+    Lines(Count),
+    Bytes(Count),
+}
+
 fn main() {
     let args = cli::Args::parse();
     let separator = if args.zero_terminated { 0 } else { b'\n' };
-
-    // Usage error (exit 1): `-n` and `-c` cannot be combined.
-    if args.lines.is_some() && args.bytes.is_some() {
-        eprintln!("head: cannot specify both -n and -c");
-        std::process::exit(1);
-    }
 
     let mut fail = |error: String| {
         eprintln!("head: {error}");
         std::process::exit(1);
     };
 
-    let lines = args
-        .lines
-        .map(|raw| Count::parse("lines", &raw))
-        .transpose()
-        .unwrap_or_else(&mut fail);
-    let bytes = args
-        .bytes
-        .map(|raw| Count::parse("bytes", &raw))
-        .transpose()
-        .unwrap_or_else(&mut fail);
+    // GNU converts numbers while its getopt loop consumes the options, so
+    // even a losing option's invalid number fails, and when both are invalid
+    // the FIRST-occurring option is reported: parse in occurrence order.
+    let lines_occurrence = cli::lines_occurrence();
+    let bytes_occurrence = cli::bytes_occurrence();
+    let mut parse_count = |kind: &'static str, raw: &Option<String>| -> Option<Count> {
+        raw.as_ref()
+            .map(|raw| Count::parse(kind, raw))
+            .transpose()
+            .unwrap_or_else(&mut fail)
+    };
+    let (lines, bytes) = if lines_occurrence <= bytes_occurrence {
+        let lines = parse_count("lines", &args.lines);
+        let bytes = parse_count("bytes", &args.bytes);
+        (lines, bytes)
+    } else {
+        let bytes = parse_count("bytes", &args.bytes);
+        let lines = parse_count("lines", &args.lines);
+        (lines, bytes)
+    };
+
+    let selection = match (lines, bytes) {
+        (Some(l), Some(b)) => {
+            if lines_occurrence > bytes_occurrence {
+                Selection::Lines(l)
+            } else {
+                Selection::Bytes(b)
+            }
+        }
+        (Some(l), None) => Selection::Lines(l),
+        (None, Some(b)) => Selection::Bytes(b),
+        (None, None) => Selection::None,
+    };
 
     if args.files.is_empty() {
         let stdin = std::io::stdin();
@@ -67,8 +95,7 @@ fn main() {
         if let Err(e) = head_reader(
             stdin.lock(),
             "standard input",
-            lines,
-            bytes,
+            selection,
             args.verbose,
             separator,
         ) {
@@ -95,7 +122,7 @@ fn main() {
             let file_name = file.display().to_string();
             let header = show_header(i);
 
-            if let Err(e) = head_file(file, &file_name, lines, bytes, header, separator) {
+            if let Err(e) = head_file(file, &file_name, selection, header, separator) {
                 eprintln!("head: {}: {}", file_name, e);
                 exit_code = 1;
             }
@@ -112,21 +139,19 @@ fn main() {
 fn head_file(
     path: &Path,
     name: &str,
-    lines: Option<Count>,
-    bytes: Option<Count>,
+    selection: Selection,
     show_header: bool,
     separator: u8,
 ) -> Result<(), String> {
     let file = fs::File::open(path).map_err(|e| format!("cannot open file: {}", e))?;
     let reader = BufReader::new(file);
-    head_reader(reader, name, lines, bytes, show_header, separator)
+    head_reader(reader, name, selection, show_header, separator)
 }
 
 fn head_reader<R: Read>(
     mut reader: R,
     name: &str,
-    lines: Option<Count>,
-    bytes: Option<Count>,
+    selection: Selection,
     show_header: bool,
     separator: u8,
 ) -> Result<(), String> {
@@ -136,7 +161,7 @@ fn head_reader<R: Read>(
 
     let mut stdout = std::io::stdout();
 
-    if let Some(bytes) = bytes {
+    if let Selection::Bytes(bytes) = selection {
         match bytes {
             Count::First(n) => {
                 // `take` reads exactly n bytes (or all of them at EOF) without
@@ -165,7 +190,12 @@ fn head_reader<R: Read>(
         return Ok(());
     }
 
-    let count = lines.unwrap_or(Count::First(10));
+    let count = if let Selection::Lines(count) = selection {
+        count
+    } else {
+        // Neither -n nor -c was given: GNU prints the first 10 lines.
+        Count::First(10)
+    };
     match count {
         Count::First(n) => {
             // Byte-safe line mode: every line is echoed with its original

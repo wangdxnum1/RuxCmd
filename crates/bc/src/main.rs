@@ -74,45 +74,53 @@ enum Outcome {
 }
 
 fn process_line(line: &str, interp: &mut Interp) -> Outcome {
-    let tokens = match lex(line) {
-        Ok(tokens) => tokens,
-        Err(LexError::Unsupported(name)) => {
-            eprintln!("bc: {name} is not supported in this build");
-            return Outcome::Ok;
-        }
-        Err(LexError::NumberTooLarge) => {
-            eprintln!("bc: number too large");
-            return Outcome::Error;
-        }
-        Err(LexError::Syntax) => {
-            eprintln!("bc: syntax error");
-            return Outcome::Error;
-        }
-    };
-
-    // A line is a list of statements separated by `;`.
     let mut outcome = Outcome::Ok;
-    let mut start = 0usize;
-    for (idx, token) in tokens
-        .iter()
-        .chain(std::iter::once(&Token::Semicolon))
-        .enumerate()
-    {
-        let Token::Semicolon = token else { continue };
-        match run_statement(&tokens[start..idx], interp) {
-            Flow::Quit => return Outcome::Quit,
-            Flow::Error => outcome = Outcome::Error,
-            Flow::Ok => {}
+    // A line is a list of statements separated by `;`; `#` comments out the
+    // rest of the line.  Each statement is lexed just before it runs so an
+    // earlier `ibase=` on the same line changes how later numbers are read,
+    // like GNU bc (`ibase=16; FF` prints 255).
+    let mut rest = line;
+    loop {
+        let cut = rest.find(|c| c == ';' || c == '#');
+        let (segment, tail) = match cut {
+            Some(i) if rest.as_bytes()[i] == b';' => (&rest[..i], Some(&rest[i + 1..])),
+            _ => (rest, None),
+        };
+        match run_segment(segment, interp) {
+            SegmentFlow::Continue(Flow::Quit) => return Outcome::Quit,
+            SegmentFlow::Continue(Flow::Error) => outcome = Outcome::Error,
+            SegmentFlow::Continue(Flow::Ok) => {}
+            SegmentFlow::Stop(outcome) => return outcome,
         }
-        start = idx + 1;
+        match tail {
+            Some(next) => rest = next,
+            None => return outcome,
+        }
     }
-    outcome
 }
 
 enum Flow {
     Ok,
     Error,
     Quit,
+}
+
+/// Evaluates one `;`-separated segment of a bc line: lexes it, runs the
+/// statement, and wraps the resulting [`Flow`] so `process_line` can decide
+/// whether to keep going or stop.
+fn run_segment(segment: &str, interp: &mut Interp) -> SegmentFlow {
+    match lex(segment) {
+        Ok(tokens) => SegmentFlow::Continue(run_statement(&tokens, interp)),
+        Err(e) => {
+            eprintln!("bc: lex error");
+            SegmentFlow::Continue(Flow::Error)
+        }
+    }
+}
+
+enum SegmentFlow {
+    Continue(Flow),
+    Stop(Outcome),
 }
 
 fn run_statement(tokens: &[Token], interp: &mut Interp) -> Flow {

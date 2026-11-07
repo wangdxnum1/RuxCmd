@@ -72,6 +72,9 @@ fn process_records<R: BufRead, W: Write>(
         }
         let result = if let Some(spec) = &args.bytes {
             let mut indices = parse_spec(spec, raw.len());
+            if args.no_split {
+                indices = expand_to_char_boundaries(&raw, indices);
+            }
             if args.complement {
                 indices = complement_indices(indices, raw.len());
             }
@@ -107,6 +110,42 @@ fn complement_indices(selected: Vec<usize>, total: usize) -> Vec<usize> {
         }
     }
     (0..total).filter(|&index| !mask[index]).collect()
+}
+
+/// -n with -b: map selected byte indexes to character boundaries so no
+/// multibyte character is split — every index that falls inside a character
+/// expands to that character's full byte range. (A character start is its
+/// own first byte, so aligned indexes pass through unchanged; because the
+/// expansion is per whole character, --complement then inverts a set of
+/// whole characters.) Input that is not valid UTF-8 keeps raw byte selection.
+fn expand_to_char_boundaries(raw: &[u8], indices: Vec<usize>) -> Vec<usize> {
+    let text = match std::str::from_utf8(raw) {
+        Ok(text) => text,
+        Err(_) => return indices,
+    };
+    // Byte range of every character in the line, in order.
+    let mut char_ranges: Vec<(usize, usize)> = Vec::new();
+    let mut range_start = 0;
+    for next_start in text.char_indices().skip(1).map(|(index, _)| index) {
+        char_ranges.push((range_start, next_start));
+        range_start = next_start;
+    }
+    char_ranges.push((range_start, text.len()));
+
+    let mut expanded = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for index in indices {
+        // parse_spec never yields an index past the line, so some character
+        // contains it (binary search over the character starts).
+        let position = char_ranges.partition_point(|&(start, _)| start <= index) - 1;
+        let (char_start, char_end) = char_ranges[position];
+        for byte in char_start..char_end {
+            if seen.insert(byte) {
+                expanded.push(byte);
+            }
+        }
+    }
+    expanded
 }
 
 fn cut_fields(

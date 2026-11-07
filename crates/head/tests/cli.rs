@@ -1,5 +1,6 @@
 //! Behavior tests for head: byte-transparent line mode, the `-n`/`-c`
-//! mutual exclusion, and `-v` on standard input (Round 12 D2).
+//! last-wins rule (GNU: the later option governs the output), and `-v`
+//! on standard input (Round 12 D2).
 //!
 //! The tests spawn the binary by its absolute build path
 //! (`CARGO_BIN_EXE_head`), never a bare name, so a `head` from PATH can
@@ -68,15 +69,57 @@ fn line_mode_passes_nul_bytes_through() {
     assert_eq!(out.stdout, b"a\x00b\n");
 }
 
-// --- P1: `-n` and `-c` are mutually exclusive (usage error, exit 1) ----------
+// --- 0.5.1: `-n` and `-c` may be combined; the LAST one wins -----------------
+//
+// GNU coreutils 8.32, measured locally: `head -n 5 -c 3` prints the first
+// 3 bytes (`1\n2`), `head -c 5 -n 2` prints the first 2 lines (`1\n2\n`),
+// `head -n 5 -c 3 -n 1` prints 1 line. There is no mutual exclusion error.
+
+const FIVE_LINES: &[u8] = b"1\n2\n3\n4\n5\n";
 
 #[test]
-fn n_and_c_together_fail_with_exit_1() {
-    let out = run_head(&["-n", "1", "-c", "5"], b"data\n");
-    assert_eq!(out.status.code(), Some(1));
-    assert!(out.stdout.is_empty());
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("cannot specify both"), "stderr: {}", stderr);
+fn c_after_n_prints_bytes() {
+    let out = run_head(&["-n", "5", "-c", "3"], FIVE_LINES);
+    assert_eq!(out.status.code(), Some(0));
+    assert!(out.stderr.is_empty());
+    assert_eq!(out.stdout, b"1\n2");
+}
+
+#[test]
+fn n_after_c_prints_lines() {
+    let out = run_head(&["-c", "5", "-n", "2"], FIVE_LINES);
+    assert_eq!(out.status.code(), Some(0));
+    assert!(out.stderr.is_empty());
+    assert_eq!(out.stdout, b"1\n2\n");
+}
+
+/// The very last occurrence wins even when both options appear more than
+/// once (`head -n 5 -c 3 -n 1` prints 1 line, GNU measured).
+#[test]
+fn last_occurrence_wins_when_options_repeat() {
+    let out = run_head(&["-n", "5", "-c", "3", "-n", "1"], FIVE_LINES);
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, b"1\n");
+}
+
+/// Long forms count as occurrences of their option too.
+#[test]
+fn long_form_after_n_prints_bytes() {
+    let out = run_head(&["-n", "5", "--bytes=3"], FIVE_LINES);
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, b"1\n2");
+    let out = run_head(&["--lines=2", "-c", "3"], FIVE_LINES);
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, b"1\n2");
+}
+
+/// Attached short values count as occurrences too (`head -c5 -n2` prints
+/// 2 lines, GNU measured).
+#[test]
+fn attached_short_values_follow_last_wins() {
+    let out = run_head(&["-c5", "-n2"], FIVE_LINES);
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, b"1\n2\n");
 }
 
 #[test]
@@ -271,14 +314,19 @@ fn verbose_header_still_printed_with_negative_count() {
     );
 }
 
-/// The `-n`/`-c` mutual exclusion also holds when the counts are negative.
+/// The last-wins rule also holds across sign conventions (GNU measured:
+/// `head -n -3 -c 3` prints 3 bytes, `head -c -5 -n 2` prints 2 lines).
 #[test]
-fn n_and_c_together_fail_even_when_negative() {
+fn negative_and_positive_mix_follow_last_wins() {
+    let out = run_head(&["-n", "-3", "-c", "3"], FIVE_LINES);
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, b"1\n2");
+    let out = run_head(&["-c", "-5", "-n", "2"], FIVE_LINES);
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, b"1\n2\n");
     let out = run_head(&["-n", "-3", "-c", "-5"], TWELVE_LINES);
-    assert_eq!(out.status.code(), Some(1));
-    assert!(out.stdout.is_empty());
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("cannot specify both"), "stderr: {}", stderr);
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.stdout, &TWELVE_LINES[..39 - 5]);
 }
 
 /// Invalid numbers must follow the GNU wording and exit 1, matching
@@ -297,6 +345,29 @@ fn invalid_numbers_fail_with_gnu_message_and_exit_1() {
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
         stderr.contains("invalid number of bytes: '1x'"),
+        "stderr: {stderr}"
+    );
+}
+
+/// An invalid number still fails when the other option would win the
+/// last-wins contest (GNU converts numbers while parsing options), and
+/// when both are invalid the FIRST-occurring option is reported
+/// (`head -c 2x -n 1x` errors on bytes, GNU measured).
+#[test]
+fn invalid_number_still_fails_when_the_other_option_is_last() {
+    let out = run_head(&["-n", "abc", "-c", "3"], FIVE_LINES);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(out.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("invalid number of lines: 'abc'"),
+        "stderr: {stderr}"
+    );
+    let out = run_head(&["-c", "2x", "-n", "1x"], FIVE_LINES);
+    assert_eq!(out.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("invalid number of bytes: '2x'"),
         "stderr: {stderr}"
     );
 }

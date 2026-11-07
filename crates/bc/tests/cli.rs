@@ -180,15 +180,74 @@ fn scale_max_is_assignable() {
     run_bc("scale=64\nscale\n").success().stdout("64\n");
 }
 
+// ibase/obase support: input and output radix like GNU bc.
+
 #[test]
-fn ibase_and_obase_are_reported_and_ignored() {
-    run_bc("ibase=16\nobase=2\n1+1\n")
+fn obase_two_prints_binary() {
+    run_bc("obase=2; 10\n").success().stdout("1010\n");
+}
+
+#[test]
+fn obase_hex_prints_uppercase_letters() {
+    run_bc("obase=16; 255\n").success().stdout("FF\n");
+}
+
+#[test]
+fn ibase_hex_reads_uppercase_letters() {
+    run_bc("ibase=16; FF\n").success().stdout("255\n");
+}
+
+#[test]
+fn ibase_hex_reads_lowercase_letters() {
+    run_bc("ibase=16; ff\n").success().stdout("255\n");
+}
+
+#[test]
+fn ibase_and_obase_set_together() {
+    run_bc("ibase=16; obase=16; FF\n").success().stdout("FF\n");
+}
+
+#[test]
+fn ibase_binary_reads_binary_digits() {
+    run_bc("ibase=2; 1010\n").success().stdout("10\n");
+}
+
+#[test]
+fn obase_hex_with_scale_keeps_fraction() {
+    run_bc("ibase=10; obase=16; scale=4; 255/2\n")
         .success()
-        .stdout("2\n")
-        .stderr(
-            "bc: ibase is not supported in this build\n\
-             bc: obase is not supported in this build\n",
-        );
+        .stdout("7F.8000\n");
+}
+
+#[test]
+fn ibase_assignments_are_silent_and_bare_names_read_back() {
+    // obase=16 prints its own value as 10 (hex for 16) and ibase as A
+    // (decimal 10 in hex), matching GNU bc where special variables are
+    // printed in the current output base.
+    run_bc("obase=16\nobase\nibase\n")
+        .success()
+        .stdout("10\nA\n");
+}
+
+#[test]
+fn letters_are_variables_again_below_ibase_eleven() {
+    // With ibase back at 10 (via the hex digit A), F is a plain variable.
+    run_bc("ibase=16; ibase=A; F\n").success().stdout("0\n");
+}
+
+#[test]
+fn hex_input_supports_fractions() {
+    // 0.8 in hex is 5/10, printed exactly.
+    run_bc("ibase=16; obase=10; 0.8\n")
+        .success()
+        .stdout("0.5\n");
+}
+
+#[test]
+fn obase_converts_negative_and_zero() {
+    run_bc("obase=2; -10\nobase=16; 0\n")
+        .success()
+        .stdout("-1010\n0\n");
 }
 
 #[test]

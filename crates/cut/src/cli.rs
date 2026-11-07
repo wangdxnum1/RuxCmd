@@ -12,6 +12,12 @@ pub struct Args {
     #[arg(short = 'b', long = "bytes")]
     pub bytes: Option<String>,
 
+    /// With -b: do not split multibyte characters — a byte selection point
+    /// that falls inside a character selects the whole character (input that
+    /// is not valid UTF-8 falls back to raw byte selection)
+    #[arg(short = 'n')]
+    pub no_split: bool,
+
     /// Select only these characters
     #[arg(short = 'c', long = "characters")]
     pub characters: Option<String>,
