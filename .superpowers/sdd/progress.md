@@ -41166,3 +41166,12 @@ Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
 - grep:未加 -r 的目录操作数——stderr 报 Is a directory + -c 输出 0 计数行(单操作数裸计数、多操作数 name:0)+ 退出码 2(trouble)。
 - 发布:v0.5.10 成功(run 42371701422,notes 自动生成);清单 hash 同步 145bb6c1;check-manifests 门禁通过;版本 0.5.9 → 0.5.10。
 - 教训:发布后必须 git rm 掉杂散文件(一次 cp 测试在仓库根留下 d.txt 被误提交);compat 行的旧文本在多轮后措辞漂移——脚本替换前先 grep 现文,失败即改用 Read+Edit。
+
+
+## Round 35 documentation/progress close-out + v0.5.11 release (2026-11-07)
+- 文档闭环:compat 表 head -n/-c 互斥旧文与 mv -i 提示流旧文纠偏(经 crates/head、crates/mv 源码与测试核实);README 中英双份 0.4.5 版本残留修正;新增双语 docs/roadmap{,-zh}.md 并纳入 README 索引;gaps-048.txt 归档为 docs/archive/gaps-0.4.8-snapshot.txt 并加说明头。
+- docs/iteration-status.md 重写到 v0.5.10 真实状态(11 次发布、HEAD、门禁组成、0.4.9 历史基线),并记录本地 Verify 的环境限制:chown(SetNamedSecurityInfoW 缺 SeTakeOwnership/SeRestore,error 5)、nohup(Job 禁止脱离,60s)、traceroute(IcmpSendEcho Request failed)、chmod junction(mklink /J 被拒)——排除四包后 cargo test 346 项结果全绿退出 0;远端 CI 全量 Verify 通过。
+- 版本路线图顺延:0.5.11 用于文档收口(无 CLI 变更),发布自动化收尾移至 0.5.12,分发落地仍为 0.6.0。
+- 发布:v0.5.11 成功(run 42384943635,notes 自动生成,4 资产);两个 push CI(42383742043 / 42383815911)全绿;清单 hash 同步 e90ab189;版本 0.5.10 → 0.5.11;tag a8fb923。
+- 收尾核对:ZIP .sha256 sidecar 内容 e90ab1897a9c... 与 GitHub asset digest=sha256:e90ab189... 一致;setup EXE digest a7b30d64...。
+- 教训:DSH 会话 git 远端走 schannel 会 SEC_E_NO_CREDENTIALS,需内联 http.sslbackend=openssl + 清空 github.com 代理 + gh auth token 注入 extraheader 才能 push,不改全局配置。

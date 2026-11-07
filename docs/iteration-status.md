@@ -15,11 +15,11 @@
 | 项目 | 值 |
 | --- | --- |
 | 套件版本 | **0.5.11**（[Cargo.toml](../Cargo.toml) `workspace.metadata.ruxcmd.version`） |
-| 最新发布 | **v0.5.10** 已成功发布（Release run `42371701422`）；**v0.5.11** 为文档与进度闭环收口版本，走 GitHub Actions Release workflow 发布四资产 |
-| HEAD | 本次发布提交（tag `v0.5.11` 指向它）；此前基线为 `04884186c91f013925d363f0872b501e99f8b1d0` |
+| 最新发布 | **v0.5.11** 已成功发布（Release run `42384943635`），文档与进度闭环收口版本，四资产（ZIP、setup EXE 及两个 `.sha256`）；发布说明由 CHANGELOG 对应节自动生成 |
+| HEAD | `a8fb923c6c7725a3829cb1b9f0a572d081a49aaa` = `main` = `origin/main` = tag `v0.5.11`（2026-11-07 22:52）；发布后另有清单哈希同步提交 |
 | 命令 / 包 | 145 个 crate → 142 个独立可执行文件 |
-| 质量 | 约 1740 项 Rust 测试；Verify 门禁全绿（fmt / clippy -D warnings / 测试 / release 编译 / compat-check / check-manifests / 冒烟 / 行为检查 / 脚本测试 / difftest） |
-| 工作区 | 干净；清单 SHA256 在 Release 成功后按收尾门禁回填 |
+| 质量 | 约 1740 项 Rust 测试；两个 push CI（42383742043 / 42383815911）与 Release 全量 Verify 全绿（fmt / clippy -D warnings / 测试 / release 编译 / compat-check / check-manifests / 冒烟 / 行为检查 / 脚本测试 / difftest） |
+| 发布产物 | ZIP SHA256 `e90ab189…42226c7045`、setup EXE SHA256 `a7b30d64…1d7965eeb17`；`.zip.sha256` sidecar 与 GitHub asset digest 已独立比对一致，清单哈希同步至 `e90ab189…` |
 
 当日（2026-11-07）连续发布 **11 个版本**（v0.5.0 → v0.5.10），随后以 0.5.11 收口文档与进度。主要增量均为 GNU 逐字节对齐与基建：
 
