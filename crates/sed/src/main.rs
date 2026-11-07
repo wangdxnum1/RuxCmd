@@ -1,7 +1,10 @@
 mod cli;
 
-use regex::bytes::Regex;
+// fancy-regex (re-exported from ruxcmd-core) matches on raw bytes and
+// implements the BRE/ERE back references that GNU sed supports; the plain
+// `regex` crate would reject them at compile time.
 use ruxcmd_core::bre;
+use ruxcmd_core::fancy_regex::Regex;
 use std::fs;
 use std::io::{self, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
@@ -23,7 +26,9 @@ impl Address {
         match self {
             Address::Line(n) => line_num == *n,
             Address::LastLine => is_last,
-            Address::Regex(re) => re.is_match(pattern_space),
+            // fancy-regex only errors at match time on runtime limits
+            // (e.g. backtracking); such a line counts as non-matching.
+            Address::Regex(re) => re.is_match(pattern_space).unwrap_or(false),
         }
     }
 }
@@ -203,12 +208,13 @@ impl<'a> ExprParser<'a> {
             }
         }
 
-        // Translate the BRE first; prepending (?i) before translation would
-        // escape the inline flag into a literal.
+        // Translate the BRE/ERE first; prepending (?i) before translation
+        // would escape the inline flag into a literal. Both dialects go
+        // through the fancy-regex paths so back references work like GNU's.
         let translated = if self.extended {
-            bre::to_regex_ere(&String::from_utf8_lossy(&pattern))
+            bre::to_regex_ere_fancy(&String::from_utf8_lossy(&pattern))
         } else {
-            bre::to_regex(&String::from_utf8_lossy(&pattern))
+            bre::to_regex_fancy(&String::from_utf8_lossy(&pattern))
         }
         .map_err(|e| format!("sed: -e expression #{}: {}", self.expr_no, e))?;
         let re = compile_bre_flags(&translated, case_insensitive, self.expr_no)?;
@@ -275,9 +281,9 @@ fn compile_bre_flags(
 fn compile_bre(pattern: &[u8], expr_no: usize, extended: bool) -> Result<Regex, String> {
     let source = String::from_utf8_lossy(pattern).into_owned();
     let translated = if extended {
-        bre::to_regex_ere(&source)
+        bre::to_regex_ere_fancy(&source)
     } else {
-        bre::to_regex(&source)
+        bre::to_regex_fancy(&source)
     }
     .map_err(|e| format!("sed: -e expression #{expr_no}: {e}"))?;
     compile_bre_flags(&translated, false, expr_no)
@@ -343,7 +349,10 @@ fn apply_substitute(
     let mut count = 0u32;
     let mut changed = false;
 
-    for captures in re.captures_iter(pattern_space) {
+    // fancy-regex yields a Result per match; a runtime error (e.g. the
+    // backtracking limit) ends matching like no further match.
+    let mut matches = re.captures_iter(pattern_space);
+    while let Some(Ok(captures)) = matches.next() {
         count += 1;
         let whole = captures.get(0).unwrap();
         if !global && count != nth {
@@ -361,7 +370,11 @@ fn apply_substitute(
 /// Expand the replacement text: `&` inserts the whole match, `\1`-`\9`
 /// insert groups, `\\` and `\&` escape themselves, `\n`/`\t`/`\r` emit
 /// control characters like GNU sed, and any other `\x` yields `x`.
-fn expand_replacement(captures: &regex::bytes::Captures, replacement: &[u8], out: &mut Vec<u8>) {
+fn expand_replacement(
+    captures: &ruxcmd_core::fancy_regex::Captures<'_, [u8]>,
+    replacement: &[u8],
+    out: &mut Vec<u8>,
+) {
     let mut i = 0;
     while i < replacement.len() {
         match replacement[i] {

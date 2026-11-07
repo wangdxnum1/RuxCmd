@@ -13,3 +13,10 @@ pub mod cpu;
 pub mod fsutil;
 pub mod lines;
 pub mod paths;
+
+// The [`bre`] translators emit patterns for this engine's back-reference
+// paths ([`to_regex_fancy`](bre::to_regex_fancy) and
+// [`to_regex_ere_fancy`](bre::to_regex_ere_fancy)); re-exporting it lets
+// command crates like `sed` compile those patterns on raw bytes without
+// adding their own fancy-regex dependency.
+pub use fancy_regex;

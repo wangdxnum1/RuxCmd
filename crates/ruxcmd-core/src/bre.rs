@@ -1,12 +1,14 @@
 //! POSIX basic regular expression (BRE) translation to Rust regex syntax.
 //!
 //! Used by `expr` (`:` / `match`) and `sed` (addresses and the `s` command).
-//! The [`to_regex`] / [`to_regex_ere`] paths feed the `regex` crate, which
-//! has no back reference support, so `\1`-`\9` surface as an error instead
-//! of silently mismatching. [`to_regex_fancy`] instead emits a pattern for
-//! the `fancy-regex` crate (used by `expr`) and passes back references
-//! through, keeping GNU's validity rule: `\N` is accepted only when the Nth
-//! `\(...\)` group is already closed at that point.
+//! The [`to_regex`] / [`to_regex_ere`] paths emit patterns for the `regex`
+//! crate, which has no back reference support, so there `\1`-`\9` surface as
+//! an error instead of silently mismatching. The [`to_regex_fancy`] /
+//! [`to_regex_ere_fancy`] paths instead emit patterns for the `fancy-regex`
+//! crate (used by `expr` and `sed`) and pass back references through, keeping
+//! GNU's validity rule: `\N` is accepted only when the Nth group is already
+//! closed at that point (in BRE the Nth `\(...\)`, in ERE the Nth `(...)` —
+//! GNU supports back references in ERE as an extension).
 
 /// Translate one BRE into an UNANCHORED Rust regex pattern. Callers decide
 /// on anchoring (expr prepends `^`; sed searches anywhere).
@@ -17,7 +19,7 @@ pub fn to_regex(pattern: &str) -> Result<String, String> {
 /// Translate one BRE into an UNANCHORED `fancy-regex` pattern. Identical to
 /// [`to_regex`] except that back references `\1`-`\9` referring to already
 /// closed groups are passed through (fancy-regex implements them); anything
-/// else is GNU's "invalid back reference".
+/// else is GNU's "Invalid back reference".
 pub fn to_regex_fancy(pattern: &str) -> Result<String, String> {
     to_regex_bre(pattern, true)
 }
@@ -26,27 +28,49 @@ pub fn to_regex_fancy(pattern: &str) -> Result<String, String> {
 /// enough to Rust regex syntax to pass through: unescaped `+ ? {m,n} | ( )`
 /// keep their operator meaning, escaped ones stay literals.
 pub fn to_regex_ere(pattern: &str) -> Result<String, String> {
-    to_regex_ere_inner(pattern)
+    to_regex_ere_inner(pattern, false)
 }
 
-/// Shared translation. Back references are unsupported in both dialects.
+/// Translate one ERE into an UNANCHORED `fancy-regex` pattern. Identical to
+/// [`to_regex_ere`] except that GNU's back reference extension `\1`-`\9`
+/// (which `sed -E` honors too) is passed through when the referenced group
+/// is already closed.
+pub fn to_regex_ere_fancy(pattern: &str) -> Result<String, String> {
+    to_regex_ere_inner(pattern, true)
+}
+
+/// Shared translation into strict regex-crate patterns. Back references are
+/// unsupported in both dialects.
 pub fn to_regex_kind(pattern: &str, extended: bool) -> Result<String, String> {
     if extended {
-        return to_regex_ere_inner(pattern);
+        return to_regex_ere_inner(pattern, false);
     }
     to_regex_bre(pattern, false)
 }
 
-fn to_regex_ere_inner(pattern: &str) -> Result<String, String> {
+fn to_regex_ere_inner(pattern: &str, allow_backrefs: bool) -> Result<String, String> {
     let mut out = String::new();
     let mut chars = pattern.chars().peekable();
+    // Back reference validity needs the group state: groups close in LIFO
+    // order, so at any point the closed groups are exactly 1..=closed, and
+    // `\N` is valid iff N <= closed. Escaped parens and parens inside bracket
+    // expressions are literals and never touch the counters.
+    let mut opened = 0usize;
+    let mut closed = 0usize;
     while let Some(c) = chars.next() {
         match c {
             '\\' => match chars.next() {
-                // Back references stay unsupported in ERE too.
                 Some(d @ '1'..='9') => {
-                    let _ = d;
-                    return Err("back references are unsupported".to_string());
+                    if !allow_backrefs {
+                        return Err("back references are unsupported".to_string());
+                    }
+                    let n = d as usize - '0' as usize;
+                    if n > closed {
+                        return Err("Invalid back reference".to_string());
+                    }
+                    // fancy-regex understands `\N` verbatim.
+                    out.push('\\');
+                    out.push(d);
                 }
                 // Escaped ERE metacharacters stay escaped (literals).
                 Some(other) => {
@@ -57,6 +81,18 @@ fn to_regex_ere_inner(pattern: &str) -> Result<String, String> {
                 }
                 None => out.push('\\'),
             },
+            '(' => {
+                opened += 1;
+                out.push('(');
+            }
+            ')' => {
+                if closed == opened {
+                    // GNU rejects an unmatched closing paren up front.
+                    return Err("Unmatched ) or \\)".to_string());
+                }
+                closed += 1;
+                out.push(')');
+            }
             '^' => {
                 if !out.is_empty() {
                     out.push('\\');
@@ -124,7 +160,7 @@ fn to_regex_bre(pattern: &str, allow_backrefs: bool) -> Result<String, String> {
                     // references into an enclosing group are errors).
                     let n = d as usize - '0' as usize;
                     if n > groups.len() || !groups[n - 1] {
-                        return Err("invalid back reference".to_string());
+                        return Err("Invalid back reference".to_string());
                     }
                     // fancy-regex understands `\N` verbatim.
                     out.push('\\');
@@ -209,14 +245,30 @@ mod tests {
         // Escaped metacharacters stay literals.
         assert_eq!(to_regex_ere("a\\+b").unwrap(), "a\\+b");
         assert_eq!(to_regex_ere("end$").unwrap(), "end$");
-        // Back references stay unsupported in ERE too.
+        // The strict ERE path keeps rejecting back references.
         assert!(to_regex_ere("(a)\\1").is_err());
     }
 
     #[test]
     fn back_references_error() {
-        // The regex-crate path (used by sed) keeps rejecting back references.
+        // The strict regex-crate path keeps rejecting back references.
         assert!(to_regex("\\(a\\)\\1").is_err());
+    }
+
+    #[test]
+    fn ere_back_references_translate_for_fancy() {
+        use super::to_regex_ere_fancy;
+
+        assert_eq!(to_regex_ere_fancy("(a)\\1").unwrap(), "(a)\\1");
+        // Groups keep POSIX numbering (by order of `(`), nested included;
+        // escaped parens and bracket contents are not groups.
+        assert_eq!(to_regex_ere_fancy("(a(X)b)\\2").unwrap(), "(a(X)b)\\2");
+        assert_eq!(to_regex_ere_fancy("a\\(b[(]c\\)").unwrap(), "a\\(b[(]c\\)");
+
+        // The translated pattern must compile under fancy-regex and match.
+        let re = fancy_regex::Regex::new(&to_regex_ere_fancy("(ab)\\1").unwrap()).unwrap();
+        assert!(re.is_match("abab").unwrap());
+        assert!(!re.is_match("abac").unwrap());
     }
 
     #[test]
@@ -241,7 +293,7 @@ mod tests {
 
     #[test]
     fn invalid_back_references_error() {
-        use super::to_regex_fancy;
+        use super::{to_regex_ere_fancy, to_regex_fancy};
 
         // GNU expr: "Invalid back reference" whenever the Nth group is not
         // closed before the back reference.
@@ -256,6 +308,13 @@ mod tests {
             to_regex_fancy("\\(a\\)\\(\\(b\\)\\1\\)").unwrap(),
             "(a)((b)\\1)"
         );
+
+        // GNU sed -E applies the same rule to ERE back references.
+        assert!(to_regex_ere_fancy("\\1(a)").is_err());
+        assert!(to_regex_ere_fancy("(a)\\2").is_err());
+        assert!(to_regex_ere_fancy("(a\\1)").is_err());
+        // ... and a closed earlier group is referable from a later one.
+        assert_eq!(to_regex_ere_fancy("(a)(b)\\1").unwrap(), "(a)(b)\\1");
     }
 
     #[test]

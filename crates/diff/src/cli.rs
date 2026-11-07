@@ -23,9 +23,16 @@ pub struct Cli {
     #[arg(short = 'B', long, help = "Ignore blank lines")]
     pub ignore_blank_lines: bool,
 
-    #[arg(help = "First file to compare")]
+    #[arg(
+        short = 'r',
+        long,
+        help = "Recursively compare directories (not supported)"
+    )]
+    pub recursive: bool,
+
+    #[arg(help = "First file to compare ('-' reads stdin)")]
     pub file1: Option<String>,
 
-    #[arg(help = "Second file to compare")]
+    #[arg(help = "Second file to compare ('-' reads stdin)")]
     pub file2: Option<String>,
 }

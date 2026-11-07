@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.9 — sed 反向引用、diff 换行标记(2026-11-07)
+
+- sed:BRE 与 ERE 模式的反向引用 `\1`-`\9` 支持（经 ruxcmd-core 翻译器 fancy-regex 路径，地址与 s 命令均适用）；无效反向引用（前向/越界/引用未闭合分组）启动报错 Invalid back reference 退出 2；非 UTF-8 数据按原始字节匹配不变。
+- diff:字节级读行改造（read_until 保留行尾信息）；末行无换行时按 GNU 输出 \ No newline at end of file 标记（普通与 -u 均适用）；缺尾换行参与行相等比较（-b 例外折叠）；支持 `-` 作操作数读 stdin；`-r/--recursive` 声明但使用报错退出 2；-u 相同输入无输出。
+- expr:BRE 反向引用已升级（fancy-regex 回溯引擎，嵌套分组编号正确）。
+
 ## 0.4.8 — bc scale、expr 反向引用、cut --complement、mktemp dry-run(2026-11-07)
 
 - bc:支持 `scale=N`(0..=64)赋值——scale>0 时 `/` 输出按 scale 截断的小数(i128 定点长除法,~38 位有效数字)、`%` = a−(a/b)·b、`^` 负指数与 `sqrt()` 产生小数;支持十进制字面量(1.5、.5);非零值打印完整小数位(前导 0)。仍非任意精度:超出报 overflow。

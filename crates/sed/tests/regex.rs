@@ -107,14 +107,70 @@ fn invalid_bre_fails_at_startup() {
 }
 
 #[test]
-fn back_reference_pattern_is_rejected_clearly() {
-    // Documented limitation: BRE back references are unsupported.
-    cargo_bin_cmd!("sed")
-        .arg("s/\\(a\\)\\1/X/")
-        .write_stdin(b"aa\n")
-        .assert()
-        .failure()
-        .stderr(predicates::str::contains("back references"));
+fn back_reference_matches_repeated_group() {
+    // GNU: `\(a\)\1` requires two equal letters; the first "aa" of "aaa"
+    // becomes X and the unmatched tail survives.
+    let (out, code) = run("s/\\(a\\)\\1/X/", b"aaa\n");
+    assert_eq!(code, Some(0));
+    assert_eq!(out, "Xa\n");
+}
+
+#[test]
+fn back_reference_chain_matches_repetition() {
+    // GNU: `\(b\)\(c\)\1` matches "bcb"; \1\2\1 rebuilds it, so the line is
+    // unchanged, while a distinguishing replacement shows both captures.
+    let (out, code) = run("s/\\(b\\)\\(c\\)\\1/\\1\\2\\1/", b"abcbcb\n");
+    assert_eq!(code, Some(0));
+    assert_eq!(out, "abcbcb\n");
+
+    let (out, code) = run("s/\\(b\\)\\(c\\)\\1/<\\1\\2>/", b"abcbcb\n");
+    assert_eq!(code, Some(0));
+    assert_eq!(out, "a<bc>cb\n");
+}
+
+#[test]
+fn back_reference_across_words() {
+    // GNU: the pattern requires "hello world hello"; \1 re-inserts the
+    // first group, \2 the second.
+    let (out, code) = run("s/\\(hello\\) \\(world\\) \\1/\\1/", b"hello world hello\n");
+    assert_eq!(code, Some(0));
+    assert_eq!(out, "hello\n");
+
+    let (out, code) = run("s/\\(hello\\) \\(world\\) \\1/\\2/", b"hello world hello\n");
+    assert_eq!(code, Some(0));
+    assert_eq!(out, "world\n");
+}
+
+#[test]
+fn back_reference_in_address() {
+    // Addresses take back references like the `s` command, in both dialects.
+    let (out, code) = run("/\\(abc\\)\\1/d", b"abcabc\nxyz\n");
+    assert_eq!(code, Some(0));
+    assert_eq!(out, "xyz\n");
+
+    let (out, code) = run_args(&["-E", r"/(abc)\1/d"], b"abcabc\nxyz\n");
+    assert_eq!(code, Some(0));
+    assert_eq!(out, "xyz\n");
+}
+
+#[test]
+fn invalid_back_reference_fails_at_startup() {
+    // GNU: "Invalid back reference" for forward refs and out-of-range refs,
+    // in BRE and in -E ERE (GNU extension back references).
+    for args in [
+        vec!["s/\\(a\\)\\2/X/"],
+        vec!["s/\\1(a)/X/"],
+        vec!["-E", r"s/(a)\2/X/"],
+        vec!["-E", r"s/\1(a)/X/"],
+    ] {
+        cargo_bin_cmd!("sed")
+            .args(&args)
+            .write_stdin(b"aa\n")
+            .assert()
+            .failure()
+            .code(1)
+            .stderr(predicates::str::contains("Invalid back reference"));
+    }
 }
 
 #[test]
@@ -158,7 +214,8 @@ fn ere_mode_alternation_and_intervals() {
 
 #[test]
 fn ere_mode_groups_are_unescaped() {
-    // In ERE, ( ) are groups without backslashes; backrefs still rejected.
+    // In ERE, ( ) are groups without backslashes; \1 in the replacement
+    // inserts the first group.
     let out = cargo_bin_cmd!("sed")
         .args(["-E", r"s/(f[o]+t)/<\1>/g"])
         .write_stdin(b"foot bar boot\n")
@@ -166,13 +223,24 @@ fn ere_mode_groups_are_unescaped() {
         .unwrap();
     assert_eq!(out.status.code(), Some(0));
     assert_eq!(String::from_utf8_lossy(&out.stdout), "<foot> bar boot\n");
+}
 
-    cargo_bin_cmd!("sed")
-        .args(["-E", r"s/(a)\1/X/"])
-        .write_stdin(b"aa\n")
-        .assert()
-        .failure()
-        .stderr(predicates::str::contains("back references"));
+#[test]
+fn ere_mode_back_references_match() {
+    // GNU extension: back references work in -E ERE too, in patterns and
+    // in addresses. The whole line "aa" is the match, so it becomes X.
+    let (out, code) = run_args(&["-E", r"s/(a)\1/X/"], b"aa\n");
+    assert_eq!(code, Some(0));
+    assert_eq!(out, "X\n");
+
+    let (out, code) = run_args(&["-E", r"s/(abc)\1/X/"], b"abcabc\n");
+    assert_eq!(code, Some(0));
+    assert_eq!(out, "X\n");
+
+    // A reference to a nested group that is already closed is valid.
+    let (out, code) = run_args(&["-E", r"s/(a(X)b)\2/<\1>/"], b"aXbXb\n");
+    assert_eq!(code, Some(0));
+    assert_eq!(out, "<aXb>b\n");
 }
 
 #[test]

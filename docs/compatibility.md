@@ -31,12 +31,12 @@
 | date | --date, --nanoseconds, --seconds, --set, --utc, --version | 冒烟 + 行为测试 | -d/--date 与位置参数接受 @EPOCH、YYYY-MM-DD、YYYY-MM-DDTHH:MM[:SS]（空串=now，其他格式报错退出 1）；-s/--set 经 SetLocalTime 设置本地时钟。--seconds 作用于解析出的时刻；%N 恒为 0。 |
 | dd | conv=notrunc, status=none/noxfer | 冒烟 + 行为测试 | 核心子集：if/of/bs/ibs/obs/count/skip/seek，支持 GNU 尺寸后缀（c/w/b/K/KB/M/G 及 1000 进制形式）；conv 支持 notrunc、sync（短读补 NUL 到 ibs）、nocreat、fullblock；iflag 支持 fullblock；stdout 不可 seek。GNU 的 records/copy 统计输出到 stderr。conv 完整面（ascii/ebcdic/swab 等）不支持。 |
 | df | --human-readable, --version, --print-type | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
-| diff | --unified, --ignore-case, --ignore-whitespace, --ignore-blank-lines, --version | 冒烟 + 行为测试 | 退出码遵循 GNU（0/1/2）。普通格式按 GNU 合并相邻删除+添加为单条 c 命令并折叠区间（锚点 0 特例 0a…/…d0），与 GNU diffutils 逐字节对照一致；重复行导致等长 LCS 对齐选择可能不同（仍为有效最短 diff）；末行无换行时缺少 \ No newline at end of file 标记。 |
+| diff | --unified, --ignore-case, --ignore-whitespace, --ignore-blank-lines, --version | 冒烟 + 行为测试 | 退出码遵循 GNU（0/1/2）。普通格式按 GNU 合并相邻删除+添加为单条 c 命令并折叠区间（锚点 0 特例 0a…/…d0），与 GNU diffutils 逐字节对照一致；重复行导致等长 LCS 对齐选择可能不同（仍为有效最短 diff）；末行无换行时按 GNU 输出 \ No newline at end of file 标记（普通与 -u 均适用）；缺尾换行参与行相等（b at EOF ≠ b\n），-b 例外折叠；支持 `-` 作操作数读 stdin；`-r/--recursive` 声明但使用报错退出 2。 |
 | dirname | --version, --zero | 冒烟 + 行为测试 | -z/--zero 仅改变输出终止符，路径仍作为命令行操作数传入。路径输出正斜杠；仅根 / 或 // 输出 /，裸盘符前缀输出 .。Windows 路径与 UNC 近似保持不变。 |
 | du | -a/--all, -b/--bytes, -c/--total, -d/--max-depth, -h/--human-readable, -s/--summarize, -x/--one-file-system, --apparent-size, --exclude, --version | 冒烟 + 行为测试 | 默认按 1K 块报告实际分配（GetCompressedFileSize，稀疏文件按真实分配），`--apparent-size` 改用逻辑大小，`-b` 输出字节，`-h` 采用 GNU 记法（不足 10 个单位保留一位小数，`1.0K`/`4.9K`/`10K`）；硬链接每次调用只计一次且重复参数行省略；目录同样按身份去重（`du a ./a` 只输出一次）；不可读路径报错并退出 1；默认按后序为每个子目录各输出一行（空目录也输出 0），`-s` 仅输出操作数，`-c` 始终追加 total 行（单参数也输出）。`-d/--max-depth=N` 只打印深度 ≤ N 的目录行；`-a/--all` 输出文件行（与目录同深度计）；`-x/--one-file-system` 按卷剪枝；`--exclude=PATTERN` 可重复（basename 级组件匹配）；`-a×-s` 报错退出 1，`-s×--max-depth` warning 分支与 GNU 一致；输出路径分隔符统一为 `/`。残留差异：MSYS GNU du 按 4K 簇估算分配（apparent 模式一致）；不支持 `--files0-from`/`-X`/`--inodes`/`--time*`/`-k/-m`/`--block-size`。 |
 | echo | --version | 冒烟 + 行为测试 | 未知的前导选项簇按操作数原样输出（含 --）；-e 覆盖 coreutils 全部转义（\c 截断全部输出）；--help/--version 与 coreutils 一致。 |
 | env | --ignore-environment, --unset, --verbose, --version | 冒烟 + 行为测试 | NAME=VAL 赋值并执行命令（-i 清空、-u 移除、透传退出码、spawn 失败 127）；无命令时打印环境。 |
-| expr | See --help | 冒烟 + 行为测试 | 整数四则（i64）、\| / &（GNU 左操作数语义）、比较（双方均为整数按数值否则按字符串）、: 与 match 的锚定 BRE 匹配（返回分组 1 或匹配长度）、substr/index/length。BRE 反向引用不支持（报语法错误）；退出码与 GNU 一致（0/1/2）。 |
+| expr | See --help | 冒烟 + 行为测试 | 整数四则（i64）、\| / &（GNU 左操作数语义）、比较（双方均为整数按数值否则按字符串）、: 与 match 的锚定 BRE 匹配（返回分组 1 或匹配长度）、substr/index/length。BRE 反向引用 \1-\9 支持（fancy-regex 回溯引擎）；退出码与 GNU 一致（0/1/2）。 |
 | envsubst | See --help | 冒烟 + 行为测试 | 替换 $VAR 和 ${VAR} 环境变量。有 SHELL-FORMAT 参数时仅替换列出的变量，其余保持原文。未知变量替换为空。 |
 | expand | --initial, --tabs, --version | 冒烟 + 行为测试 | 字节安全：CR 字节、非法 UTF-8 与未终止末行原样透传；tab 诊断与 GNU 一致（0 尺寸、升序列表）。 |
 | factor | --version | 冒烟 + 行为测试 | 对 u64 试除（无 Pollard rho，大半素数较慢）；0 和 1 与 GNU 一致输出裸标签。 |
@@ -97,7 +97,7 @@
 | rm | --dir, --force, --no-preserve-root, --one-file-system, --preserve-root, --verbose | 冒烟 + 行为测试 | -f 仅静默不存在的路径；其余失败均打印错误并退出 1，preserve-root 拒绝信息不被压制。 |
 | rmdir | --ignore-fail-on-non-empty, --parents, --verbose | 冒烟 + 行为测试 | 仅删除空目录，`-p` 向上逐级删除；忽略标志仅抑制目录非空错误。受 Windows 文件系统和 ACL 限制。 |
 | sar | 见 --help | 冒烟 + 行为测试（7） | 覆盖带时间戳的 CPU 报告、百分比范围、count 有界、内存报表与默认 CPU+内存输出；不支持 -d 磁盘报表与 -f 历史日志。 |
-| sed | --expression, --regexp-extended, --quiet, --in-place, --separate, --version, --file | 冒烟 + 行为测试 | 默认 POSIX BRE（-E/-r/--regexp-extended 切换 ERE，两种方言均带 GNU \+ \? 扩展）；地址与 s 命令共用方言；替换端支持 & 与 \1-\9、\n/\t/\r 以及 g/N/p/i 标志。模式中的反向引用不支持（启动报错）。非 UTF-8 数据按原始字节匹配并原样透传；行号逐文件重置；缺失的末行换行保留。 -f FILE 从文件读脚本。 |
+| sed | --expression, --regexp-extended, --quiet, --in-place, --separate, --version, --file | 冒烟 + 行为测试 | 默认 POSIX BRE（-E/-r/--regexp-extended 切换 ERE，两种方言均带 GNU \+ \? 扩展）；地址与 s 命令共用方言；替换端支持 & 与 \1-\9、\n/\t/\r 以及 g/N/p/i 标志。模式中的反向引用 \1-\9 支持（BRE 与 ERE，GNU 扩展，地址与 s 命令均适用）；无效反向引用启动报错 Invalid back reference。非 UTF-8 数据按原始字节匹配并原样透传；行号逐文件重置；缺失的末行换行保留。 -f FILE 从文件读脚本。 |
 | seq | --equal-width, --format, --separator, --version | 冒烟 + 行为测试 | 选项之后可接负数操作数；-w 补位含符号（经 GNU 实测核对）。 |
 | sha1sum | --check, --quiet, --status, --tag, --version, --zero | 冒烟 + 行为测试 | 支持 -z/--zero 和 --tag -z，NUL 模式不转义文件名；-z -c 退出 1。普通校验支持 stdin、精确文件名、GNU 转义、BOM、二进制标记和 BSD tag；读取错误不产生部分数据的成功摘要。不支持 -b/-t、strict 或 NUL 清单解析。 |
 | sha256sum | --check, --quiet, --status, --tag, --version, --zero | 冒烟 + 行为测试 | SHA-256，NUL 输出与普通清单校验规则同 sha1sum：-z 禁止文件名转义，-z -c 报错；支持 stdin 清单、精确文件名和读取错误传播。不支持 -b/-t、strict 或 NUL 清单解析。 |
