@@ -400,15 +400,21 @@ fn time_styles_full_iso_long_iso_iso() {
         .output()
         .unwrap();
     let full = String::from_utf8_lossy(&full.stdout);
-    // full-iso = %Y-%m-%d %H:%M:%S.%N %z
+    // full-iso = %Y-%m-%d %H:%M:%S.%N %z; the stamp reflects the machine
+    // zone (UTC on CI runners), so only the shape asserts.
     assert!(full.contains(r"10	"), "size column missing: {full}");
-    assert!(full.contains("+"), "UTC offset missing: {full}");
-    assert_eq!(
-        full.split_once('\t')
-            .and_then(|(_, rest)| rest.split('.').next())
-            .map(|s| s.len()),
-        Some("2026-11-07 15:51:08".len()),
-        "full-iso seconds precision missing: {full}"
+    let stamp = full
+        .split_once('\t')
+        .and_then(|(_, rest)| rest.split('\t').next())
+        .and_then(|s| s.split('\n').next())
+        .unwrap_or("");
+    assert_eq!(stamp.len(), 35, "full-iso stamp shape: {full}");
+    assert!(stamp.contains('.'), "nanoseconds missing: {full}");
+    let offset = stamp.rsplit(' ').next().unwrap_or("");
+    assert_eq!(offset.len(), 5, "UTC offset missing: {full}");
+    assert!(
+        offset.starts_with('+') || offset.starts_with('-'),
+        "offset sign missing: {full}"
     );
 
     cargo_bin_cmd!("du")

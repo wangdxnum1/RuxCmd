@@ -148,16 +148,40 @@ mod tests {
 
     #[test]
     fn epoch_roundtrips_through_local_time() {
-        // A fixed moment: 2026-11-07 05:59:09.1737032 UTC (= 13:59:09 +0800).
+        // A fixed moment: 2026-11-07 05:59:09.1737032 UTC.  The local wall
+        // clock and offset come from the machine's zone (CI runners run UTC),
+        // so only zone-independent facts and the round-trip shape assert.
         let when = UNIX_EPOCH + std::time::Duration::from_nanos(1_794_031_149_173_703_200);
         let local = local_time(when).expect("time converts");
         assert_eq!(local.epoch_seconds, 1_794_031_149);
         assert_eq!(local.nanos, 173_703_200);
-        assert_eq!(local.offset_minutes, 480);
+        // Real zones are multiples of 15 minutes (UTC runners: 0).
+        assert_eq!(local.offset_minutes % 15, 0);
         assert_eq!(
-            strftime("%Y-%m-%d %H:%M:%S.%N %z", &local),
-            "2026-11-07 13:59:09.173703200 +0800"
+            strftime("%s", &local),
+            "1794031149",
+            "%s must be zone-independent"
         );
+        // The stamp must round-trip the wall clock this zone produced.
+        let stamp = strftime("%Y-%m-%d %H:%M:%S.%N %z", &local);
+        assert_eq!(stamp.len(), 35, "stamp {stamp:?}");
+        let (wall, offset) = stamp.rsplit_once(' ').expect("stamp layout");
+        let (head, frac) = wall
+            .split_once('.')
+            .unwrap_or_else(|| panic!("stamp {stamp:?}"));
+        assert_eq!(
+            head,
+            format!(
+                "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+                local.year, local.month, local.day, local.hour, local.minute, local.second
+            )
+        );
+        assert_eq!(frac, "173703200");
+        assert!(
+            offset.starts_with('+') || offset.starts_with('-'),
+            "{stamp:?}"
+        );
+        assert_eq!(offset.len(), 5, "offset {stamp:?}");
     }
 
     #[test]
