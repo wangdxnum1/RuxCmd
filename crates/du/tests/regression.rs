@@ -374,3 +374,189 @@ fn bad_path_does_not_hide_good_path() {
         .stdout(predicates::str::contains("30\ta"))
         .stderr(predicates::str::contains("du:"));
 }
+
+// --- --time / --time-style --------------------------------------------------
+
+/// Bare --time adds the modification time between size and path, GNU's
+/// default `%Y-%m-%d %H:%M` style.
+#[test]
+fn time_column_uses_default_style() {
+    let dir = nested_tree();
+    cargo_bin_cmd!("du")
+        .args(["-b", "-a", "--time", "a/x"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::is_match(r"^10\t\d{4}-\d{2}-\d{2} \d{2}:\d{2}\ta/x\n$").unwrap());
+}
+
+/// Named styles map onto GNU strftime patterns.
+#[test]
+fn time_styles_full_iso_long_iso_iso() {
+    let dir = nested_tree();
+    let full = cargo_bin_cmd!("du")
+        .args(["-b", "-a", "--time", "--time-style=full-iso", "a/x"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    let full = String::from_utf8_lossy(&full.stdout);
+    // full-iso = %Y-%m-%d %H:%M:%S.%N %z
+    assert!(full.contains(r"10	"), "size column missing: {full}");
+    assert!(full.contains("+"), "UTC offset missing: {full}");
+    assert_eq!(
+        full.split_once('\t')
+            .and_then(|(_, rest)| rest.split('.').next())
+            .map(|s| s.len()),
+        Some("2026-11-07 15:51:08".len()),
+        "full-iso seconds precision missing: {full}"
+    );
+
+    cargo_bin_cmd!("du")
+        .args(["-b", "-a", "--time", "--time-style=iso", "a/x"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::is_match(r"^10\t\d{4}-\d{2}-\d{2}\ta/x\n$").unwrap());
+}
+
+/// +FORMAT passes a strftime subset through; %s renders the epoch seconds
+/// and %% stays a literal percent.
+#[test]
+fn time_style_plus_format() {
+    let dir = nested_tree();
+    let out = cargo_bin_cmd!("du")
+        .args(["-b", "-a", "--time", "--time-style=+%F|%s|%%", "a/x"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    let out = String::from_utf8_lossy(&out.stdout);
+    assert!(out.contains(r"10	"), "size column missing: {out}");
+    assert!(out.ends_with("|%\ta/x\n"), "custom format: {out}");
+}
+
+/// --time=atime prints the access time; invalid words are rejected with
+/// GNU's two-part message.
+#[test]
+fn time_word_selection_and_validation() {
+    let dir = nested_tree();
+    cargo_bin_cmd!("du")
+        .args(["-b", "-a", "--time=atime", "a/x"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::is_match(r"^10\t\d{4}-\d{2}-\d{2} \d{2}:\d{2}\ta/x\n$").unwrap());
+    cargo_bin_cmd!("du")
+        .args(["--time=bogus", "a/x"])
+        .current_dir(dir.path())
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "du: invalid argument 'bogus' for '--time'",
+        ))
+        .stderr(predicates::str::contains("  - 'atime', 'access', 'use'"))
+        .stderr(predicates::str::contains("  - 'ctime', 'status'"));
+    cargo_bin_cmd!("du")
+        .args(["--time", "--time-style=bogus", "a/x"])
+        .current_dir(dir.path())
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "du: invalid argument 'bogus' for 'time style'",
+        ))
+        .stderr(predicates::str::contains("  - 'full-iso'"));
+}
+
+// --- block scaling ----------------------------------------------------------
+
+/// -k counts 1024-byte blocks, -m 1048576-byte blocks, --block-size
+/// arbitrary scales with GNU suffixes, and the last flag on the command
+/// line wins.
+#[test]
+fn block_scales_k_m_and_custom() {
+    let dir = nested_tree();
+    // a/ holds three 10-byte files: 30 bytes apparent.
+    let run = |extra: &[&str]| -> String {
+        let out = cargo_bin_cmd!("du")
+            .args(["--apparent-size", "-s"])
+            .args(extra)
+            .arg("a")
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+        String::from_utf8_lossy(&out.stdout).into_owned()
+    };
+    assert_eq!(run(&["-k"]), "1\ta\n");
+    assert_eq!(run(&["-m"]), "1\ta\n");
+    assert_eq!(run(&["--block-size=16"]), "2\ta\n");
+    // last flag wins: -k then --block-size=16
+    assert_eq!(run(&["-k", "--block-size=16"]), "2\ta\n");
+    assert_eq!(run(&["--block-size=16", "-k"]), "1\ta\n");
+}
+
+/// GNU 1000-based suffixes (KB) round up to whole units.
+#[test]
+fn block_size_kb_suffix_is_1000_based() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("big"), vec![0u8; 2097152]).unwrap();
+    cargo_bin_cmd!("du")
+        .args(["--apparent-size", "--block-size=1KB", "big"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout("2098\tbig\n");
+}
+
+// --- --files0-from ----------------------------------------------------------
+
+/// NUL-separated operands read from a file, with a trailing NUL terminator.
+#[test]
+fn files0_from_reads_nul_separated_operands() {
+    let dir = nested_tree();
+    fs::write(dir.path().join("list"), b"a/x\0a/b/y\0").unwrap();
+    cargo_bin_cmd!("du")
+        .args(["--apparent-size", "-b", "--files0-from=list"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("10\ta/x\n"))
+        .stdout(predicates::str::contains("10\ta/b/y\n"));
+}
+
+/// '-' reads the list from stdin.
+#[test]
+fn files0_from_dash_reads_stdin() {
+    let dir = nested_tree();
+    cargo_bin_cmd!("du")
+        .args(["--apparent-size", "-b", "--files0-from=-"])
+        .current_dir(dir.path())
+        .write_stdin(b"a/x\0a/b/c/z\0")
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("10\ta/x\n"))
+        .stdout(predicates::str::contains("10\ta/b/c/z\n"));
+}
+
+/// Positional operands combined with --files0-from are a GNU two-part error.
+#[test]
+fn files0_from_rejects_extra_operands() {
+    let dir = nested_tree();
+    cargo_bin_cmd!("du")
+        .args(["--files0-from=list", "a"])
+        .current_dir(dir.path())
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("du: extra operand"))
+        .stderr(predicates::str::contains(
+            "file operands cannot be combined with --files0-from",
+        ));
+}
+
+/// A missing list file fails like GNU.
+#[test]
+fn files0_from_missing_list_file_errors() {
+    cargo_bin_cmd!("du")
+        .arg("--files0-from=no-such-list-ruxcmd")
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("cannot open"));
+}

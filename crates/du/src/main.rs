@@ -1,6 +1,5 @@
 mod cli;
 
-use clap::Parser;
 use cli::Args;
 use std::collections::HashSet;
 use std::fs;
@@ -10,11 +9,12 @@ use std::os::windows::io::AsRawHandle;
 use std::path::{Path, PathBuf};
 use windows::Win32::Foundation::HANDLE;
 use windows::Win32::Storage::FileSystem::{
-    BY_HANDLE_FILE_INFORMATION, GetCompressedFileSizeW, GetFileInformationByHandle,
+    BY_HANDLE_FILE_INFORMATION, FILE_BASIC_INFO, FileBasicInfo, GetCompressedFileSizeW,
+    GetFileInformationByHandle, GetFileInformationByHandleEx,
 };
 
 fn main() {
-    let args = Args::parse();
+    let args = cli::parse_args();
 
     // GNU parses --max-depth while processing options, so an invalid value is
     // reported before any other conflict.
@@ -38,10 +38,67 @@ fn main() {
         }
     }
 
-    let paths = if args.paths.is_empty() {
-        vec![PathBuf::from(".")]
-    } else {
-        args.paths.clone()
+    // GNU echoes a two-part error when operands accompany --files0-from.
+    if let Some(source) = &args.files0_from {
+        if let Some(extra) = args.paths.first() {
+            eprintln!("du: extra operand '{}'", extra.display());
+            eprintln!("file operands cannot be combined with --files0-from");
+            eprintln!("Try 'du --help' for more information.");
+            std::process::exit(1);
+        }
+        let _ = source;
+    }
+
+    // --time=WORD; bare --time means the modification time.
+    let time_field = args.time.as_deref().map(|word| match word {
+        "atime" | "access" | "use" => Some(TimeField::Access),
+        "ctime" | "status" => Some(TimeField::Status),
+        "modification" => Some(TimeField::Modification),
+        other => {
+            eprintln!("du: invalid argument '{other}' for '--time'");
+            eprintln!("Valid arguments are:");
+            eprintln!("  - 'atime', 'access', 'use'");
+            eprintln!("  - 'ctime', 'status'");
+            eprintln!("Try 'du --help' for more information.");
+            std::process::exit(1);
+        }
+    });
+
+    // --time-style; +FORMAT passes a strftime subset straight through.
+    let time_format = args.time_style.as_deref().map(|style| match style {
+        "full-iso" => "%Y-%m-%d %H:%M:%S.%N %z".to_string(),
+        "long-iso" => "%Y-%m-%d %H:%M".to_string(),
+        "iso" => "%Y-%m-%d".to_string(),
+        other => {
+            if let Some(format) = other.strip_prefix('+') {
+                format.to_string()
+            } else if other == "default" {
+                "%Y-%m-%d %H:%M".to_string()
+            } else {
+                eprintln!("du: invalid argument '{other}' for 'time style'");
+                eprintln!("Valid arguments are:");
+                eprintln!("  - 'full-iso'");
+                eprintln!("  - 'long-iso'");
+                eprintln!("  - 'iso'");
+                eprintln!("Try 'du --help' for more information.");
+                std::process::exit(1);
+            }
+        }
+    });
+
+    // GNU -k/-m/--block-size: the last one on the command line wins; -b
+    // always prints raw bytes.
+    let block_scale = block_scale(&args);
+
+    let paths = match &args.files0_from {
+        Some(source) => read_files0_from(source),
+        None => {
+            if args.paths.is_empty() {
+                vec![PathBuf::from(".")]
+            } else {
+                args.paths.clone()
+            }
+        }
     };
 
     let stdout = std::io::stdout();
@@ -53,6 +110,9 @@ fn main() {
         apparent: args.apparent_size || args.bytes,
         human: args.human_readable,
         bytes: args.bytes,
+        block_scale,
+        time_field: time_field.flatten(),
+        time_format: time_format.unwrap_or_else(|| "%Y-%m-%d %H:%M".to_string()),
         all: args.all,
         max_print: if args.summarize {
             0
@@ -75,9 +135,9 @@ fn main() {
         // GNU omits the line entirely for an argument that repeats an
         // already-seen entry or is excluded, so only print when a value
         // was returned.
-        if let Some(size) = counter.total(path, &base, 0, &mut out) {
+        if let Some((size, time)) = counter.total(path, &base, 0, &mut out) {
             grand_total += size;
-            let _ = writeln!(out, "{}\t{}", counter.display(size), base);
+            let _ = writeln!(out, "{}", counter.entry_line(size, time, &base));
         }
     }
 
@@ -88,6 +148,109 @@ fn main() {
     if counter.had_error {
         std::process::exit(1);
     }
+}
+
+/// How a path's time is captured for `--time` output.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum TimeField {
+    Access,
+    Status,
+    Modification,
+}
+
+/// Reads NUL-separated operand names from a file or stdin, reporting empty
+/// entries in place (GNU keeps going and fails at the end).
+fn read_files0_from(source: &str) -> Vec<PathBuf> {
+    let content = if source == "-" {
+        use std::io::Read;
+        let mut buffer = Vec::new();
+        if let Err(e) = std::io::stdin().read_to_end(&mut buffer) {
+            eprintln!("du: error reading '-': {e}");
+            std::process::exit(1);
+        }
+        buffer
+    } else {
+        match fs::read(source) {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                eprintln!("du: cannot open '{source}' for reading: {e}");
+                std::process::exit(1);
+            }
+        }
+    };
+    let mut names = Vec::new();
+    let mut had_error = false;
+    for (line, raw) in content.split(|b| *b == 0).enumerate() {
+        if raw.is_empty() {
+            // A trailing NUL terminates the list silently; an interior one is
+            // reported with its line number like GNU.
+            if line + 1 != content.split(|b| *b == 0).count() {
+                eprintln!("du: {source}:{}: invalid zero-length file name", line + 1);
+                had_error = true;
+            }
+            continue;
+        }
+        match std::str::from_utf8(raw) {
+            Ok(name) => names.push(PathBuf::from(name)),
+            Err(_) => {
+                eprintln!("du: {source}:{}: invalid zero-length file name", line + 1);
+                had_error = true;
+            }
+        }
+    }
+    if had_error {
+        std::process::exit(1);
+    }
+    names
+}
+
+/// Resolves the GNU display scale from -k/-m/--block-size (last wins).
+/// Returns 1024 by default; -b bypasses scaling entirely.  Every selector
+/// that appears is validated, even when a later one overrides it.
+fn block_scale(args: &Args) -> u64 {
+    let mut best: Option<(usize, u64)> = None;
+    for (position, spec) in &args.block_scale_specs {
+        let scale = match spec {
+            cli::BlockScale::Kibi => 1024,
+            cli::BlockScale::Mebi => 1024 * 1024,
+            cli::BlockScale::Size(text) => match parse_scale(text) {
+                Some(scale) => scale,
+                None => usage_error(&format!("invalid --block-size argument '{text}'")),
+            },
+        };
+        if best.is_none_or(|(p, _)| *position > p) {
+            best = Some((*position, scale));
+        }
+    }
+    best.map(|(_, scale)| scale).unwrap_or(1024)
+}
+
+/// GNU --block-size: digits with an optional K/M/G/T/P/E (1024-based) or
+/// KB/MB/GB/TB/PB/EB (1000-based) suffix.
+fn parse_scale(spec: &str) -> Option<u64> {
+    let split = spec.find(|c: char| c.is_ascii_alphabetic());
+    let (num_part, suffix) = match split {
+        Some(idx) => (&spec[..idx], spec[idx..].to_ascii_uppercase()),
+        None => (spec, String::new()),
+    };
+    let num: u64 = num_part.parse().ok()?;
+    let multiplier: u64 = match suffix.as_str() {
+        "" => 1,
+        "K" => 1024,
+        "M" => 1024 * 1024,
+        "G" => 1024 * 1024 * 1024,
+        "T" => 1024u64 * 1024 * 1024 * 1024,
+        "P" => 1024u64 * 1024 * 1024 * 1024 * 1024,
+        "E" => 1024u64 * 1024 * 1024 * 1024 * 1024 * 1024,
+        "KB" => 1000,
+        "MB" => 1000 * 1000,
+        "GB" => 1000 * 1000 * 1000,
+        "TB" => 1000u64 * 1000 * 1000 * 1000,
+        "PB" => 1000u64 * 1000 * 1000 * 1000 * 1000,
+        "EB" => 1000u64 * 1000 * 1000 * 1000 * 1000 * 1000,
+        _ => return None,
+    };
+    num.checked_mul(multiplier)
 }
 
 /// GNU-style usage failure: message, Try line, exit 1.
@@ -115,8 +278,14 @@ struct Counter {
     /// Count logical sizes instead of allocated disk space.
     apparent: bool,
     human: bool,
-    /// Print raw bytes instead of 1K blocks.
+    /// Print raw bytes instead of scaled blocks.
     bytes: bool,
+    /// Display scale from -k/-m/--block-size (1 = one block).
+    block_scale: u64,
+    /// --time field, when requested.
+    time_field: Option<TimeField>,
+    /// strftime pattern for --time output.
+    time_format: String,
     /// -a: also print a line for every file.
     all: bool,
     /// Only entries up to this depth (operands are depth 0) print; -s and
@@ -139,7 +308,13 @@ impl Counter {
     /// on a foreign volume (-x), an already counted entry, or an unreadable
     /// path (already reported on stderr). Nested directories print their own
     /// line when depth allows; the caller prints operands.
-    fn total(&mut self, path: &Path, rel: &str, depth: u64, out: &mut dyn Write) -> Option<u64> {
+    fn total(
+        &mut self,
+        path: &Path,
+        rel: &str,
+        depth: u64,
+        out: &mut dyn Write,
+    ) -> Option<(u64, Option<std::time::SystemTime>)> {
         if is_excluded(rel, &self.excludes) {
             return None;
         }
@@ -155,6 +330,7 @@ impl Counter {
                 return None;
             }
         };
+        let time = self.capture_time(path, &metadata);
 
         if metadata.is_dir() {
             // GNU counts every inode once; a directory reached again (for
@@ -170,6 +346,7 @@ impl Counter {
                         let child = format!("{}/{}", rel, entry.file_name().to_string_lossy());
                         size += self
                             .total(&entry.path(), &child, depth + 1, out)
+                            .map(|(value, _)| value)
                             .unwrap_or(0);
                     }
                 }
@@ -179,9 +356,9 @@ impl Counter {
                 }
             }
             if depth > 0 && depth <= self.max_print {
-                let _ = writeln!(out, "{}\t{}", self.display(size), rel);
+                let _ = writeln!(out, "{}", self.entry_line(size, time, rel));
             }
-            return Some(size);
+            return Some((size, time));
         }
 
         // GNU counts each hard-linked file once per invocation.
@@ -198,9 +375,37 @@ impl Counter {
             allocated_size(path).unwrap_or(logical)
         };
         if self.all && depth > 0 && depth <= self.max_print {
-            let _ = writeln!(out, "{}\t{}", self.display(size), rel);
+            let _ = writeln!(out, "{}", self.entry_line(size, time, rel));
         }
-        Some(size)
+        Some((size, time))
+    }
+
+    /// Captures the time requested by `--time` (None when not printing one).
+    fn capture_time(&self, path: &Path, metadata: &fs::Metadata) -> Option<std::time::SystemTime> {
+        match self.time_field? {
+            TimeField::Access => metadata.accessed().ok(),
+            // NTFS ChangeTime is the closest analogue of POSIX ctime; the
+            // creation time std exposes is a fallback.
+            TimeField::Status => change_time(path).or_else(|| metadata.modified().ok()),
+            TimeField::Modification => metadata.modified().ok(),
+        }
+    }
+
+    /// One output line: `size[\ttime]\tpath`, like GNU with --time.
+    fn entry_line(&self, size: u64, time: Option<std::time::SystemTime>, rel: &str) -> String {
+        let size_text = self.display(size);
+        match (
+            self.time_field,
+            time.and_then(ruxcmd_core::timefmt::local_time),
+        ) {
+            (Some(_), Some(local)) => format!(
+                "{}\t{}\t{}",
+                size_text,
+                ruxcmd_core::timefmt::strftime(&self.time_format, &local),
+                rel
+            ),
+            _ => format!("{}\t{}", size_text, rel),
+        }
     }
 
     /// True when `path` sits on a volume different from the operand's.
@@ -227,7 +432,7 @@ impl Counter {
         } else if self.bytes {
             size.to_string()
         } else {
-            size.div_ceil(1024).to_string()
+            size.div_ceil(self.block_scale).to_string()
         }
     }
 }
@@ -378,6 +583,33 @@ fn file_id(path: &Path) -> Option<(u32, u64, u64)> {
     ))
 }
 
+/// NTFS ChangeTime, the closest analogue of the POSIX "status change" time
+/// that `--time=ctime` prints.  Falls back to None when the API rejects the
+/// request or the value predates the Unix epoch.
+fn change_time(path: &Path) -> Option<std::time::SystemTime> {
+    let file = fs::File::open(path).ok()?;
+    let mut basic = FILE_BASIC_INFO::default();
+    // SAFETY: the handle is owned by `file` and the buffer matches the class.
+    unsafe {
+        GetFileInformationByHandleEx(
+            HANDLE(file.as_raw_handle()),
+            FileBasicInfo,
+            &mut basic as *mut FILE_BASIC_INFO as *mut core::ffi::c_void,
+            std::mem::size_of::<FILE_BASIC_INFO>() as u32,
+        )
+        .ok()?;
+    }
+    let intervals = basic.ChangeTime;
+    if intervals <= 0 {
+        return None;
+    }
+    let since_unix = intervals as i128 - 116_444_736_000_000_000;
+    if since_unix < 0 {
+        return None;
+    }
+    Some(std::time::UNIX_EPOCH + std::time::Duration::from_nanos((since_unix * 100) as u64))
+}
+
 /// GNU `du -h` wording: raw numbers below 1K, one decimal below 10 units,
 /// integers above that (`1.0K`, `4.9K`, `10K`, `1.0M`).
 fn human_size(bytes: u64) -> String {
@@ -496,6 +728,9 @@ mod tests {
             apparent: true,
             human: false,
             bytes: true,
+            block_scale: 1024,
+            time_field: None,
+            time_format: String::new(),
             all: true,
             max_print: u64::MAX,
             one_file_system: true,
@@ -510,7 +745,7 @@ mod tests {
         let operand = dir.path().join("a");
         let base = operand_name(&operand);
         let mut out = Vec::new();
-        let size = counter
+        let (size, _) = counter
             .total(&operand, &base, 0, &mut out)
             .expect("operand is counted");
         assert_eq!(size, 10);
@@ -522,7 +757,7 @@ mod tests {
         counter.seen.clear();
         counter.seen_dirs.clear();
         let mut out = Vec::new();
-        let size = counter
+        let (size, _) = counter
             .total(&operand, &base, 0, &mut out)
             .expect("operand is counted");
         assert_eq!(size, 20);

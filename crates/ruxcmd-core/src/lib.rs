@@ -14,6 +14,7 @@ pub mod cpu;
 pub mod fsutil;
 pub mod lines;
 pub mod paths;
+pub mod timefmt;
 
 // The [`bre`] translators emit patterns for this engine's back-reference
 // paths ([`to_regex_fancy`](bre::to_regex_fancy) and

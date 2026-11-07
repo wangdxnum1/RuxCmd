@@ -280,111 +280,18 @@ fn header_options(flags: &[String]) -> String {
     }
 }
 
-#[cfg(windows)]
-mod timestamp {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    use windows::Win32::Foundation::{FILETIME, SYSTEMTIME};
-
-    // GNU unified-format header timestamp: local wall-clock time with the
-    // full nanosecond remainder and the wall-clock offset from UTC
-    // (2026-11-07 14:52:29.173703200 +0800).  A - operand is stamped with
-    // the time the input was read, like GNU.  Declared directly against
-    // kernel32 because the workspace windows-feature set is frozen.
-    #[link(name = "kernel32")]
-    unsafe extern "system" {
-        fn FileTimeToSystemTime(file_time: *const FILETIME, system_time: *mut SYSTEMTIME) -> i32;
-        fn SystemTimeToTzSpecificLocalTime(
-            timezone: *const core::ffi::c_void,
-            universal: *const SYSTEMTIME,
-            local: *mut SYSTEMTIME,
-        ) -> i32;
-        fn GetTimeZoneInformation(time_zone_information: *mut TIME_ZONE_INFORMATION) -> i32;
-    }
-
-    #[repr(C)]
-    struct TIME_ZONE_INFORMATION {
-        bias: i32,
-        standard_name: [u16; 32],
-        standard_date: SYSTEMTIME,
-        standard_bias: i32,
-        daylight_name: [u16; 32],
-        daylight_date: SYSTEMTIME,
-        daylight_bias: i32,
-    }
-
-    const TIME_ZONE_ID_STANDARD: i32 = 1;
-    const TIME_ZONE_ID_DAYLIGHT: i32 = 2;
-
-    pub fn stamp(name: &str) -> Option<String> {
-        let when = if name == "-" {
-            SystemTime::now()
-        } else {
-            std::fs::metadata(name).ok()?.modified().ok()?
-        };
-        let since_epoch = when.duration_since(UNIX_EPOCH).ok()?;
-        let nanos = since_epoch.subsec_nanos();
-        let intervals = since_epoch.as_nanos() / 100 + 116_444_736_000_000_000;
-        let filetime = FILETIME {
-            dwLowDateTime: (intervals & 0xFFFF_FFFF) as u32,
-            dwHighDateTime: (intervals >> 32) as u32,
-        };
-        let mut utc = SYSTEMTIME::default();
-        if unsafe { FileTimeToSystemTime(&filetime, &mut utc) } == 0 {
-            return None;
-        }
-        let mut local = SYSTEMTIME::default();
-        if unsafe { SystemTimeToTzSpecificLocalTime(std::ptr::null(), &utc, &mut local) } == 0 {
-            return None;
-        }
-        let mut tzi = TIME_ZONE_INFORMATION {
-            bias: 0,
-            standard_name: [0; 32],
-            standard_date: SYSTEMTIME::default(),
-            standard_bias: 0,
-            daylight_name: [0; 32],
-            daylight_date: SYSTEMTIME::default(),
-            daylight_bias: 0,
-        };
-        let state = unsafe { GetTimeZoneInformation(&mut tzi) };
-        let extra = match state {
-            TIME_ZONE_ID_DAYLIGHT => tzi.daylight_bias,
-            TIME_ZONE_ID_STANDARD => tzi.standard_bias,
-            _ => 0,
-        };
-        // UTC = local + bias, so the printed offset is the negated bias.
-        let offset = -(tzi.bias + extra);
-        let (sign, minutes) = if offset >= 0 {
-            ('+', offset)
-        } else {
-            ('-', -offset)
-        };
-        Some(format!(
-            "{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:09} {}{:02}{:02}",
-            local.wYear,
-            local.wMonth,
-            local.wDay,
-            local.wHour,
-            local.wMinute,
-            local.wSecond,
-            nanos,
-            sign,
-            minutes / 60,
-            minutes % 60
-        ))
-    }
-}
-
 /// GNU unified-format header timestamp, when the platform can produce one.
 fn unified_timestamp(name: &str) -> Option<String> {
-    #[cfg(windows)]
-    {
-        timestamp::stamp(name)
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = name;
-        None
-    }
+    let when = if name == "-" {
+        std::time::SystemTime::now()
+    } else {
+        std::fs::metadata(name).ok()?.modified().ok()?
+    };
+    let local = ruxcmd_core::timefmt::local_time(when)?;
+    Some(ruxcmd_core::timefmt::strftime(
+        "%Y-%m-%d %H:%M:%S.%N %z",
+        &local,
+    ))
 }
 
 /// Read one operand into lines. `-` stands for stdin; otherwise the operand

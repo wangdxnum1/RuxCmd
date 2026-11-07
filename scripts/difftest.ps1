@@ -394,6 +394,11 @@ c');  shapes=@('empty') }
     # apparent-size and byte cases are comparable across implementations;
     # allocated-size cases land in $KnownDifferences (cluster estimation).
     @{ cmd='du';     argv=@('--apparent-size','-s','source'); shapes=@('ascii','empty','nonutf8','notrail'); fixture=$true }
+    # --time renders the fixture mtimes identically on both sides; apparent
+    # sizes keep the size column byte-comparable without the cluster exemption.
+    @{ cmd='du';     argv=@('--apparent-size','--time','-s','source'); shapes=@('ascii','empty'); fixture=$true }
+    @{ cmd='du';     argv=@('--apparent-size','--time','--time-style=full-iso','-s','source'); shapes=@('ascii'); fixture=$true }
+    @{ cmd='du';     argv=@('--apparent-size','--block-size=512','-s','source'); shapes=@('ascii'); fixture=$true }
     @{ cmd='du';     argv=@('-b','-s','source'); shapes=@('ascii','empty'); fixture=$true }
     @{ cmd='du';     argv=@('-h','--apparent-size','-s','source'); shapes=@('ascii','empty'); fixture=$true }
     @{ cmd='du';     argv=@('--apparent-size','-s','nonempty'); shapes=@('empty'); fixture=$true }

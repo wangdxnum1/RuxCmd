@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.4 — du 时间列与块缩放、timefmt 基建(2026-11-07)
+
+- du:新增 `--time`/`--time=atime|access|use`/`--time=ctime|status`（裸 --time 为修改时间；ctime 经 NTFS ChangeTime 读取，与 MSYS 实测一致；非法取值报 GNU 同款 Valid arguments 错误）与 `--time-style=full-iso/long-iso/iso/+FORMAT`（strftime 子集：%,若含 %N 纳秒、%s 纪元秒、%F/%T 复合、%z/%:z 偏移，未知指令原样保留）；时间列插入 size 与 path 之间。
+- du:新增 `--files0-from=FILE`（NUL 分隔操作数清单，`-` 读 stdin；与位置操作数并用报 GNU 同款 "extra operand / file operands cannot be combined" 两段式错误；清单内空项按行号报 invalid zero-length file name 并以退出码 1 收尾）；`-k`/`-m`/`--block-size=SIZE`（K/KB/M/GB... 后缀按 1024/1000 进制，三个选择器最后一个生效，clap value_source 门控命令行真实位置）。
+- 基建:ruxcmd-core 新增 `timefmt` 模块——本地时区转换（FileTimeToSystemTime + SystemTimeToTzSpecificLocalTime + GetTimeZoneInformation）与 strftime 子集格式化，du --time 与 diff -u 头行共用；diff 的内嵌 timestamp 模块重构到 core（diff 移除 windows 直接依赖）。du --time 用例与 MSYS2 GNU 逐字节一致，纳入 difftest（46 pass / 0 fail）。
+
 ## 0.5.3 — cp 硬链接与备份、diff 递归与时间戳(2026-11-07)
 
 - cp:新增 `-l/--link` 硬链接（std hard_link/CreateHardLinkW）：目标存在报 GNU 同款 "cannot create hard link ...: File exists"、`-f` 先删再链、`-r` 递归硬链接树中每个文件、与 `-s` 组合报 "cannot make both hard and symbolic links"；新增 `-b/--backup` 与 `-S/--suffix`：备份在确认覆盖后进行，plain `-b` 为 GNU existing 模式（存在 `.~N~` 编号备份则继续编号，否则加 `~` 后缀），`--backup=numbered/existing/simple/none` 显式选择，`-S` 覆盖 simple 后缀；`-n` 与 `-b` 互斥报 GNU 同款错误，新目标不产生备份，递归复制中的条目同样备份。

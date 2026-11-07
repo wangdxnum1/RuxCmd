@@ -662,7 +662,6 @@ dependencies = [
  "ruxcmd-build",
  "ruxcmd-core",
  "tempfile",
- "windows",
 ]
 
 [[package]]
@@ -710,6 +709,7 @@ dependencies = [
  "clap",
  "predicates",
  "ruxcmd-build",
+ "ruxcmd-core",
  "tempfile",
  "windows",
 ]
