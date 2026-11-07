@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.11 — 文档与进度闭环(2026-11-07)
+
+纯文档与发布状态收口，无 CLI 行为变更。
+
+- 兼容表纠偏（中英双份）：`head` 移除残留的「`-n` 与 `-c` 互斥」旧文，改为 0.5.1 起可组合、最后出现的选项生效（经 `crates/head` 源码、测试与 CHANGELOG 核实）；`mv` 移除结尾与同行矛盾的「`-i` 提示写 stdout」旧文，统一为写 stderr（经 `crates/mv` 源码核实）。
+- README 纠偏（中英双份）：`-Source 0.4.5` 与 `git tag -m "RuxCmd 0.4.5"` 等版本残留先对齐到 0.5.10，随本版发布统一提升为 0.5.11；「发展方向与见解」纳入文档索引。
+- 迭代状态页重写到 v0.5.10 真实进度：记录当日 11 次发布、HEAD、Verify 门禁组成与 junction 测试的环境约束；保留 0.4.9 历史基线；新增下一阶段优先级（发布自动化收尾、分发落地、1.0 承诺冻结需 CLI 契约快照）。本版发布后锚点同步至 0.5.11。
+- 新增双语发展方向文档 `docs/roadmap{,-zh}.md`（定位、现状判断、四条主线、非目标、版本路线图、风险与度量）。
+- 归档 0.4.8 时代的 `gaps-048.txt` 到 `docs/archive/gaps-0.4.8-snapshot.txt` 并加说明头，明确其不代表当前状态，避免腐化缺口清单被误读。
+
 ## 0.5.10 — cp VERSION_CONTROL、grep 目录计数(2026-11-07)
 
 - cp:VERSION_CONTROL 环境变量支持——裸 `-b` 的备份模式取自该变量（none/off/0、simple/never/3、existing/nil/2、numbered/t/1，无效值报 GNU 同款四行 Valid arguments 错误），`--backup=CONTROL` 显式控制仍覆盖环境变量；无 -b/--backup 时环境变量不启用备份（coreutils 同语义）。

@@ -1,3 +1,12 @@
+# 历史快照：0.4.8 时代的命令缺口记录（2026-11 前）
+#
+# 已归档，不代表当前状态。此文件记录的「不支持」项中，大部分在 0.4.9–0.5.10
+# 已实现（bc scale/ibase/obase、cut -n/--complement、mktemp -u/--tmpdir、
+# truncate --io-blocks、iostat/sar -d、nslookup SRV、校验和 -b/-t、zip 更新
+# 语义与百分比等）。当前状态以 docs/compatibility-zh.md 与 CHANGELOG.md 为准；
+# 保留本文件仅供追溯，请勿据此判断缺口。
+# 另注：首行 awk 条目本身是被截断的片段（原文超过单行导出长度）。
+
 ### awk
 & getline var`：同一命令字符串复用同一个 cmd /C 子进程（双向管道），`close()` 同时关闭读写两端并返回退出码，程序结束时统一回收；读入返回 1/0/-1，失败写 ERRNO。Windows 差异：与 GNU 一样原样写入 LF，但 cmd.exe 的原生过滤器（more、find 等）在重定向管道下只把 CRLF 视为完整行，LF-only 输入会缓冲到 EOF，“先
 
