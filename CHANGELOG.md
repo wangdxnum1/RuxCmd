@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.8 — 发布基础设施加固(2026-11-07)
+
+- 新增 `scripts/check-manifests.ps1` 并纳入 Verify 门禁：校验 scoop/winget 清单与 README 的版本号与 Cargo.toml 工作区版本一致、下载 URL 指向对应版本的 zip、SHA256 字段为 64 位十六进制、winget 与 scoop 哈希相等——版本号推进时遗漏清单更新会在门禁即失败，不再等到发布。
+- 修正清单 SHA256 断链：v0.5.5/v0.5.6 的哈希更新此前从未写入（脚本失败被误判成功，清单停留在 v0.5.4 的哈希），校验和安装会失败；现同步至 v0.5.7 实际 ZIP 哈希（38e5a45e…），并已回溯核对 v0.5.4-0.5.7 五个发布的 sha256 文件。
+- 发布流程教训固化：每次 Release 完成后必须下载该版本的 .zip.sha256 与清单哈希核对后才算收尾。
+
 ## 0.5.7 — iostat/sar 设备报表、nslookup SRV(2026-11-07)
 
 - 基建:ruxcmd-core 新增 `disk` 模块——经 IOCTL_DISK_PERFORMANCE 采样每个 \\.\PhysicalDriveN 的读写字节数/次数（DISK_PERFORMANCE），供 iostat 与 sar 共享。

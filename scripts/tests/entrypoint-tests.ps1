@@ -199,7 +199,7 @@ throw 'Compatibility gate confirmed; controlled failure.'
         }
     }
     Test-Entry 'Verify forwards artifacts and Offline to file batch scenarios and stops on failure' {
-        foreach ($name in @('verify-version-info.ps1', 'compat-check.ps1', 'smoke-test.ps1', 'verify-behavior.ps1')) {
+        foreach ($name in @('verify-version-info.ps1', 'compat-check.ps1', 'check-manifests.ps1', 'smoke-test.ps1', 'verify-behavior.ps1')) {
             'param([string]$BinDir, [switch]$DebugBuild)' | Set-Content -LiteralPath (Join-Path $fixture "scripts/$name") -Encoding utf8NoBOM
         }
         [IO.Directory]::CreateDirectory((Join-Path $fixture 'scripts/tests')) | Out-Null
@@ -219,7 +219,7 @@ throw 'File batch gate confirmed; controlled failure.'
 param([string]$BinDir, [switch]$DebugBuild)
 if (-not $DebugBuild) { throw 'Debug resource configuration was not forwarded.' }
 '@ | Set-Content -LiteralPath (Join-Path $fixture 'scripts/verify-version-info.ps1') -Encoding utf8NoBOM
-        foreach ($name in @('smoke-test.ps1', 'verify-behavior.ps1')) {
+        foreach ($name in @('check-manifests.ps1', 'smoke-test.ps1', 'verify-behavior.ps1')) {
             'param([string]$BinDir)' | Set-Content -LiteralPath (Join-Path $fixture "scripts/$name") -Encoding utf8NoBOM
         }
         @'
