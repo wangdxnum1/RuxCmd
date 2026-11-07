@@ -76,6 +76,13 @@ fn main() {
     } else {
         CpuTimes::ZERO
     };
+    // Drive counters follow the same rhythm: the first report is the
+    // since-boot average, later ones cover the interval between snapshots.
+    let mut prev_drives = if delta_mode {
+        ruxcmd_core::disk::snapshot()
+    } else {
+        Vec::new()
+    };
     let mut last: Option<CpuUsage> = None;
     let mut printed: u64 = 0;
 
@@ -89,14 +96,90 @@ fn main() {
             std::thread::sleep(std::time::Duration::from_secs(args.delay as u64));
         }
         let cur = cpu::sample().unwrap_or_else(|| fail_get_system_times());
+        let cur_drives = ruxcmd_core::disk::snapshot();
         let usage = usage_between(&prev, &cur)
             .or(last)
             .unwrap_or_else(|| fail_get_system_times());
         last = Some(usage);
-        print_report(&usage);
+        if args.device {
+            // sysstat iostat -d prints the device report only.
+            let interval = if delta_mode && printed > 0 {
+                args.delay as f64
+            } else {
+                // Since-boot average: the machine's uptime stands in for the
+                // interval (GetTickCount64, no wraparound for ~584 days).
+                let ms = unsafe { getTickCount64() } / 1000;
+                ms.max(1) as f64
+            };
+            print_device_report(&prev_drives, &cur_drives, interval);
+            prev_drives = cur_drives;
+        } else {
+            print_report(&usage);
+        }
         if delta_mode {
             prev = cur;
         }
         printed += 1;
     }
+}
+
+/// sysstat iostat -d column layout.  Windows DISK_PERFORMANCE has no discard
+/// counters, so the kB_dscd columns stay zero as a declared difference.
+fn print_device_report(
+    prev: &[ruxcmd_core::disk::DriveStats],
+    cur: &[ruxcmd_core::disk::DriveStats],
+    interval: f64,
+) {
+    println!(
+        "{:<14}{:>9}{:>13}{:>13}{:>13}{:>11}{:>11}{:>11}",
+        "Device", "tps", "kB_read/s", "kB_wrtn/s", "kB_dscd/s", "kB_read", "kB_wrtn", "kB_dscd"
+    );
+    let interval = interval.max(1.0);
+    for drive in cur {
+        let prev_stats = prev.iter().find(|p| p.name == drive.name);
+        let (reads, writes, read_bytes, write_bytes) = match prev_stats {
+            Some(p) => (
+                drive.read_count.saturating_sub(p.read_count),
+                drive.write_count.saturating_sub(p.write_count),
+                drive.read_bytes.saturating_sub(p.read_bytes),
+                drive.write_bytes.saturating_sub(p.write_bytes),
+            ),
+            None => (
+                drive.read_count,
+                drive.write_count,
+                drive.read_bytes,
+                drive.write_bytes,
+            ),
+        };
+        let tps = (reads + writes) as f64 / interval;
+        println!(
+            "{:<14}{:>9.2}{:>13.2}{:>13.2}{:>13.2}{:>11.0}{:>11.0}{:>11.0}",
+            drive.name,
+            tps,
+            read_bytes as f64 / 1024.0 / interval,
+            write_bytes as f64 / 1024.0 / interval,
+            0.0,
+            read_bytes as f64 / 1024.0,
+            write_bytes as f64 / 1024.0,
+            0.0
+        );
+    }
+    println!();
+}
+
+/// GetTickCount64 from kernel32; the uptime in milliseconds.
+#[cfg(windows)]
+#[allow(non_snake_case)]
+unsafe fn getTickCount64() -> u64 {
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetTickCount64() -> u64;
+    }
+    unsafe { GetTickCount64() }
+}
+
+#[cfg(not(windows))]
+#[allow(non_snake_case)]
+unsafe fn getTickCount64() -> u64 {
+    1
 }

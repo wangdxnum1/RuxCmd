@@ -124,8 +124,8 @@ fn main() {
         return;
     }
 
-    let show_cpu = args.cpu || (!args.cpu && !args.memory);
-    let show_memory = args.memory || (!args.cpu && !args.memory);
+    let show_cpu = args.cpu || (!args.cpu && !args.memory && !args.device);
+    let show_memory = args.memory || (!args.cpu && !args.memory && !args.device);
 
     // Frames to print: an explicit count, endless sampling when only a delay
     // is given (sysstat behaviour; Ctrl+C stops it), or a single since-boot
@@ -149,6 +149,9 @@ fn main() {
     let mut mem_header_shown = false;
     let mut cpu_usages: Vec<CpuUsage> = Vec::new();
     let mut mem_samples: Vec<MemSample> = Vec::new();
+    // Drive counters follow the CPU sampling rhythm (-d).
+    let mut prev_drives: Vec<ruxcmd_core::disk::DriveStats> = Vec::new();
+    let mut device_header_shown = false;
     let mut printed: u64 = 0;
 
     loop {
@@ -175,6 +178,57 @@ fn main() {
             if delta_mode {
                 prev = cur;
             }
+        }
+        if args.device {
+            let cur_drives = ruxcmd_core::disk::snapshot();
+            if !device_header_shown {
+                println!(
+                    "{:<10}{:<15}{:>7}{:>9}{:>9}{:>13}{:>13}",
+                    local_hms(),
+                    "DEV",
+                    "tps",
+                    "rkB/s",
+                    "wkB/s",
+                    "kB_read",
+                    "kB_wrtn"
+                );
+                device_header_shown = true;
+            }
+            let interval = if delta_mode && printed > 0 {
+                args.delay as f64
+            } else {
+                let ms = unsafe { getTickCount64() } / 1000;
+                ms.max(1) as f64
+            };
+            for drive in &cur_drives {
+                let prev_stats = prev_drives.iter().find(|p| p.name == drive.name);
+                let (reads, writes, read_bytes, write_bytes) = match prev_stats {
+                    Some(p) => (
+                        drive.read_count.saturating_sub(p.read_count),
+                        drive.write_count.saturating_sub(p.write_count),
+                        drive.read_bytes.saturating_sub(p.read_bytes),
+                        drive.write_bytes.saturating_sub(p.write_bytes),
+                    ),
+                    None => (
+                        drive.read_count,
+                        drive.write_count,
+                        drive.read_bytes,
+                        drive.write_bytes,
+                    ),
+                };
+                let tps = (reads + writes) as f64 / interval.max(1.0);
+                println!(
+                    "{:<10}{:<15}{:>7.2}{:>9.2}{:>9.2}{:>13.0}{:>13.0}",
+                    local_hms(),
+                    drive.name,
+                    tps,
+                    read_bytes as f64 / 1024.0 / interval.max(1.0),
+                    write_bytes as f64 / 1024.0 / interval.max(1.0),
+                    read_bytes as f64 / 1024.0,
+                    write_bytes as f64 / 1024.0
+                );
+            }
+            prev_drives = cur_drives;
         }
         if show_memory {
             let sample = sample_memory().unwrap_or_else(|| fail_memory());
@@ -226,6 +280,23 @@ fn main() {
             );
         }
     }
+}
+
+/// GetTickCount64 from kernel32; the uptime in milliseconds.
+#[cfg(windows)]
+#[allow(non_snake_case)]
+unsafe fn getTickCount64() -> u64 {
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetTickCount64() -> u64;
+    }
+    unsafe { GetTickCount64() }
+}
+
+#[cfg(not(windows))]
+#[allow(non_snake_case)]
+unsafe fn getTickCount64() -> u64 {
+    1
 }
 
 #[cfg(test)]

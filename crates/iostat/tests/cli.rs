@@ -1,7 +1,7 @@
-//! Integration tests for the Round 12 / batch A2 P1 remediation: the avg-cpu
-//! section carries real GetSystemTimes percentages and the fabricated
-//! all-zero device section (with its `-d`/`-x` flags) is gone.
+//! Integration tests for the avg-cpu section (real GetSystemTimes
+//! percentages) and the `-d` device report backed by IOCTL_DISK_PERFORMANCE.
 
+use assert_cmd::cargo::cargo_bin_cmd;
 use std::process::{Command, Output};
 
 /// Always spawn via the absolute path cargo provides: `cargo test` prepends
@@ -70,15 +70,13 @@ fn plain_invocation_prints_one_report() {
     assert_eq!(cpu_rows(&text).len(), 1);
 }
 
-/// The fake device section's flags must no longer be accepted.
+/// The device report lists the real physical drives.
 #[test]
-fn removed_device_flags_are_rejected() {
-    for flag in ["-d", "-x"] {
-        let out = iostat(&[flag]);
-        assert!(
-            !out.status.success(),
-            "{flag} must be rejected, stderr: {}",
-            String::from_utf8_lossy(&out.stderr)
-        );
-    }
+fn device_report_lists_physical_drives() {
+    // -d prints the sysstat device report; the drives come from
+    // IOCTL_DISK_PERFORMANCE and keep the PhysicalDriveN names.
+    let out = cargo_bin_cmd!("iostat").arg("-d").output().unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("Device"), "header missing: {text}");
+    assert!(text.contains("PhysicalDrive0"), "drive row missing: {text}");
 }

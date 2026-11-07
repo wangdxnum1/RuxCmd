@@ -14,6 +14,10 @@ pub struct Args {
     #[arg(short = 'r', long = "memory")]
     pub memory: bool,
 
+    /// Print the per-drive I/O statistics report (sysstat sar -d)
+    #[arg(short = 'd', long = "device")]
+    pub device: bool,
+
     /// Delay between samples in seconds (0 prints a single since-boot report).
     #[arg(default_value = "0")]
     pub delay: u32,

@@ -4,7 +4,7 @@ use clap::Parser;
 use std::net::{IpAddr, ToSocketAddrs};
 use windows::Win32::NetworkManagement::Dns::{
     DNS_QUERY_STANDARD, DNS_RECORDA, DNS_RECORDW, DNS_TYPE, DNS_TYPE_CNAME, DNS_TYPE_MX,
-    DNS_TYPE_TEXT, DnsFree, DnsFreeRecordList, DnsQuery_W,
+    DNS_TYPE_SRV, DNS_TYPE_TEXT, DnsFree, DnsFreeRecordList, DnsQuery_W,
 };
 use windows::core::{PCWSTR, PWSTR};
 
@@ -28,6 +28,7 @@ fn main() {
         "CNAME" => lookup_record(&name, DNS_TYPE_CNAME, "CNAME"),
         "MX" => lookup_record(&name, DNS_TYPE_MX, "MX"),
         "TXT" => lookup_record(&name, DNS_TYPE_TEXT, "TXT"),
+        "SRV" => lookup_record(&name, DNS_TYPE_SRV, "SRV"),
         _ => {
             eprintln!("nslookup: unsupported query type '{}'", args.qtype);
             std::process::exit(1);
@@ -169,6 +170,19 @@ fn dns_query(name: &str, qtype: DNS_TYPE) -> Result<Vec<DnsAnswer>, u32> {
                         owner,
                         wide_string(cname.pNameHost)
                     )]
+                }
+                // The layout mirrors what nslookup prints for SRV answers:
+                // the owner with a service-location header, then the four
+                // fields aligned under it.
+                DNS_TYPE_SRV => {
+                    let srv = unsafe { entry.Data.Srv };
+                    vec![
+                        format!("{}\tSRV service location:", owner),
+                        format!("\t  priority       = {}", srv.wPriority),
+                        format!("\t  weight         = {}", srv.wWeight),
+                        format!("\t  port           = {}", srv.wPort),
+                        format!("\t  svr hostname   = {}", wide_string(srv.pNameTarget)),
+                    ]
                 }
                 _ => Vec::new(),
             };

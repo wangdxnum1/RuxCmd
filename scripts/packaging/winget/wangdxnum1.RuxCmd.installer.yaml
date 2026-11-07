@@ -8,7 +8,7 @@
 # for names that Windows or PowerShell already shadows; winget creates one
 # alias per file, so those commands are not exposed without the prefix.
 PackageIdentifier: wangdxnum1.RuxCmd
-PackageVersion: 0.5.6
+PackageVersion: 0.5.7
 InstallerType: zip
 NestedInstallerType: portable
 NestedInstallerFiles:
@@ -172,7 +172,7 @@ NestedInstallerFiles:
   - RelativeFilePath: bin\zip.exe
 Installers:
   - Architecture: x64
-    InstallerUrl: https://github.com/wangdxnum1/RuxCmd/releases/download/v0.5.6/ruxcmd-0.5.6-x86_64-pc-windows-msvc.zip
+    InstallerUrl: https://github.com/wangdxnum1/RuxCmd/releases/download/v0.5.7/ruxcmd-0.5.7-x86_64-pc-windows-msvc.zip
     InstallerSha256: D18AFA9341679B0848523A9E69EB6DC5BEAED2CE7BB7E63EBE4035BAF26A0C7E
 ManifestType: installer
 ManifestVersion: 1.6.0

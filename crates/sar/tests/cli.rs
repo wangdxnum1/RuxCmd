@@ -1,7 +1,7 @@
 //! Integration tests for the Round 12 / batch A2 P1 remediation: CPU rows
 //! carry real GetSystemTimes percentages behind a HH:MM:SS local timestamp,
 //! memory stays real with a checked GlobalMemoryStatusEx call, finite runs
-//! end with Average rows, and the unimplemented `-d` flag is rejected.
+//! end with Average rows, and `-d` lists the real physical drives.
 
 use std::process::{Command, Output};
 
@@ -120,11 +120,9 @@ fn default_reports_cpu_and_memory() {
 
 /// The unimplemented disk activity flag must no longer be accepted silently.
 #[test]
-fn disk_flag_is_rejected() {
+fn device_report_lists_physical_drives() {
     let out = sar(&["-d"]);
-    assert!(
-        !out.status.success(),
-        "sar -d must be rejected, stderr: {}",
-        String::from_utf8_lossy(&out.stderr)
-    );
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("DEV"), "header missing: {text}");
+    assert!(text.contains("PhysicalDrive0"), "drive row missing: {text}");
 }

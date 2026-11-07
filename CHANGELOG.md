@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.7 — iostat/sar 设备报表、nslookup SRV(2026-11-07)
+
+- 基建:ruxcmd-core 新增 `disk` 模块——经 IOCTL_DISK_PERFORMANCE 采样每个 \\.\PhysicalDriveN 的读写字节数/次数（DISK_PERFORMANCE），供 iostat 与 sar 共享。
+- iostat:新增 `-d/--device` 设备报表，列布局对齐 sysstat iostat -d（Device/tps/kB_read/s/kB_wrtn/s/kB_dscd/s/kB_read/kB_wrtn/kB_dscd）；首帧为开机以来累计（uptime 换算区间），后续帧为区间增量；Windows 无 discard 计数器，kB_dscd 恒 0（声明差异）；-d 模式只打印设备报表。
+- sar:新增 `-d/--device` 带时间前缀的设备行（DEV/tps/rkB/s/wkB/s/kB_read/kB_wrtn），采样源与 iostat 共享；-f 历史日志仍不支持。
+- nslookup:新增 SRV 查询（DnsQuery_W DNS_TYPE_SRV），输出 nslookup 同款 service location 布局（priority/weight/port/svr hostname），实测字段值与 Windows nslookup 一致（_xmpp-server._tcp.jabber.org → 30/30/5269/scarlet.jabber.org）。
+
 ## 0.5.6 — zip 追加更新与百分比、dd EBCDIC 转换(2026-11-07)
 
 - zip:重写为 GNU info-zip 的更新语义——对已存在归档：未提名的条目原样保留（压缩方法/权限/DOS 时间戳），同名条目以 `updating:` 替换、新条目以 `adding:` 追加；条目行带 GNU 同款 `(deflated NN%)`/`(stored 0%)` 百分比（写完后重开归档统计，小文件膨胀的负百分比照打）；写入经临时文件原子重建，失败不残留半成品归档。新增 `-u/--update`（源文件比归档副本新才替换，DOS 2 秒时间戳粒度）、`-j/--junk-paths`（只保留文件名）、`-0/--store`（全 Stored）、`-9`（最高 deflate 级）；新条目写入源文件本地时区修改时间（timefmt）。9 场景 E2E（Python zipfile 校验）全过。

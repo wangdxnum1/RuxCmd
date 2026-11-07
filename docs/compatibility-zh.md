@@ -56,7 +56,7 @@
 | iconv | --from-code, --list, --output, --to-code, --version | 冒烟 + 行为测试 | 解码严格遵循 -f（无 BOM 嗅探）；--list 覆盖完整编码表。 |
 | id | --group, --groups, --name, --user, --version | 冒烟 + 行为测试 | uid/gid/groups 取自进程令牌 SID 的 RID；-u/-g/-G/-n 遵循 GNU；组名与区域相关，无法解析时回退为 RID。 |
 | install | --directory, --mode, --verbose | 冒烟 + 行为测试 | 复制文件；`-d` 建目录，`-D` 建目标父目录。八进制权限的写位映射 Windows 只读属性，不等价于 Unix 所有者、组和执行位。替换已有文件条目，不改写其硬链接别名；源与目标同一文件时报错。不支持符号权限及其他 GNU install 选项。 |
-| iostat | 见 --help | 冒烟 + 行为测试（6） | 覆盖 CPU 报告头部与行、百分比范围、count 多帧、已移除设备选项被拒绝；仅聚合 CPU 指标，未实现 GNU 的磁盘/设备报表与 interval 精度。 |
+| iostat | 见 --help | 冒烟 + 行为测试（6） | 覆盖 CPU 报告头部与行、百分比范围、count 多帧；`-d/--device` 输出 sysstat 同列的设备报表（Device/tps/kB_read/s/kB_wrtn/s/kB_dscd/s/kB_read/kB_wrtn/kB_dscd），数据来自 IOCTL_DISK_PERFORMANCE 对每个 \\.\PhysicalDriveN 的采样（首帧为开机以来累计，后续帧为区间增量），Windows 无 discard 计数器，kB_dscd 列恒 0 为声明差异；-d 模式只打印设备报表。 |
 | join | --field1, --field2, --separator, --version | 冒烟 + 行为测试 | 输出为键 + 双方剩余字段；无 -t 时按连续空白切分（输出以空格连接）。小于 1 的字段号报错退出 1。 |
 | kill | --list, --signal, --version | 冒烟 + 行为测试 | 完整 GNU 行为未验证。 |
 | link | （仅自动 help/version） | 冒烟 + 行为测试 | 创建一个文件硬链接，两个路径必须位于支持硬链接的同一卷；不创建符号链接或目录链接。 |
@@ -74,7 +74,7 @@
 | nice | --adjustment, --version | 冒烟 + 行为测试 | 直接 spawn 命令（不依赖 wmic）并应用优先级：adjustment <=-15 High、-14..-5 Above normal、-4..4 Normal、5..14 Below normal、>=15 Idle；透传子进程退出码。 |
 | nl | --body-numbering, --number-width, --separator, --version | 冒烟 + 行为测试 | 按 UTF-8 行读取不乱码；-b 接受 t（默认，仅非空行）、n（不编号）、a（全部行）；每行输出均以换行结束，与 GNU 一致。 |
 | nohup | （仅自动 help/version） | 冒烟 + 行为测试 | DETACHED_PROCESS 脱离控制台，并尝试脱离 Job；Job 禁止脱离时明确警告子进程仍受其生命周期约束。等待并透传退出码；终端 stdin 改为空设备，终端 stdout 追加 nohup.out（TEMP 回退），重定向流保持独立。已测试脱离执行与重定向流，未自动模拟物理关闭终端。 |
-| nslookup | --type, --version | 冒烟 + 行为测试 | A/AAAA/CNAME/MX/TXT 经真实查询解析（getaddrinfo / DnsQuery_W）；类型名大小写不敏感；不支持的类型报错退出 1。SERVER 位置参数已移除。 |
+| nslookup | --type, --version | 冒烟 + 行为测试 | A/AAAA/CNAME/MX/TXT/SRV 经真实查询解析（getaddrinfo / DnsQuery_W；SRV 输出 nslookup 同款 service location 布局：priority/weight/port/svr hostname，字段值与 Windows nslookup 实测一致）；类型名大小写不敏感；不支持的类型报错退出 1。SERVER 位置参数已移除。 |
 | nproc | --all, --ignore | 冒烟 + 行为测试 | 默认为可用并行度；--all 输出处理器总数；--ignore 做减法且下限为 1。 |
 | numfmt | --delimiter, --field, --from, --from-unit, --grouping, --header, --padding, --round, --suffix, --to, --to-unit | 冒烟 + 行为测试 | 显式 -d 在输出中保留且不折叠连续分隔符；--from=auto 读取 K=1000、Ki=1024。 |
 | od | --address-radix, --ascii, --decimal, --format, --hexadecimal, --octal, --read-bytes, --skip-bytes, --width | 冒烟 + 行为测试 | -t 支持 x1/d1/o1/u1/a/c/z 与 f4/f8（GNU 字段宽度、小端序）；仅格式含 c 时输出 ASCII 列。 |
@@ -96,7 +96,7 @@
 | rev | --version | 冒烟 + 行为测试 | 有效 UTF-8 按字符反转（util-linux 语义），非法序列按字节反转；未终止末行保持未终止。 |
 | rm | --dir, --force, --no-preserve-root, --one-file-system, --preserve-root, --verbose | 冒烟 + 行为测试 | -f 仅静默不存在的路径；其余失败均打印错误并退出 1，preserve-root 拒绝信息不被压制。 |
 | rmdir | --ignore-fail-on-non-empty, --parents, --verbose | 冒烟 + 行为测试 | 仅删除空目录，`-p` 向上逐级删除；忽略标志仅抑制目录非空错误。受 Windows 文件系统和 ACL 限制。 |
-| sar | 见 --help | 冒烟 + 行为测试（7） | 覆盖带时间戳的 CPU 报告、百分比范围、count 有界、内存报表与默认 CPU+内存输出；不支持 -d 磁盘报表与 -f 历史日志。 |
+| sar | 见 --help | 冒烟 + 行为测试（7） | 覆盖带时间戳的 CPU 报告、百分比范围、count 有界、内存报表与默认 CPU+内存输出；`-d/--device` 输出带 HH:MM:SS 时间前缀的设备行（DEV/tps/rkB/s/wkB/s/kB_read/kB_wrtn，数据源同 iostat -d 的 IOCTL_DISK_PERFORMANCE 采样）；-f 历史日志不支持。 |
 | sed | --expression, --regexp-extended, --quiet, --in-place, --separate, --version, --file | 冒烟 + 行为测试 | 默认 POSIX BRE（-E/-r/--regexp-extended 切换 ERE，两种方言均带 GNU \+ \? 扩展）；地址与 s 命令共用方言；替换端支持 & 与 \1-\9、\n/\t/\r 以及 g/N/p/i 标志。模式中的反向引用 \1-\9 支持（BRE 与 ERE，GNU 扩展，地址与 s 命令均适用）；无效反向引用启动报错 Invalid back reference。非 UTF-8 数据按原始字节匹配并原样透传；行号逐文件重置；缺失的末行换行保留。 -f FILE 从文件读脚本。 |
 | seq | --equal-width, --format, --separator, --version | 冒烟 + 行为测试 | 选项之后可接负数操作数；-w 补位含符号（经 GNU 实测核对）。 |
 | sha1sum | --binary, --check, --quiet, --status, --tag, --text, --version, --zero | 冒烟 + 行为测试 | 支持 -z/--zero 和 --tag -z，NUL 模式不转义文件名；-z -c 退出 1。普通校验支持 stdin、精确文件名、GNU 转义、BOM、二进制标记和 BSD tag；读取错误不产生部分数据的成功摘要。支持 -b/--binary 输出 `hash *name`（星号前有空格）与 -t/--text 显式文本模式，同给时最后一个生效；-c 下两者报 GNU 同款 meaningless 错误，--tag 与 -t 组合报错。不支持 strict 或 NUL 清单解析。 |

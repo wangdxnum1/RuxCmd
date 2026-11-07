@@ -11,6 +11,7 @@
 pub mod bre;
 pub mod command_batch;
 pub mod cpu;
+pub mod disk;
 pub mod fsutil;
 pub mod lines;
 pub mod paths;

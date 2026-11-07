@@ -22,7 +22,7 @@ const FORGED_MARKERS: [&str; 4] = [
 
 #[test]
 fn unsupported_types_fail_without_fabricated_records() {
-    for qtype in ["NS", "SOA", "SRV", "ns"] {
+    for qtype in ["NS", "SOA", "ns"] {
         let output = run(&["-t", qtype, "example.com"]);
         assert_eq!(
             output.status.code(),
