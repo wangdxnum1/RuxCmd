@@ -266,8 +266,9 @@ fn ends_in_dot_component(path: &Path) -> bool {
 }
 
 fn prompt_yes_no(prompt: &str) -> bool {
-    print!("{}", prompt);
-    let _ = io::stdout().flush();
+    // GNU writes the prompt to stderr, keeping stdout clean for scripts.
+    eprint!("{}", prompt);
+    let _ = io::stderr().flush();
 
     let mut input = String::new();
     if io::stdin().read_line(&mut input).is_err() {

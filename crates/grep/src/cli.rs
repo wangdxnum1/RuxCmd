@@ -17,6 +17,10 @@ pub struct Args {
     #[arg(short = 'q', long = "quiet")]
     pub quiet: bool,
 
+    /// Process a file with NUL bytes as if it were text (-z implies this)
+    #[arg(short = 'a', long = "text")]
+    pub text: bool,
+
     /// Invert match: select non-matching lines
     #[arg(short = 'v', long = "invert-match")]
     pub invert_match: bool,

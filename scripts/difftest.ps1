@@ -227,6 +227,12 @@ $matrix = @(
     @{ cmd='grep';   argv=@('-F','-c','x');   shapes=@('ascii') }
     @{ cmd='grep';   argv=@('-F','-v','ab');  shapes=@('ascii') }
     @{ cmd='grep';   argv=@('-F','-n','e');   shapes=@('ascii') }
+    # NUL-bearing input activates GNU binary-file mode on both sides: -c
+    # counts NUL-split segments and matches print the binary notice.
+    @{ cmd='grep';   argv=@('-c','.');        shapes=@('nulbinary') }
+    @{ cmd='grep';   argv=@('-c','a');        shapes=@('nulbinary') }
+    @{ cmd='grep';   argv=@('a');             shapes=@('nulbinary') }
+    @{ cmd='grep';   argv=@('-a','-c','.');   shapes=@('nulbinary') }
     # --- sed (literal-substring subset) --------------------------------------
     @{ cmd='sed';    argv=@('s/a/A/g');       shapes=@('ascii','notrail') }
     @{ cmd='sed';    argv=@('s/ab//');        shapes=@('ascii') }

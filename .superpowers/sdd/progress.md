@@ -41121,3 +41121,11 @@ Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
 - 教训:compat 表 notes 列写 --backup=numbered|existing|... 的竖线会破坏列解析(compat-check 报 7 列);新长选项必须重建 Release 二进制后 compat-check 才能对上 --help。
 - 发布:v0.5.3 tag 推送,Release run 42351330364 成功且发布说明自动生成;版本 0.5.2 → 0.5.3;main @ 4a191f3(清单 hash 提交后为最终 HEAD)。
 - 清单:scoop/winget hash 同步至 v0.5.3 ZIP sha256(408966b0...)。
+
+
+## Round 28 du time/files0-from/block-scale + timefmt core (2026-11-07)
+- 基建:ruxcmd-core 新增 timefmt(本地时区转换 + strftime 子集 %Y%m%d%H%M%S%N%F%T%s%z%:z%%),du --time 与 diff -u 头行共用;diff 内嵌 timestamp 模块重构到 core(移除 windows 直接依赖)。修常量 UNIX_TO_FILETIME 少一个零的笔误(测试抓出)。
+- du:--time/--time=atime|access|use|ctime|status(ctime 经 NTFS ChangeTime,MSYS 实测一致)、--time-style=full-iso/long-iso/iso/+FORMAT、--files0-from(NUL 清单,stdin 支持,extra operand 两段式错误,空项按行号报错)、-k/-m/--block-size(K/KB 1024/1000 进制,最后一个生效——cli 返回 (位置,规格),main 校验全部并按位置取最后)。
+- 教训①:timefmt 测试断言 offset==480 在 CI(UTC)失败——时间戳断言必须时区无关(纪元秒/纳秒/形状 + 真实时区健全性检查);test 解析 rsplit_once 而非 split_once(第一个空格在日期与时间之间)。教训②:Verify 的 clippy 是 -D warnings(to_string_in_format_args 等),本地须用同参数预检。
+- 发布:v0.5.4 首次 Release 失败(CI 时区测试),修后重发成功(run 42356241457);发布说明自动生成 ✓;清单 hash 同步 d18afa93;版本 0.5.3 → 0.5.4。
+- difftest:du --time 用例(--apparent-size 保证 size 列可比)46 pass / 0 fail。

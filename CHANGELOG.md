@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.5 — grep 二进制文件模式、mv 提示流(2026-11-07)
+
+- grep:对齐 GNU 二进制文件模式——输入含 NUL（无 -a/-z）时按块切换：-c 按 NUL 分段计数（空段如空行不匹配 `. ` 等），匹配时输出一次 `Binary file <名> matches`（stdin 为 (standard input)；-h 也带名；-l/-L/-q/-c 例外），不再输出原始行；上下文/-o/-n 在二进制模式下同样折叠为通知行。判定在 NUL 所在读取块生效，与 GNU 的分块策略一致。新增 `-a/--text` 强制文本（NUL 原样透传），`-z/--null-data` 不视为二进制。difftest 以 nulbinary 形状新增 4 组用例，与 MSYS2 GNU 逐字节一致（48 pass / 0 fail）。
+- mv:`-i` 覆盖提示改写 stderr（GNU 同款 `mv: overwrite 'X'? `），stdout 保持干净供脚本消费。
+- 文档:uniq 兼容表纠偏——第二操作数 OUTPUT（0.5.2 已实现）从"不支持"清单移除。
+
 ## 0.5.4 — du 时间列与块缩放、timefmt 基建(2026-11-07)
 
 - du:新增 `--time`/`--time=atime|access|use`/`--time=ctime|status`（裸 --time 为修改时间；ctime 经 NTFS ChangeTime 读取，与 MSYS 实测一致；非法取值报 GNU 同款 Valid arguments 错误）与 `--time-style=full-iso/long-iso/iso/+FORMAT`（strftime 子集：%,若含 %N 纳秒、%s 纪元秒、%F/%T 复合、%z/%:z 偏移，未知指令原样保留）；时间列插入 size 与 path 之间。

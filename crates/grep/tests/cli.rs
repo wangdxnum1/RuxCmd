@@ -1,4 +1,5 @@
 use assert_cmd::cargo::cargo_bin_cmd;
+use std::fs;
 #[test]
 fn matching_lines_and_exit_codes() {
     cargo_bin_cmd!("grep")
@@ -345,4 +346,142 @@ fn include_glob_range_and_plain_metacharacters() {
         !out.contains("mainXc"),
         "mainXc leaked through unescaped dot: {out}"
     );
+}
+
+// --- binary-file mode (NUL in the input, no -a/-z) --------------------------
+
+fn nul_file(dir: &tempfile::TempDir, name: &str, bytes: &[u8]) -> std::path::PathBuf {
+    let path = dir.path().join(name);
+    fs::write(&path, bytes).unwrap();
+    path
+}
+
+/// GNU binary-file mode counts NUL-split segments as lines for -c.
+#[test]
+fn binary_count_splits_on_nul() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = nul_file(&dir, "nz.bin", b"a\0b\0c");
+    cargo_bin_cmd!("grep")
+        .args(["-c", "."])
+        .arg(&p)
+        .assert()
+        .success()
+        .stdout("3\n");
+    // Empty segments never match '.', like empty lines.
+    let p = nul_file(&dir, "nz2.bin", b"\0ab\0cd");
+    cargo_bin_cmd!("grep")
+        .args(["-c", "."])
+        .arg(&p)
+        .assert()
+        .success()
+        .stdout("2\n");
+}
+
+/// A match in a NUL-bearing file prints the binary notice instead of the
+/// line, once per file; the file operand name is echoed even under -h.
+#[test]
+fn binary_match_prints_notice() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = nul_file(&dir, "nz.bin", b"a\0b\0c");
+    cargo_bin_cmd!("grep")
+        .arg("c")
+        .arg(&p)
+        .assert()
+        .success()
+        .stdout(format!("Binary file {} matches\n", p.display()));
+    cargo_bin_cmd!("grep")
+        .args(["-h", "c"])
+        .arg(&p)
+        .assert()
+        .success()
+        .stdout(format!("Binary file {} matches\n", p.display()));
+}
+
+/// No match: no notice, exit 1.
+#[test]
+fn binary_no_match_is_quiet_exit_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = nul_file(&dir, "nz.bin", b"a\0b\0c");
+    cargo_bin_cmd!("grep")
+        .arg("zz")
+        .arg(&p)
+        .assert()
+        .failure()
+        .stdout("");
+}
+
+/// stdin matches use the spelled-out label.
+#[test]
+fn binary_stdin_notice_label() {
+    cargo_bin_cmd!("grep")
+        .arg("c")
+        .write_stdin(b"a\0b\0c")
+        .assert()
+        .success()
+        .stdout("Binary file (standard input) matches\n");
+}
+
+/// -a forces text mode: raw lines pass through with their NUL bytes.
+#[test]
+fn text_flag_disables_binary_mode() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = nul_file(&dir, "nz.bin", b"a\0b\0c");
+    cargo_bin_cmd!("grep")
+        .args(["-a", "-c", "."])
+        .arg(&p)
+        .assert()
+        .success()
+        .stdout("1\n");
+    cargo_bin_cmd!("grep")
+        .args(["-a", "b"])
+        .arg(&p)
+        .assert()
+        .success()
+        .stdout(predicates::str::starts_with("a\0"));
+}
+
+/// -v inverts per segment; -m stops counting at the quota.
+#[test]
+fn binary_invert_and_max_count() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = nul_file(&dir, "nz.bin", b"a\0b\0c");
+    cargo_bin_cmd!("grep")
+        .args(["-v", "-c", "zz"])
+        .arg(&p)
+        .assert()
+        .success()
+        .stdout("3\n");
+    cargo_bin_cmd!("grep")
+        .args(["-m", "2", "-c", "."])
+        .arg(&p)
+        .assert()
+        .success()
+        .stdout("2\n");
+}
+
+/// -z treats NUL as the record terminator, so NUL-bearing input is not
+/// binary-file mode.
+#[test]
+fn null_data_mode_is_not_binary() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = nul_file(&dir, "nz.bin", b"a\0b\0c");
+    cargo_bin_cmd!("grep")
+        .args(["-z", "-c", "."])
+        .arg(&p)
+        .assert()
+        .success()
+        .stdout("3\n");
+}
+
+/// Context options in binary mode still collapse to the notice.
+#[test]
+fn binary_context_prints_notice() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = nul_file(&dir, "nz.bin", b"x\0y\nz\0w");
+    cargo_bin_cmd!("grep")
+        .args(["-C1", "w"])
+        .arg(&p)
+        .assert()
+        .success()
+        .stdout(format!("Binary file {} matches\n", p.display()));
 }

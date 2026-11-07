@@ -376,3 +376,21 @@ fn moving_directory_into_itself_is_refused() {
         "no partial copy may be left behind"
     );
 }
+
+/// GNU writes the -i prompt to stderr, keeping stdout clean for scripts.
+#[test]
+fn interactive_prompt_goes_to_stderr() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("src"), "new").unwrap();
+    fs::write(dir.path().join("tgt"), "old").unwrap();
+    cargo_bin_cmd!("mv")
+        .arg("-i")
+        .arg(dir.path().join("src"))
+        .arg(dir.path().join("tgt"))
+        .write_stdin("n\n")
+        .assert()
+        .success()
+        .stdout("")
+        .stderr(predicates::str::contains("mv: overwrite '"));
+    assert_eq!(fs::read_to_string(dir.path().join("tgt")).unwrap(), "old");
+}

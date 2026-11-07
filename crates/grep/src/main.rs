@@ -46,6 +46,48 @@ impl Matcher {
     }
 }
 
+/// Flags every read chunk that contains a NUL byte, so line processing can
+/// switch to GNU binary-file mode (message instead of line output, NUL-split
+/// segments counted as lines).  Wrapping the BufRead means the flag turns on
+/// before any line from that chunk is parsed, which matches GNU's per-block
+/// decision.
+struct BinaryDetect<R> {
+    inner: R,
+    /// Set once a chunk with a NUL byte has been seen; shared so line
+    /// processing inside the iterator loop can observe it live.
+    flag: std::rc::Rc<std::cell::Cell<bool>>,
+    /// -a/--text and -z/--null-data disable binary treatment.
+    active: bool,
+}
+
+impl<R: BufRead> std::io::Read for BinaryDetect<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.inner.read(buf)
+    }
+}
+
+impl<R: BufRead> BufRead for BinaryDetect<R> {
+    fn fill_buf(&mut self) -> std::io::Result<&[u8]> {
+        let buf = self.inner.fill_buf()?;
+        if self.active && buf.contains(&0) {
+            self.flag.set(true);
+        }
+        Ok(buf)
+    }
+    fn consume(&mut self, amt: usize) {
+        self.inner.consume(amt);
+    }
+}
+
+/// GNU's binary-file notice; stdin gets the spelled-out form.
+fn binary_label(name: &str) -> &str {
+    if name == "<stdin>" {
+        "(standard input)"
+    } else {
+        name
+    }
+}
+
 fn build_matcher(args: &cli::Args) -> Result<Matcher, String> {
     if args.fixed_strings {
         return Ok(Matcher::Fixed {
@@ -445,7 +487,15 @@ fn grep_reader<R: BufRead>(
     let mut last_printed: Option<u64> = None;
     let mut limit_reached = false;
 
-    for line in ByteLines::with_separator(reader, record_separator(args)) {
+    let binary_flag = std::rc::Rc::new(std::cell::Cell::new(false));
+    let mut detector = BinaryDetect {
+        inner: reader,
+        flag: binary_flag.clone(),
+        // -z makes NUL the record terminator on purpose; -a forces text.
+        active: !args.null_data && !args.text,
+    };
+    let mut binary = false;
+    for line in ByteLines::with_separator(&mut detector, record_separator(args)) {
         let raw = match line {
             Ok(raw) => raw,
             Err(e) => {
@@ -453,11 +503,32 @@ fn grep_reader<R: BufRead>(
                 break;
             }
         };
+        if binary_flag.get() && !binary {
+            binary = true;
+        }
         line_num += 1;
 
         // After -m's quota is filled, only the trailing context still prints.
         if limit_reached && after_remaining == 0 {
             break;
+        }
+
+        if binary {
+            // GNU binary-file mode: NUL-split segments act as lines for
+            // counting, and no line output is produced at all.
+            for segment in raw.split(|b| *b == 0) {
+                let hay = String::from_utf8_lossy(segment);
+                if matcher.is_match(&hay) != args.invert_match {
+                    count += 1;
+                    if args.quiet {
+                        return count;
+                    }
+                    if args.max_count.is_some_and(|max| count >= max) {
+                        break;
+                    }
+                }
+            }
+            continue;
         }
 
         let hay = String::from_utf8_lossy(&raw);
@@ -528,6 +599,9 @@ fn grep_reader<R: BufRead>(
         }
     }
 
+    if binary_flag.get() && count > 0 && !args.quiet && !args.count {
+        let _ = writeln!(out, "Binary file {} matches", binary_label(name));
+    }
     count
 }
 
@@ -539,7 +613,13 @@ fn grep_files_with_matches<R: BufRead>(
     args: &cli::Args,
     out: &mut dyn Write,
 ) -> u64 {
-    for line in ByteLines::with_separator(reader, record_separator(args)) {
+    let binary_flag = std::rc::Rc::new(std::cell::Cell::new(false));
+    let mut detector = BinaryDetect {
+        inner: reader,
+        flag: binary_flag.clone(),
+        active: !args.null_data && !args.text,
+    };
+    for line in ByteLines::with_separator(&mut detector, record_separator(args)) {
         let raw = match line {
             Ok(raw) => raw,
             Err(e) => {
@@ -547,7 +627,15 @@ fn grep_files_with_matches<R: BufRead>(
                 break;
             }
         };
-        if line_selected(matcher, args, &raw) {
+        let selected = if binary_flag.get() {
+            raw.split(|b| *b == 0).any(|segment| {
+                let hay = String::from_utf8_lossy(segment);
+                matcher.is_match(&hay) != args.invert_match
+            })
+        } else {
+            line_selected(matcher, args, &raw)
+        };
+        if selected {
             if !args.quiet {
                 let _ = writeln!(out, "{}", name);
             }
