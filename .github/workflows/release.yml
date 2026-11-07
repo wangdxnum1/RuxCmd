@@ -79,5 +79,21 @@ jobs:
           $paths = @($zips.FullName) + @($setups.FullName) + @(Get-ChildItem dist/*.sha256 | ForEach-Object FullName)
           $extra = @()
           if ($env:RELEASE_TAG -match '-') { $extra += '--prerelease' } else { $extra += '--latest' }
-          gh release create $env:RELEASE_TAG @paths --repo $env:GITHUB_REPOSITORY --title "RuxCmd $($env:RELEASE_TAG)" --generate-notes @extra
+          # Release notes come from the matching CHANGELOG section; fall back
+          # to generated notes when the version has no section.
+          $version = $env:RELEASE_TAG.TrimStart('v')
+          $notes = @()
+          $inSection = $false
+          foreach ($line in Get-Content CHANGELOG.md) {
+            if ($line -match '^## ') {
+              if ($inSection) { break }
+              if ($line -match ('^##\s+' + [regex]::Escape($version) + '\b')) { $inSection = $true }
+            } elseif ($inSection) { $notes += $line }
+          }
+          if ($notes.Count -gt 0) {
+            $notes -join "`n" | Set-Content dist/release-notes.md -Encoding utf8
+            gh release create $env:RELEASE_TAG @paths --repo $env:GITHUB_REPOSITORY --title "RuxCmd $($env:RELEASE_TAG)" --notes-file dist/release-notes.md @extra
+          } else {
+            gh release create $env:RELEASE_TAG @paths --repo $env:GITHUB_REPOSITORY --title "RuxCmd $($env:RELEASE_TAG)" --generate-notes @extra
+          }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
