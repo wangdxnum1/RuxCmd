@@ -173,6 +173,6 @@ NestedInstallerFiles:
 Installers:
   - Architecture: x64
     InstallerUrl: https://github.com/wangdxnum1/RuxCmd/releases/download/v0.5.1/ruxcmd-0.5.1-x86_64-pc-windows-msvc.zip
-    InstallerSha256: 392B6ACCBBB448CE5654BFEEE44F7374B3CA8889D05F9E7EBA0EE1A04BD745FA
+    InstallerSha256: 26E315598003F9E45A35C0AFDC51A4A7300B2511461E6026C8F7BE92C975D2CE
 ManifestType: installer
 ManifestVersion: 1.6.0

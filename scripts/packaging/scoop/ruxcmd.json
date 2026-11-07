@@ -7,7 +7,7 @@
   "architecture": {
     "64bit": {
       "url": "https://github.com/wangdxnum1/RuxCmd/releases/download/v0.5.1/ruxcmd-0.5.1-x86_64-pc-windows-msvc.zip",
-      "hash": "392b6accbbb448ce5654bfeee44f7374b3ca8889d05f9e7eba0ee1a04bd745fa"
+      "hash": "26e315598003f9e45a35c0afdc51a4a7300b2511461e6026c8f7be92c975d2ce"
     }
   },
   "extract_dir": "bin",
