@@ -1,0 +1,678 @@
+(function () {
+  'use strict';
+
+  var tauriGlobal = window.__TAURI__;
+  var backend = tauriGlobal && tauriGlobal.core && typeof tauriGlobal.core.invoke === 'function'
+    ? tauriGlobal.core
+    : null;
+  var hasBackend = backend !== null;
+  var previewTag = hasBackend ? '' : '（示例数据）';
+
+  var state = {
+    includePrerelease: false,
+    checking: false,
+    verifying: false
+  };
+
+  var PREVIEW_MANAGER = {
+    version: '0.1.0',
+    target: 'x86_64-pc-windows-msvc',
+    buildTime: '2026-11-08T00:00:00Z',
+    tauriVersion: '2.x',
+    signed: false,
+    readOnly: true
+  };
+
+  var PREVIEW_INSTALL = {
+    method: 'inno',
+    suiteVersion: '0.5.11',
+    installDir: 'C:\\Users\\<you>\\AppData\\Local\\RuxCmd\\bin',
+    sourceCommit: 'a8fb923c6c7725a3829cb1b9f0a572d081a49aaa',
+    dirty: false,
+    target: 'x86_64-pc-windows-msvc',
+    rustcVersion: '1.99.0',
+    binaryCount: 142,
+    shimCount: 16,
+    countsSource: 'manifest',
+    checksumStatus: 'notChecked',
+    pathOnUserPath: true,
+    packageSha256: null,
+    installedAt: null,
+    conflicts: [],
+    warnings: []
+  };
+
+  var PREVIEW_VERIFICATION = {
+    status: 'verified',
+    checked: 158,
+    missing: [],
+    mismatched: [],
+    source: 'share/SHA256SUMS',
+    message: null
+  };
+
+  var PREVIEW_RELEASE = {
+    tag: 'v0.5.11',
+    version: '0.5.11',
+    name: 'RuxCmd v0.5.11',
+    prerelease: false,
+    draft: false,
+    publishedAt: '2026-11-07T15:21:54Z',
+    htmlUrl: 'https://github.com/wangdxnum1/RuxCmd/releases/tag/v0.5.11',
+    body: '（预览示例）发布说明将在此显示，真实内容来自 GitHub Releases 的 body 字段。',
+    assets: [
+      { name: 'ruxcmd-0.5.11-x86_64-pc-windows-msvc.zip', size: 56136068, digest: 'sha256:e90ab18900000000000000000000000000000000000000000000000042226c7045', state: 'uploaded' },
+      { name: 'ruxcmd-0.5.11-x86_64-pc-windows-msvc.zip.sha256', size: 108, digest: 'sha256:94195e19000000000000000000000000000000000000000000000000075df407e', state: 'uploaded' },
+      { name: 'ruxcmd-0.5.11-x86_64-pc-windows-msvc-setup.exe', size: 16732287, digest: 'sha256:a7b30d640000000000000000000000000000000000000000000000001d7965eeb17', state: 'uploaded' },
+      { name: 'ruxcmd-0.5.11-x86_64-pc-windows-msvc-setup.exe.sha256', size: 114, digest: 'sha256:e6a2a9c800000000000000000000000000000000000000000000000000bd5423', state: 'uploaded' }
+    ]
+  };
+
+  function el(id) {
+    return document.getElementById(id);
+  }
+
+  function setText(id, value) {
+    var node = el(id);
+    if (!node) return;
+    node.textContent = value === null || value === undefined || value === '' ? '—' : String(value);
+  }
+
+  function setPillIn(node, text, variant) {
+    if (!node) return;
+    node.textContent = '';
+    var pill = document.createElement('span');
+    pill.className = 'pill ' + (variant || '');
+    var dot = document.createElement('span');
+    dot.className = 'dot';
+    pill.appendChild(dot);
+    pill.appendChild(document.createTextNode(' ' + text));
+    node.appendChild(pill);
+  }
+
+  function clearNode(node) {
+    if (node) node.textContent = '';
+  }
+
+  function errorText(error) {
+    if (!error) return '未知错误';
+    if (typeof error === 'string') return error;
+    return error.message || JSON.stringify(error);
+  }
+
+  // ---------- navigation ----------
+
+  function setView(name) {
+    document.querySelectorAll('.nav-item').forEach(function (item) {
+      item.classList.toggle('active', item.getAttribute('data-view') === name);
+    });
+    document.querySelectorAll('.view').forEach(function (view) {
+      view.classList.toggle('active', view.id === 'view-' + name);
+    });
+  }
+
+  // ---------- about ----------
+
+  function methodLabel(method) {
+    switch (method) {
+      case 'script': return '脚本安装 (install.ps1)';
+      case 'inno': return 'Inno Setup 安装包';
+      case 'portable': return '便携解压 / ZIP';
+      case 'notInstalled': return '未安装';
+      default: return '无法确定';
+    }
+  }
+
+  function countsSourceLabel(source) {
+    if (!source) return '—';
+    return source
+      .replace('state-file', '安装状态文件')
+      .replace('manifest', '发布清单')
+      .replace('directory-scan', '目录扫描');
+  }
+
+  function shortenCommit(commit) {
+    if (!commit) return '—';
+    if (commit.length <= 20) return commit;
+    return commit.slice(0, 12) + '…' + commit.slice(-5);
+  }
+
+  function renderManager(manager) {
+    if (!manager) return;
+    setText('sideManager', manager.version);
+    setText('sideTarget', manager.target);
+    setText('managerVersion', manager.version);
+    setText('managerBuild', manager.buildTime + ' · tauri ' + manager.tauriVersion);
+    var signed = el('signedState');
+    if (signed) {
+      clearNode(signed);
+      var pill = document.createElement('span');
+      pill.className = 'pill ' + (manager.signed ? 'ok' : 'warn');
+      pill.textContent = manager.signed ? '已签名' : '未签名（如实展示）';
+      signed.appendChild(pill);
+    }
+  }
+
+  function renderInstall(info) {
+    if (!info) return;
+    setText('sideSuite', info.suiteVersion);
+    setText('suiteVersion', info.suiteVersion || '未知');
+    setText('installMethod', methodLabel(info.method));
+    setText('installDir', info.installDir);
+    setText('shimCount', info.shimCount === null || info.shimCount === undefined ? null : info.shimCount + ' 个');
+    setText('binaryCount', info.binaryCount === null || info.binaryCount === undefined ? null : info.binaryCount + ' 个');
+    setText('countsSource', countsSourceLabel(info.countsSource));
+    setText('installTarget', info.target);
+    setText('rustcVersion', info.rustcVersion);
+    setText('sourceCommit', shortenCommit(info.sourceCommit));
+    setText('installedAt', info.installedAt);
+    setText('packageSha', info.packageSha256 ? shortenCommit(info.packageSha256) : null);
+
+    var installPill = el('installPill');
+    if (installPill) {
+      var label = info.method === 'notInstalled'
+        ? '未安装'
+        : (info.method === 'unknown' ? '安装状态未知' : '已安装');
+      clearNode(installPill);
+      var pill = document.createElement('span');
+      pill.className = 'pill ' + (info.method === 'notInstalled' || info.method === 'unknown' ? 'warn' : 'ok');
+      var dot = document.createElement('span');
+      dot.className = 'dot';
+      pill.appendChild(dot);
+      pill.appendChild(document.createTextNode(' ' + label));
+      installPill.appendChild(pill);
+    }
+
+    var pathNode = el('pathStatus');
+    if (pathNode) {
+      clearNode(pathNode);
+      if (info.pathOnUserPath === true) {
+        setPillIn(pathNode, '已加入', 'ok');
+      } else if (info.pathOnUserPath === false) {
+        setPillIn(pathNode, '未加入', 'warn');
+      } else {
+        pathNode.textContent = '未知';
+      }
+    }
+
+    var dirtyNode = el('dirtyState');
+    if (dirtyNode) {
+      clearNode(dirtyNode);
+      if (info.dirty === true || info.dirty === false) {
+        setPillIn(dirtyNode, String(info.dirty), info.dirty ? 'warn' : 'ok');
+      } else {
+        dirtyNode.textContent = '—';
+      }
+    }
+
+    var checksumNode = el('checksumState');
+    if (checksumNode) {
+      clearNode(checksumNode);
+      checksumNode.textContent = '未校验';
+    }
+
+    renderIssues('conflictCard', 'conflictList', info.conflicts);
+    renderIssues('warningCard', 'warningList', info.warnings);
+  }
+
+  function renderIssues(cardId, listId, items) {
+    var card = el(cardId);
+    var list = el(listId);
+    if (!card || !list) return;
+    clearNode(list);
+    if (!items || items.length === 0) {
+      card.hidden = true;
+      return;
+    }
+    items.forEach(function (text) {
+      var li = document.createElement('li');
+      li.textContent = text;
+      list.appendChild(li);
+    });
+    card.hidden = false;
+  }
+
+  function summarize(items) {
+    if (!items || items.length === 0) return '';
+    var head = items.slice(0, 3).join('、');
+    return items.length > 3 ? head + ' 等 ' + items.length + ' 项' : head;
+  }
+
+  function renderVerification(report) {
+    var variants = {
+      verified: ['通过', 'ok'],
+      mismatch: ['不匹配', 'err'],
+      missing: ['缺失文件', 'warn'],
+      notChecked: ['未校验', 'info']
+    };
+    var pair = variants[report.status] || ['未校验', 'info'];
+    var node = el('checksumState');
+    if (node) {
+      clearNode(node);
+      setPillIn(node, pair[0], pair[1]);
+    }
+    var detail = report.message;
+    if (!detail) {
+      detail = report.checked + ' 个文件通过 · 来源 ' + (report.source || 'share/SHA256SUMS');
+      if (report.mismatched && report.mismatched.length) {
+        detail += ' · 不匹配：' + summarize(report.mismatched);
+      }
+      if (report.missing && report.missing.length) {
+        detail += ' · 缺失：' + summarize(report.missing);
+      }
+    }
+    setText('checksumDetail', detail);
+  }
+
+  async function loadVerification() {
+    if (state.verifying) return;
+    state.verifying = true;
+    var button = el('btnVerify');
+    if (button) {
+      button.disabled = true;
+      button.textContent = '校验中…';
+    }
+    try {
+      var report = hasBackend
+        ? await backend.invoke('verify_installation')
+        : PREVIEW_VERIFICATION;
+      renderVerification(report);
+    } catch (error) {
+      var node = el('checksumState');
+      if (node) {
+        clearNode(node);
+        setPillIn(node, '校验失败', 'err');
+      }
+      setText('checksumDetail', errorText(error));
+    } finally {
+      state.verifying = false;
+      if (button) {
+        button.disabled = false;
+        button.textContent = '校验安装文件';
+      }
+    }
+  }
+
+  async function loadManagerAndInstall() {
+    var manager = PREVIEW_MANAGER;
+    var install = PREVIEW_INSTALL;
+    if (hasBackend) {
+      try {
+        manager = await backend.invoke('get_manager_info');
+      } catch (error) {
+        toast('读取 Manager 信息失败：' + errorText(error));
+      }
+      try {
+        install = await backend.invoke('get_install_info');
+      } catch (error) {
+        toast('读取安装信息失败：' + errorText(error));
+      }
+    }
+    renderManager(manager);
+    renderInstall(install);
+    await loadVerification();
+  }
+
+  // ---------- update ----------
+
+  function formatBytes(bytes) {
+    if (typeof bytes !== 'number' || !isFinite(bytes)) return '—';
+    if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return bytes + ' B';
+  }
+
+  function shortenDigest(digest) {
+    if (!digest) return '—';
+    var value = digest.replace(/^sha256:/, '');
+    if (value.length <= 20) return digest;
+    return 'sha256:' + value.slice(0, 12) + '…' + value.slice(-6);
+  }
+
+  function renderBanner(variant, title, message, extra) {
+    var host = el('updateBanner');
+    if (!host) return;
+    clearNode(host);
+
+    var banner = document.createElement('div');
+    banner.className = 'banner ' + variant;
+
+    var icon = document.createElement('div');
+    icon.className = 'ic';
+    icon.textContent = { info: 'i', ok: '✓', warn: '!', err: '×' }[variant] || 'i';
+
+    var body = document.createElement('div');
+    body.className = 'banner-body';
+
+    var heading = document.createElement('h3');
+    heading.textContent = title;
+    body.appendChild(heading);
+
+    if (message) {
+      var paragraph = document.createElement('p');
+      paragraph.textContent = message;
+      body.appendChild(paragraph);
+    }
+    if (extra) {
+      body.appendChild(extra);
+    }
+
+    var spacer = document.createElement('div');
+    spacer.className = 'spacer';
+
+    banner.appendChild(icon);
+    banner.appendChild(body);
+    banner.appendChild(spacer);
+    host.appendChild(banner);
+  }
+
+  function buildVersionCompare(currentVersion, latestVersion) {
+    var wrap = document.createElement('div');
+    wrap.className = 'ver-compare';
+
+    var current = document.createElement('div');
+    current.className = 'box';
+    current.textContent = currentVersion ? '当前 v' + currentVersion : '当前 未安装';
+
+    var arrow = document.createElement('div');
+    arrow.className = 'arrow';
+    arrow.textContent = '→';
+
+    var latest = document.createElement('div');
+    latest.className = 'box new';
+    latest.textContent = '最新 v' + latestVersion;
+
+    wrap.appendChild(current);
+    wrap.appendChild(arrow);
+    wrap.appendChild(latest);
+    return wrap;
+  }
+
+  function setBadge(visible) {
+    var badge = el('navBadge');
+    if (badge) badge.hidden = !visible;
+  }
+
+  function clearUpdateDetails() {
+    var assetCard = el('assetCard');
+    var notesCard = el('notesCard');
+    if (assetCard) assetCard.hidden = true;
+    if (notesCard) notesCard.hidden = true;
+  }
+
+  function renderAssets(result) {
+    var latest = result.latest;
+    var card = el('assetCard');
+    if (!card) return;
+    card.hidden = false;
+    setText('assetVersion', 'v' + latest.version);
+
+    var body = el('assetBody');
+    clearNode(body);
+    latest.assets.forEach(function (asset) {
+      var row = document.createElement('tr');
+
+      var nameCell = document.createElement('td');
+      nameCell.className = 'name';
+      nameCell.textContent = asset.name;
+
+      var sizeCell = document.createElement('td');
+      sizeCell.className = 'size';
+      sizeCell.textContent = formatBytes(asset.size);
+
+      var stateCell = document.createElement('td');
+      var tag = document.createElement('span');
+      tag.className = 'tag' + (asset.state === 'uploaded' ? '' : ' missing');
+      tag.textContent = asset.state === 'uploaded' ? '已上传' : asset.state;
+      stateCell.appendChild(tag);
+
+      var digestCell = document.createElement('td');
+      var hash = document.createElement('span');
+      hash.className = 'hash';
+      hash.textContent = shortenDigest(asset.digest);
+      digestCell.appendChild(hash);
+
+      row.appendChild(nameCell);
+      row.appendChild(sizeCell);
+      row.appendChild(stateCell);
+      row.appendChild(digestCell);
+      if (body) body.appendChild(row);
+    });
+
+    setText(
+      'assetNote',
+      result.assetsComplete
+        ? '四个发布基线资产齐全且 state=uploaded。'
+        : '缺少或未上传的资产：' + result.missingAssets.join('、')
+    );
+
+    var releaseButton = el('btnReleasePage');
+    if (releaseButton) releaseButton.setAttribute('data-url', latest.html_url);
+  }
+
+  function renderNotes(latest) {
+    var card = el('notesCard');
+    var body = el('notesBody');
+    if (!card || !body) return;
+    if (!latest.body) {
+      card.hidden = true;
+      return;
+    }
+    body.textContent = latest.body;
+    card.hidden = false;
+  }
+
+  function renderCacheHint(result) {
+    setText(
+      'cacheHint',
+      result.fromCache
+        ? '本次结果来自会话缓存（' + result.checkedAt + '），' + result.nextRefreshSeconds + ' 秒后可再次请求。'
+        : '已请求 GitHub API（' + result.checkedAt + '）。'
+    );
+  }
+
+  function renderUpdateResult(result) {
+    var latest = result.latest;
+    if (!latest) {
+      clearUpdateDetails();
+      setBadge(false);
+      renderBanner('err', '没有可用的发布信息' + previewTag, 'GitHub 返回的内容缺少发布对象。');
+      return;
+    }
+
+    var prerelease = latest.prerelease ? '（预发布）' : '';
+    if (result.status === 'upToDate') {
+      setBadge(false);
+      renderBanner(
+        'ok',
+        '已是最新版本 v' + latest.version + prerelease + previewTag,
+        '当前套件版本 ' + (result.currentVersion ? 'v' + result.currentVersion : '未知') + ' 不低于发布基线。'
+      );
+    } else if (!result.assetsComplete) {
+      setBadge(true);
+      renderBanner(
+        'err',
+        '发现新版本 v' + latest.version + prerelease + previewTag + '，但资产不完整',
+        '缺少资产：' + result.missingAssets.join('、') + '。发布基线要求四个资产齐全；P1 不会下载或安装。'
+      );
+    } else {
+      setBadge(true);
+      renderBanner(
+        'info',
+        '发现新版本 v' + latest.version + prerelease + previewTag,
+        '仅展示检查结果；P1 不提供下载或安装入口。',
+        buildVersionCompare(result.currentVersion, latest.version)
+      );
+    }
+
+    renderAssets(result);
+    renderNotes(latest);
+    renderCacheHint(result);
+  }
+
+  function renderUpdateError(error) {
+    var kind = (error && error.kind) || 'httpError';
+    var message = errorText(error);
+    clearUpdateDetails();
+    setBadge(false);
+
+    if (kind === 'offline') {
+      renderBanner('warn', '无法检查更新（离线）' + previewTag, message + '。离线不等于已是最新版本。');
+    } else if (kind === 'rateLimited') {
+      var retry = error && error.retryAfterSeconds
+        ? '约 ' + Math.ceil(error.retryAfterSeconds / 60) + ' 分钟后可重试。'
+        : '请稍后重试。';
+      renderBanner('warn', '无法检查更新（GitHub 限流）' + previewTag, message + ' ' + retry);
+    } else if (kind === 'notFound') {
+      renderBanner('warn', '无法检查更新' + previewTag, message);
+    } else if (kind === 'invalidResponse') {
+      renderBanner('err', 'GitHub 响应异常' + previewTag, message);
+    } else {
+      renderBanner('err', '检查更新失败' + previewTag, message);
+    }
+
+    setText('cacheHint', '上次检查失败；离线或限流时不会显示「已是最新」。');
+  }
+
+  function previewCheck() {
+    return {
+      status: 'upToDate',
+      currentVersion: '0.5.11',
+      latest: PREVIEW_RELEASE,
+      assetsComplete: true,
+      missingAssets: [],
+      checkedAt: new Date().toISOString(),
+      fromCache: false,
+      nextRefreshSeconds: 600
+    };
+  }
+
+  async function doCheck() {
+    if (state.checking) return;
+    state.checking = true;
+    var button = el('btnCheck');
+    if (button) {
+      button.disabled = true;
+      button.textContent = '检查中…';
+    }
+    renderBanner('info', '正在检查 GitHub Releases…' + previewTag, '不会在启动时自动联网；本次为你显式触发。');
+
+    try {
+      var result = hasBackend
+        ? await backend.invoke('check_update', { includePrerelease: state.includePrerelease })
+        : previewCheck();
+      renderUpdateResult(result);
+    } catch (error) {
+      renderUpdateError(hasBackend ? error : { kind: 'offline', message: errorText(error) });
+    } finally {
+      state.checking = false;
+      if (button) {
+        button.disabled = false;
+        button.textContent = '检查更新';
+      }
+    }
+  }
+
+  // ---------- actions ----------
+
+  async function openExternal(url) {
+    if (!url) return;
+    if (!hasBackend) {
+      toast('浏览器预览模式：不会打开系统浏览器');
+      return;
+    }
+    try {
+      await backend.invoke('open_external', { url: url });
+    } catch (error) {
+      toast('打开链接失败：' + errorText(error));
+    }
+  }
+
+  async function copyDiagnostics() {
+    if (hasBackend) {
+      try {
+        await backend.invoke('copy_diagnostics');
+        toast('诊断信息已复制到剪贴板');
+      } catch (error) {
+        toast('复制诊断信息失败：' + errorText(error));
+      }
+      return;
+    }
+    var text = 'RuxCmd Desktop diagnostics (browser preview, sample data)\n' +
+      'manager: ' + PREVIEW_MANAGER.version + ' (' + PREVIEW_MANAGER.target + ')\n' +
+      'install method: ' + PREVIEW_INSTALL.method + '\n' +
+      'suite version: ' + PREVIEW_INSTALL.suiteVersion + '\n' +
+      'install dir: ' + PREVIEW_INSTALL.installDir + '\n';
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('示例诊断信息已复制');
+    } catch (error) {
+      toast('浏览器预览模式：无法访问剪贴板');
+    }
+  }
+
+  function setPrerelease(value) {
+    state.includePrerelease = value;
+    var checkbox = el('chkPrerelease');
+    var toggle = el('switchPrerelease');
+    if (checkbox) checkbox.checked = value;
+    if (toggle) {
+      toggle.classList.toggle('on', value);
+      toggle.setAttribute('aria-pressed', value ? 'true' : 'false');
+    }
+  }
+
+  var toastTimer = null;
+  function toast(message) {
+    var node = el('toast');
+    if (!node) return;
+    node.textContent = message;
+    node.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      node.classList.remove('show');
+    }, 2400);
+  }
+
+  // ---------- wiring ----------
+
+  function wire() {
+    document.querySelectorAll('.nav-item').forEach(function (item) {
+      item.addEventListener('click', function () {
+        setView(item.getAttribute('data-view'));
+      });
+    });
+    document.querySelectorAll('[data-url]').forEach(function (item) {
+      item.addEventListener('click', function () {
+        openExternal(item.getAttribute('data-url'));
+      });
+    });
+
+    el('btnCheck').addEventListener('click', doCheck);
+    el('btnVerify').addEventListener('click', loadVerification);
+    el('btnCopy').addEventListener('click', copyDiagnostics);
+    el('btnReleasePage').addEventListener('click', function () {
+      openExternal(el('btnReleasePage').getAttribute('data-url'));
+    });
+    el('chkPrerelease').addEventListener('change', function (event) {
+      setPrerelease(event.target.checked);
+    });
+    el('switchPrerelease').addEventListener('click', function () {
+      setPrerelease(!state.includePrerelease);
+    });
+  }
+
+  async function init() {
+    if (!hasBackend) {
+      el('previewNote').hidden = false;
+    }
+    wire();
+    await loadManagerAndInstall();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
