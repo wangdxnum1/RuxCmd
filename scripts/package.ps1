@@ -77,6 +77,11 @@ try {
     & (Join-Path $PSScriptRoot 'smoke-test.ps1') -BinDir (Join-Path $stage 'bin')
     foreach ($doc in @('README.md', 'README-zh.md', 'CHANGELOG.md')) { Copy-Item -LiteralPath (Join-Path $script:RepositoryRoot $doc) -Destination $stage }
     Copy-Item -LiteralPath (Join-Path $script:RepositoryRoot 'docs/compatibility.md') -Destination $stage
+    # The installer scripts ship inside the ZIP so a script install can run the
+    # in-app upgrade helper from <InstallDir>\share\install.ps1 later.
+    foreach ($name in @('install.ps1', 'common.ps1', 'process-job.ps1')) {
+        Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $stage
+    }
     $files = @(Get-ChildItem -LiteralPath $stage -File -Recurse | Sort-Object FullName | ForEach-Object {
         [ordered]@{ path = [IO.Path]::GetRelativePath($stage, $_.FullName).Replace('\', '/'); sha256 = Get-FileDigest $_.FullName }
     })
