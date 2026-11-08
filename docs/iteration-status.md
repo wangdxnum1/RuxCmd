@@ -30,7 +30,7 @@
 - 0.5.9–0.5.10：find 相对日期与时区后缀（GNU `parse_datetime` 子集）；cp `VERSION_CONTROL` 环境变量、grep 目录操作数计数行。
 - 0.5.11：纯文档收口——兼容表 head/mv 过期描述纠偏、README 版本残留修正、迭代状态页重写、新增双语 roadmap、归档 0.4.8 缺口快照。无 CLI 行为变更。
 
-环境与验证约束：本地全量 `build.ps1 -Task Verify` 需要管理员权限、允许子进程脱离 Job 且允许 ICMP 的环境。受限会话中三类测试会失败，均与代码无关：`chmod` 的 junction 测试（`mklink /J` 被拒）、`chown` 的 `SetNamedSecurityInfoW`（缺 `SeTakeOwnershipPrivilege`/`SeRestorePrivilege`，error 5）、`nohup` 的 detached child（Job 禁止脱离，60s 超时）、`traceroute` 的 loopback（`IcmpSendEcho` Request failed）。以 unrestricted / 管理员会话重跑可通过（历史记录 243.1s）；本轮排除这四个包后 `cargo test --workspace --exclude ...` 346 项结果全绿、退出 0。正式发布由 GitHub Actions 在 `windows-2025` runner 上执行同款全量 Verify。逐轮验证与发布记录以[旧台账](../.superpowers/sdd/progress.md)为准。
+环境与验证约束：本地全量 `build.ps1 -Task Verify` 需要管理员权限、允许子进程脱离 Job 且允许 ICMP 的环境。这类限制源于 Windows Agent 沙盒以**受限/过滤令牌**启动子进程（同一现象也让 SChannel 的 `AcquireCredentialsHandle` 失败，见[旧台账](../.superpowers/sdd/progress.md) Round 35）。受限会话中四个包的测试会失败，均与代码无关：`chmod` 的 junction 测试（`mklink /J` 被拒）、`chown` 的 `SetNamedSecurityInfoW`（缺 `SeTakeOwnershipPrivilege`/`SeRestorePrivilege`，error 5）、`nohup` 的 detached child（Job 禁止脱离，60s 超时）、`traceroute` 的 loopback（`IcmpSendEcho` Request failed）。以 unrestricted / 管理员会话重跑可通过（历史记录 243.1s）；本轮排除这四个包后 `cargo test --workspace --exclude ...` 346 项结果全绿、退出 0。正式发布由 GitHub Actions 在 `windows-2025` runner 上执行同款全量 Verify。逐轮验证与发布记录以[旧台账](../.superpowers/sdd/progress.md)为准。
 
 ## 已核验的历史发布基线
 
