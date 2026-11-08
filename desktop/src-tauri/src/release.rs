@@ -1,6 +1,10 @@
+use std::io::{Read, Write};
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use semver::Version;
+use sha2::{Digest, Sha256};
 
 use crate::model::{
     GhRelease, ReleaseAsset, ReleaseInfo, SidecarCheck, UpdateCheck, UpdateCheckError, UpdateStatus,
@@ -10,7 +14,7 @@ use crate::util;
 const API_BASE: &str = "https://api.github.com";
 const API_LATEST_PATH: &str = "/repos/wangdxnum1/RuxCmd/releases/latest";
 const API_LIST_PATH: &str = "/repos/wangdxnum1/RuxCmd/releases?per_page=20";
-const TARGET: &str = "x86_64-pc-windows-msvc";
+pub(crate) const TARGET: &str = "x86_64-pc-windows-msvc";
 
 /// Domains the desktop client is allowed to contact (design §6). GitHub now
 /// redirects release assets to `release-assets.githubusercontent.com`.
@@ -54,15 +58,62 @@ pub fn check(
     include_prerelease: bool,
     current_version: Option<&str>,
 ) -> Result<UpdateCheck, UpdateCheckError> {
-    check_at(API_BASE, false, cache, include_prerelease, current_version)
+    run_check(
+        API_BASE,
+        false,
+        cache,
+        include_prerelease,
+        current_version,
+        true,
+        true,
+    )
 }
 
+/// Forced refresh used by `prepare_update`: ignores the 10-minute window and
+/// the stored ETag so the download always matches the current release state.
+pub fn refresh(
+    cache: &mut ReleaseCache,
+    include_prerelease: bool,
+    current_version: Option<&str>,
+) -> Result<UpdateCheck, UpdateCheckError> {
+    run_check(
+        API_BASE,
+        false,
+        cache,
+        include_prerelease,
+        current_version,
+        false,
+        false,
+    )
+}
+
+#[cfg(test)]
 fn check_at(
     base: &str,
     allow_insecure_http: bool,
     cache: &mut ReleaseCache,
     include_prerelease: bool,
     current_version: Option<&str>,
+) -> Result<UpdateCheck, UpdateCheckError> {
+    run_check(
+        base,
+        allow_insecure_http,
+        cache,
+        include_prerelease,
+        current_version,
+        true,
+        true,
+    )
+}
+
+fn run_check(
+    base: &str,
+    allow_insecure_http: bool,
+    cache: &mut ReleaseCache,
+    include_prerelease: bool,
+    current_version: Option<&str>,
+    use_cache_window: bool,
+    use_etag: bool,
 ) -> Result<UpdateCheck, UpdateCheckError> {
     let path = if include_prerelease {
         API_LIST_PATH
@@ -76,7 +127,7 @@ fn check_at(
         &mut cache.stable
     };
 
-    if let Some(entry) = slot {
+    if use_cache_window && let Some(entry) = slot {
         let elapsed = entry.fetched_at.elapsed().as_secs();
         if elapsed < MIN_REFRESH_SECONDS {
             return Ok(build_check(
@@ -88,7 +139,11 @@ fn check_at(
         }
     }
 
-    let etag = slot.as_ref().and_then(|entry| entry.etag.clone());
+    let etag = if use_etag {
+        slot.as_ref().and_then(|entry| entry.etag.clone())
+    } else {
+        None
+    };
     let outcome = fetch(&url, etag.as_deref(), allow_insecure_http)?;
     let (body, etag) = match outcome {
         Fetch::NotModified => match slot {
@@ -132,15 +187,32 @@ fn fetch(
     etag: Option<&str>,
     allow_insecure_http: bool,
 ) -> Result<Fetch, UpdateCheckError> {
-    fetch_hops(url, etag, allow_insecure_http, 0)
+    let response = send(
+        url,
+        etag,
+        allow_insecure_http,
+        0,
+        "application/vnd.github+json",
+    )?;
+    if response.status() == 304 {
+        return Ok(Fetch::NotModified);
+    }
+    let etag = response.header("etag").map(str::to_string);
+    let body = response
+        .into_string()
+        .map_err(|error| UpdateCheckError::invalid_response(format!("读取响应失败：{error}")))?;
+    Ok(Fetch::Body { body, etag })
 }
 
-fn fetch_hops(
+/// Minimal one-shot GET with manual redirect handling. Returns the final
+/// non-3xx response; 304 is passed through so `fetch` can reuse the cache.
+fn send(
     url: &str,
     etag: Option<&str>,
     allow_insecure_http: bool,
     hops: u8,
-) -> Result<Fetch, UpdateCheckError> {
+    accept: &str,
+) -> Result<ureq::Response, UpdateCheckError> {
     ensure_allowed_url(url, allow_insecure_http)?;
 
     let mut builder = ureq::AgentBuilder::new()
@@ -156,7 +228,7 @@ fn fetch_hops(
             "User-Agent",
             concat!("RuxCmd-Desktop/", env!("CARGO_PKG_VERSION")),
         )
-        .set("Accept", "application/vnd.github+json")
+        .set("Accept", accept)
         .set("X-GitHub-Api-Version", "2022-11-28");
     if let Some(etag) = etag {
         request = request.set("If-None-Match", etag);
@@ -176,11 +248,7 @@ fn fetch_hops(
         }
     };
 
-    let status = response.status();
-    if status == 304 {
-        return Ok(Fetch::NotModified);
-    }
-    if (300..400).contains(&status)
+    if (300..400).contains(&response.status())
         && let Some(location) = response.header("location")
     {
         if hops >= 4 {
@@ -193,13 +261,115 @@ fn fetch_hops(
             .map_err(|error| {
                 UpdateCheckError::invalid_response(format!("重定向地址无法解析：{error}"))
             })?;
-        return fetch_hops(next.as_str(), None, allow_insecure_http, hops + 1);
+        return send(next.as_str(), None, allow_insecure_http, hops + 1, accept);
     }
-    let etag = response.header("etag").map(str::to_string);
-    let body = response
-        .into_string()
-        .map_err(|error| UpdateCheckError::invalid_response(format!("读取响应失败：{error}")))?;
-    Ok(Fetch::Body { body, etag })
+    Ok(response)
+}
+
+/// Downloads a release artifact into `dest`, hashing it while streaming. The
+/// file only appears at `dest` after its SHA256 matches `expected_sha256`; any
+/// failure removes the partial file. `cancel` is polled between chunks.
+pub fn download(
+    url: &str,
+    expected_sha256: &str,
+    dest: &Path,
+    cancel: &AtomicBool,
+    progress: impl FnMut(u64, u64),
+) -> Result<String, UpdateCheckError> {
+    download_at(url, false, expected_sha256, dest, cancel, progress)
+}
+
+fn download_at(
+    url: &str,
+    allow_insecure_http: bool,
+    expected_sha256: &str,
+    dest: &Path,
+    cancel: &AtomicBool,
+    mut progress: impl FnMut(u64, u64),
+) -> Result<String, UpdateCheckError> {
+    let response = send(
+        url,
+        None,
+        allow_insecure_http,
+        0,
+        "application/octet-stream",
+    )?;
+    if response.status() != 200 {
+        return Err(UpdateCheckError::invalid_response(format!(
+            "下载地址返回 HTTP {}，期望 200",
+            response.status()
+        )));
+    }
+    let total = response
+        .header("content-length")
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(0);
+
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent).map_err(|error| {
+            UpdateCheckError::internal(format!("无法创建下载目录 {}：{error}", parent.display()))
+        })?;
+    }
+    let partial = dest.with_extension("part");
+    let fail = |error: UpdateCheckError| {
+        let _ = std::fs::remove_file(&partial);
+        error
+    };
+    let mut file = std::fs::File::create(&partial).map_err(|error| {
+        UpdateCheckError::internal(format!("无法写入 {}：{error}", partial.display()))
+    })?;
+
+    let mut hasher = Sha256::new();
+    let mut received = 0u64;
+    let mut buffer = [0u8; 64 * 1024];
+    let mut reader = response.into_reader();
+    loop {
+        if cancel.load(Ordering::Relaxed) {
+            drop(file);
+            return Err(fail(UpdateCheckError::cancelled("已取消下载")));
+        }
+        match reader.read(&mut buffer) {
+            Ok(0) => break,
+            Ok(read) => {
+                if let Err(error) = file.write_all(&buffer[..read]) {
+                    drop(file);
+                    return Err(fail(UpdateCheckError::internal(format!(
+                        "写入下载文件失败：{error}"
+                    ))));
+                }
+                hasher.update(&buffer[..read]);
+                received += read as u64;
+                progress(received, total);
+            }
+            Err(error) => {
+                drop(file);
+                return Err(fail(UpdateCheckError::offline(format!(
+                    "读取下载数据失败：{error}"
+                ))));
+            }
+        }
+    }
+
+    if let Err(error) = file.flush() {
+        drop(file);
+        return Err(fail(UpdateCheckError::internal(format!(
+            "写入下载文件失败：{error}"
+        ))));
+    }
+    drop(file);
+
+    let actual = format!("{:x}", hasher.finalize());
+    if actual != expected_sha256.trim().to_ascii_lowercase() {
+        return Err(fail(UpdateCheckError::invalid_response(format!(
+            "下载内容 SHA256 校验失败：期望 {expected_sha256}，实际 {actual}"
+        ))));
+    }
+    if let Err(error) = std::fs::rename(&partial, dest) {
+        return Err(fail(UpdateCheckError::internal(format!(
+            "无法重命名下载文件：{error}"
+        ))));
+    }
+    Ok(actual)
 }
 
 /// Honors an explicit proxy (env vars first, then the Windows system proxy)

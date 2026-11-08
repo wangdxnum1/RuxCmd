@@ -147,15 +147,25 @@ pub struct UpdateCheck {
     pub next_refresh_seconds: u64,
 }
 
-/// Typed failure for `check_update`. The UI must never render an error as
-/// "up to date".
+/// Typed failure for `check_update` and the P2 update commands. The UI must
+/// never render an error as "up to date".
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateCheckError {
-    /// `offline`, `rateLimited`, `notFound`, `invalidResponse`, `httpError`.
+    /// `offline`, `rateLimited`, `notFound`, `invalidResponse`, `httpError`,
+    /// `unsupported`, `needsConfirmation`, `cancelled`, `internal`.
     pub kind: String,
     pub message: String,
     pub retry_after_seconds: Option<u64>,
+    /// Extra lines `apply_update` asks the UI to confirm before overwriting.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub details: Vec<String>,
+    /// True when `apply_update` stopped because local files were modified.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub needs_confirmation: bool,
+    /// True when a download or prepare was cancelled on purpose.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub cancelled: bool,
 }
 
 impl UpdateCheckError {
@@ -164,6 +174,9 @@ impl UpdateCheckError {
             kind: kind.to_string(),
             message: message.into(),
             retry_after_seconds: None,
+            details: Vec::new(),
+            needs_confirmation: false,
+            cancelled: false,
         }
     }
 
@@ -191,6 +204,26 @@ impl UpdateCheckError {
 
     pub fn internal(message: impl Into<String>) -> Self {
         Self::new("internal", message)
+    }
+
+    /// The installation method has no in-app upgrade path (portable, missing,
+    /// or unknown).
+    pub fn unsupported(message: impl Into<String>) -> Self {
+        Self::new("unsupported", message)
+    }
+
+    /// `apply_update` stopped before touching the install directory.
+    pub fn needs_confirmation(message: impl Into<String>, details: Vec<String>) -> Self {
+        let mut error = Self::new("needsConfirmation", message);
+        error.details = details;
+        error.needs_confirmation = true;
+        error
+    }
+
+    pub fn cancelled(message: impl Into<String>) -> Self {
+        let mut error = Self::new("cancelled", message);
+        error.cancelled = true;
+        error
     }
 }
 
@@ -223,4 +256,76 @@ impl VerificationReport {
             message: Some(message.into()),
         }
     }
+}
+
+/// Which artifact the desktop client downloads for a self-update.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum UpdateKind {
+    /// Script install: download the ZIP and let `install.ps1` replace the files.
+    Script,
+    /// Inno install: download `setup.exe` and run it silently.
+    Inno,
+}
+
+/// Result of `prepare_update`. The artifact is downloaded and verified; the
+/// install directory has not been touched.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreparedUpdate {
+    pub id: String,
+    pub version: String,
+    pub kind: UpdateKind,
+    pub artifact: String,
+    pub sha256: String,
+    pub size: u64,
+}
+
+/// Result of `apply_update`. The helper script runs after the UI exits.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApplyOutcome {
+    pub handed_off: bool,
+    pub kind: UpdateKind,
+    pub version: String,
+    /// Absolute path of the generated helper, for diagnostics only.
+    pub helper: Option<String>,
+}
+
+/// `update-progress` payload.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateProgress {
+    pub id: String,
+    pub stage: String,
+    pub received: u64,
+    pub total: u64,
+}
+
+/// `update-stage` payload.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateStage {
+    pub id: String,
+    pub stage: String,
+}
+
+/// `update-log` payload.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateLog {
+    pub id: String,
+    pub line: String,
+}
+
+/// `update-finished` payload, emitted once per `apply_update` call.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateFinished {
+    pub id: String,
+    /// `handedOff` or `failed`.
+    pub outcome: String,
+    pub version: Option<String>,
+    /// Backup directory reported to the user (script installs only).
+    pub rollback: Option<String>,
 }

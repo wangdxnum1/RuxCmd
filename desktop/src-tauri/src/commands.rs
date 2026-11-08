@@ -1,3 +1,4 @@
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
 use tauri::State;
@@ -7,11 +8,16 @@ use crate::detect;
 use crate::integrity;
 use crate::model::{InstallInfo, ManagerInfo, UpdateCheck, UpdateCheckError, VerificationReport};
 use crate::release::{self, ReleaseCache};
+use crate::update::PreparedInternal;
 use crate::util;
 
 #[derive(Default)]
 pub struct AppState {
     pub cache: Mutex<ReleaseCache>,
+    /// The verified download waiting for `apply_update`.
+    pub prepared: Mutex<Option<PreparedInternal>>,
+    /// Cancellation flag for an in-flight `prepare_update` download.
+    pub cancel: Mutex<Option<(String, Arc<AtomicBool>)>>,
 }
 
 /// Only allow the domains the design lists for the desktop client, plus the
@@ -36,7 +42,8 @@ pub fn get_manager_info() -> ManagerInfo {
         build_time: util::unix_to_iso(env!("RUXCMD_DESKTOP_BUILD_UNIX").parse().unwrap_or(0)),
         tauri_version: tauri::VERSION.to_string(),
         signed: false,
-        read_only: true,
+        // P2 exposes the single write path (prepare/apply/cancel self-update).
+        read_only: false,
     }
 }
 

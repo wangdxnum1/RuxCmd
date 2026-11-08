@@ -11,7 +11,13 @@
   var state = {
     includePrerelease: false,
     checking: false,
-    verifying: false
+    verifying: false,
+    install: null,
+    release: null,
+    prepared: null,
+    installing: false,
+    activeUpdateId: null,
+    handedOff: false
   };
 
   var PREVIEW_MANAGER = {
@@ -310,6 +316,7 @@
     }
     renderManager(manager);
     renderInstall(install);
+    state.install = install;
     await loadVerification();
   }
 
@@ -528,7 +535,7 @@
         'err',
         '发现新版本 v' + latest.version + prerelease + previewTag + '，但资产不完整',
         '缺少资产：' + result.missingAssets.join('、')
-          + '。发布基线要求四个资产齐全；此时不判断版本新旧。P1 不会下载或安装。'
+          + '。发布基线要求四个资产齐全；此时不判断版本新旧。'
       );
     } else if (checks.length === 0 || unverified.length) {
       setBadge(true);
@@ -555,7 +562,7 @@
       renderBanner(
         'info',
         '发现新版本 v' + latest.version + prerelease + previewTag,
-        '仅展示检查结果；P1 不提供下载或安装入口。',
+        '通过 SHA256 交叉校验后可下载并安装；便携/未安装状态只提供发布页入口。',
         buildVersionCompare(result.currentVersion, latest.version)
       );
     }
@@ -563,6 +570,7 @@
     renderAssets(result);
     renderNotes(latest);
     renderCacheHint(result);
+    renderInstallCard(result);
   }
 
   function renderUpdateError(error) {
@@ -570,6 +578,7 @@
     var message = errorText(error);
     clearUpdateDetails();
     setBadge(false);
+    hideInstallCard();
 
     if (kind === 'offline') {
       renderBanner('warn', '无法检查更新（离线）' + previewTag, message + '。离线时无法判断版本新旧。');
@@ -646,6 +655,296 @@
         button.textContent = '检查更新';
       }
     }
+  }
+
+  // ---------- install ----------
+
+  var STAGE_LABELS = {
+    precheck: '预检本地文件',
+    download: '下载中',
+    verify: '校验 SHA256',
+    ready: '已就绪',
+    handoff: '已交给更新助手',
+    failed: '失败',
+    cancelled: '已取消'
+  };
+
+  function artifactNameFor(version, method) {
+    var target = 'x86_64-pc-windows-msvc';
+    return method === 'inno'
+      ? 'ruxcmd-' + version + '-' + target + '-setup.exe'
+      : 'ruxcmd-' + version + '-' + target + '.zip';
+  }
+
+  function setInstallStage(stage) {
+    setText('installStage', STAGE_LABELS[stage] || stage);
+  }
+
+  function setInstallBar(percent) {
+    var bar = el('installBar');
+    if (!bar) return;
+    bar.style.width = Math.max(0, Math.min(100, percent || 0)) + '%';
+  }
+
+  function appendInstallLog(line) {
+    var node = el('installLog');
+    if (!node) return;
+    node.hidden = false;
+    node.textContent = (node.textContent ? node.textContent + '\n' : '') + line;
+    var lines = node.textContent.split('\n');
+    if (lines.length > 60) node.textContent = lines.slice(-60).join('\n');
+    node.scrollTop = node.scrollHeight;
+  }
+
+  function renderInstallChanges(details) {
+    var list = el('installChanges');
+    clearNode(list);
+    (details || []).forEach(function (text) {
+      var item = document.createElement('li');
+      item.textContent = text;
+      list.appendChild(item);
+    });
+    list.hidden = !(details || []).length;
+  }
+
+  function installUnavailableReason(result) {
+    if (!hasBackend) return '浏览器预览模式不执行下载与安装。';
+    if (!result || result.status !== 'updateAvailable') return '已是最新版本，无需下载。';
+    if (!result.assetsComplete) return '发布资产不完整，不能下载。';
+    var checks = result.sidecarChecks || [];
+    if (!checks.length || checks.some(function (check) { return check.matches !== true; })) {
+      return '哈希交叉校验未完成或不一致，禁止下载。';
+    }
+    var method = state.install && state.install.method;
+    if (method !== 'script' && method !== 'inno') {
+      return '当前安装方式（' + methodLabel(method || 'unknown') + '）不支持应用内更新；请用上方按钮打开发布页手动更新。';
+    }
+    return null;
+  }
+
+  function renderInstallCard(result) {
+    state.release = result;
+    var card = el('installCard');
+    if (!card) return;
+    var visible = !!result && !!result.latest && result.status === 'updateAvailable';
+    card.hidden = !visible;
+    if (!visible) return;
+
+    var latest = result.latest;
+    setText('installVersion', 'v' + latest.version + (latest.prerelease ? '（预发布）' : ''));
+    var reason = installUnavailableReason(result);
+    var method = state.install && state.install.method;
+    if (reason) {
+      setText('installHint', reason);
+      el('btnInstall').disabled = true;
+      return;
+    }
+    if (!state.installing && !state.prepared) {
+      setText(
+        'installHint',
+        '将下载 ' + artifactNameFor(latest.version, method)
+          + ' 到 %LOCALAPPDATA%\\RuxCmd\\Desktop\\updates，校验 SHA256 后交给更新助手在 UI 退出后安装。'
+      );
+      el('btnInstall').disabled = false;
+    }
+  }
+
+  function onUpdateStage(payload) {
+    if (!payload) return;
+    if (payload.id) state.activeUpdateId = payload.id;
+    setInstallStage(payload.stage);
+    if (payload.stage === 'download') el('installProgressWrap').hidden = false;
+  }
+
+  function onUpdateProgress(payload) {
+    if (!payload) return;
+    if (payload.id) state.activeUpdateId = payload.id;
+    setInstallStage('download');
+    el('installProgressWrap').hidden = false;
+    if (payload.total) {
+      setInstallBar((payload.received / payload.total) * 100);
+      setText('installBytes', formatBytes(payload.received) + ' / ' + formatBytes(payload.total));
+    } else {
+      setText('installBytes', formatBytes(payload.received));
+    }
+  }
+
+  function onUpdateFinished(payload) {
+    if (!payload) return;
+    if (payload.outcome === 'handedOff') {
+      state.handedOff = true;
+      setInstallStage('handoff');
+      setText(
+        'installHint',
+        '更新助手已启动，将在此窗口退出后完成安装 v' + (payload.version || '')
+          + (payload.rollback ? '；回滚备份：' + payload.rollback : '')
+          + '。安装成功后会自动重新启动。'
+      );
+    }
+  }
+
+  function listenUpdateEvents() {
+    if (!hasBackend || !tauriGlobal.event || typeof tauriGlobal.event.listen !== 'function') {
+      return;
+    }
+    tauriGlobal.event.listen('update-stage', function (event) { onUpdateStage(event.payload); });
+    tauriGlobal.event.listen('update-progress', function (event) { onUpdateProgress(event.payload); });
+    tauriGlobal.event.listen('update-log', function (event) {
+      if (event.payload && event.payload.line) appendInstallLog(event.payload.line);
+    });
+    tauriGlobal.event.listen('update-finished', function (event) { onUpdateFinished(event.payload); });
+  }
+
+  function renderInstallError(error) {
+    var text = errorText(error);
+    if (error && error.cancelled) {
+      setInstallStage('cancelled');
+      setText('installHint', '下载已取消，临时文件已清理。');
+      appendInstallLog('已取消下载。');
+      state.prepared = null;
+      state.activeUpdateId = null;
+      return;
+    }
+    setInstallStage('failed');
+    setText('installHint', '更新失败：' + text);
+    appendInstallLog('错误：' + text);
+    toast('更新失败：' + text);
+    state.prepared = null;
+    state.activeUpdateId = null;
+  }
+
+  async function applyPrepared(confirmOverwrite) {
+    if (!state.prepared) return;
+    try {
+      var outcome = await backend.invoke('apply_update', {
+        id: state.prepared.id,
+        confirmOverwrite: confirmOverwrite
+      });
+      state.handedOff = true;
+      renderInstallChanges([]);
+      el('btnConfirmOverwrite').hidden = true;
+      el('btnInstall').disabled = true;
+      setInstallStage('handoff');
+      setText(
+        'installHint',
+        '更新助手已启动，将在本窗口退出后安装 v' + outcome.version + '；安装成功后自动重新启动。'
+      );
+      appendInstallLog('已交给更新助手（' + outcome.kind + '）；窗口即将关闭。');
+      toast('正在关闭以完成更新…');
+      var id = state.prepared.id;
+      setTimeout(function () {
+        backend.invoke('quit_for_update', { id: id }).catch(function (error) {
+          toast('无法自动关闭：' + errorText(error) + '；请手动退出后重试。');
+        });
+      }, 1500);
+    } catch (error) {
+      if (error && error.needsConfirmation) {
+        setInstallStage('ready');
+        setText('installHint', '本地文件被修改或缺失，确认后才会覆盖：');
+        renderInstallChanges(error.details || []);
+        el('btnConfirmOverwrite').hidden = false;
+        el('btnInstall').disabled = true;
+        appendInstallLog('预检发现本地改动，等待显式确认。');
+        return;
+      }
+      renderInstallError(error);
+    }
+  }
+
+  async function startInstall() {
+    if (state.installing) return;
+    var result = state.release;
+    if (!result || !result.latest) return;
+    var reason = installUnavailableReason(result);
+    if (reason) {
+      toast(reason);
+      return;
+    }
+
+    var version = result.latest.version;
+    var method = state.install && state.install.method;
+    if (!window.confirm(
+      '将下载 ' + artifactNameFor(version, method) + '（v' + version + '），'
+        + '校验 SHA256 后交给安装器。是否继续？'
+    )) {
+      return;
+    }
+
+    state.installing = true;
+    state.prepared = null;
+    state.activeUpdateId = null;
+    state.handedOff = false;
+    renderInstallChanges([]);
+    el('installLog').hidden = true;
+    el('installLog').textContent = '';
+    el('installProgressWrap').hidden = false;
+    setInstallBar(0);
+    setText('installBytes', '');
+    setInstallStage('precheck');
+    el('btnInstall').disabled = true;
+    el('btnCancelUpdate').hidden = false;
+    el('btnConfirmOverwrite').hidden = true;
+    appendInstallLog('准备更新到 v' + version + '…');
+
+    try {
+      var prepared = await backend.invoke('prepare_update', {
+        version: version,
+        includePrerelease: state.includePrerelease
+      });
+      state.prepared = prepared;
+      state.activeUpdateId = prepared.id;
+      setInstallBar(100);
+      appendInstallLog(
+        '下载完成并校验通过：' + prepared.artifact + '（' + formatBytes(prepared.size) + '）'
+      );
+      await applyPrepared(false);
+    } catch (error) {
+      renderInstallError(error);
+    } finally {
+      state.installing = false;
+      el('btnCancelUpdate').hidden = true;
+      if (!state.handedOff && !state.prepared) el('btnInstall').disabled = false;
+    }
+  }
+
+  async function confirmOverwrite() {
+    if (state.installing || !state.prepared) return;
+    state.installing = true;
+    el('btnConfirmOverwrite').disabled = true;
+    try {
+      await applyPrepared(true);
+    } finally {
+      el('btnConfirmOverwrite').disabled = false;
+      state.installing = false;
+      if (!state.handedOff && !state.prepared) el('btnInstall').disabled = false;
+    }
+  }
+
+  async function cancelInstall() {
+    var id = state.activeUpdateId;
+    if (!id) {
+      toast('下载尚未开始，稍后再试。');
+      return;
+    }
+    try {
+      await backend.invoke('cancel_update', { id: id });
+      state.prepared = null;
+      state.activeUpdateId = null;
+      setInstallStage('cancelled');
+      setText('installHint', '已取消本次更新，临时文件会随之清理。');
+      appendInstallLog('已请求取消。');
+      el('btnCancelUpdate').hidden = true;
+      el('btnConfirmOverwrite').hidden = true;
+      el('btnInstall').disabled = false;
+    } catch (error) {
+      toast('取消失败：' + errorText(error));
+    }
+  }
+
+  function hideInstallCard() {
+    var card = el('installCard');
+    if (card) card.hidden = true;
+    state.release = null;
   }
 
   // ---------- actions ----------
@@ -735,12 +1034,16 @@
     el('switchPrerelease').addEventListener('click', function () {
       setPrerelease(!state.includePrerelease);
     });
+    el('btnInstall').addEventListener('click', startInstall);
+    el('btnCancelUpdate').addEventListener('click', cancelInstall);
+    el('btnConfirmOverwrite').addEventListener('click', confirmOverwrite);
   }
 
   async function init() {
     if (!hasBackend) {
       el('previewNote').hidden = false;
     }
+    listenUpdateEvents();
     wire();
     await loadManagerAndInstall();
   }

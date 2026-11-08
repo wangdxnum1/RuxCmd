@@ -77,6 +77,12 @@ a:hover{text-decoration:underline}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#06121f}
 .btn.primary:hover{background:#6ab8ff;border-color:#6ab8ff}
 .btn.ghost{background:transparent}
+.btn.danger{border-color:rgba(248,81,73,.4);color:var(--red);background:transparent}
+.btn.danger:hover{background:var(--red-soft)}
+.progress{height:8px;border-radius:8px;background:#0e131a;border:1px solid var(--line);overflow:hidden;margin-top:12px}
+.progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,#4aa8ff,#2f6fd0);transition:width .2s}
+.log{margin-top:12px;max-height:150px;overflow:auto;background:#0e131a;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:11.5px/1.7 var(--mono);color:var(--muted);white-space:pre-wrap}
+.install-meta{margin-top:10px}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .btn svg{width:14px;height:14px}
 .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}

@@ -115,7 +115,7 @@
     </section>
 
     <section class="view" id="view-update">
-      <div class="view-head"><h1>检查更新</h1><p>套件版本与 GitHub Releases 的对照（只读，不下载、不安装）</p></div>
+      <div class="view-head"><h1>检查更新</h1><p>套件版本与 GitHub Releases 的对照；校验通过后交给安装器完成自更新</p></div>
 
       <div id="updateBanner"></div>
 
@@ -125,6 +125,23 @@
           <button class="btn primary" type="button" id="btnCheck">检查更新</button>
           <label class="checkline"><input type="checkbox" id="chkPrerelease"> 包含预发布版本</label>
           <span class="hint inline-hint" id="cacheHint">未认证 GitHub API 限流 60 次/小时 · 会话内 ETag 缓存 · 最小刷新间隔 10 分钟</span>
+        </div>
+      </div>
+
+      <div class="card" id="installCard" hidden>
+        <div class="card-title">下载并安装 <span class="line"></span> <span class="pill info" id="installVersion">—</span></div>
+        <div class="hint" id="installHint">—</div>
+        <div class="progress" id="installProgressWrap" hidden><i id="installBar"></i></div>
+        <div class="actions install-meta">
+          <span class="pill info" id="installStage">等待</span>
+          <span class="hint inline-hint" id="installBytes"></span>
+        </div>
+        <ul class="issue-list" id="installChanges" hidden></ul>
+        <pre class="log" id="installLog" hidden></pre>
+        <div class="actions actions-top">
+          <button class="btn primary" type="button" id="btnInstall" disabled>下载并安装更新</button>
+          <button class="btn" type="button" id="btnCancelUpdate" hidden>取消</button>
+          <button class="btn danger" type="button" id="btnConfirmOverwrite" hidden>确认覆盖并安装</button>
         </div>
       </div>
 
@@ -148,7 +165,7 @@
     </section>
 
     <section class="view" id="view-settings">
-      <div class="view-head"><h1>设置</h1><p>P1 只读阶段：设置不写入磁盘，仅在本次运行内生效</p></div>
+      <div class="view-head"><h1>设置</h1><p>设置不写入磁盘，仅在本次运行内生效</p></div>
 
       <div class="card">
         <div class="card-title">更新偏好 <span class="line"></span></div>
@@ -161,16 +178,17 @@
           <span class="pill info">10 分钟</span>
         </div>
         <div class="setting">
-          <div class="lbl"><b>启动时自动检查</b><span>P1 不落盘设置且不自动联网；自动检查留待 P2</span></div>
+          <div class="lbl"><b>启动时自动检查</b><span>尚未实现；检查更新仍是显式动作，启动时不联网</span></div>
           <span class="pill warn">未启用</span>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-title">P1 边界 <span class="line"></span></div>
+        <div class="card-title">边界 <span class="line"></span></div>
         <ul class="issue-list">
-          <li>只读：不写入、不删除、不安装、不卸载、不修改注册表或 PATH。</li>
-          <li>更新执行（prepare / apply / cancel）属于 P2，本阶段不提供任何更新按钮。</li>
+          <li>写操作只有一条：下载、校验并安装更新；便携解压与未安装状态不改写目录，只提供发布页入口。</li>
+          <li>应用内更新只支持脚本安装与 Inno Setup；升级前用 share/SHA256SUMS 预检，本地改动需显式确认。</li>
+          <li>更新助手等 UI 退出后才替换文件；失败由 install.ps1 / Inno 的原生备份回滚。</li>
           <li>未签名：首次运行可能出现 SmartScreen 提示；About 如实显示签名状态。</li>
         </ul>
       </div>
