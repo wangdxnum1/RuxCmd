@@ -1,0 +1,25 @@
+[package]
+name = "ruxcmd-desktop"
+version = "0.1.0"
+description = "RuxCmd Desktop: read-only installation lifecycle front end"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/wangdxnum1/RuxCmd"
+
+# The repository root workspace only owns crates/*; this crate is intentionally
+# independent so it never joins the 142-command Verify or packaging gates.
+[workspace]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-clipboard-manager = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+semver = "1"
+sha2 = "0.10"
+url = "2"
+ureq = { version = "2", default-features = false, features = ["tls", "json"] }
+winreg = "0.55"

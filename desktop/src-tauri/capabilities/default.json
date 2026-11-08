@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "P1 read-only: core window and event defaults only. No fs, shell, http, or dialog permissions are granted.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
