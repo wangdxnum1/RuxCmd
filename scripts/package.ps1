@@ -4,6 +4,18 @@ param([string]$OutputDir, [switch]$RequireClean, [string]$ExpectedTag)
 . (Join-Path $PSScriptRoot 'common.ps1')
 $workspace = Get-WorkspaceInfo
 Assert-ReleaseVersion $workspace.Version $ExpectedTag
+
+function Get-DesktopExecutable {
+    param([string]$Messages)
+    foreach ($line in ($Messages -split '\r?\n')) {
+        if ($line -notmatch '"reason":"compiler-artifact"') { continue }
+        try { $record = $line | ConvertFrom-Json } catch { continue }
+        if ($record.target.name -eq 'ruxcmd-desktop' -and $record.executable) {
+            return [string]$record.executable
+        }
+    }
+    return $null
+}
 $status = Invoke-ToolProcess git @('-c', 'core.fsmonitor=false', '-c', 'core.untrackedCache=false', 'status', '--porcelain', '--untracked-files=normal')
 Assert-ToolSuccess $status 'git status'
 $dirty = -not [string]::IsNullOrWhiteSpace($status.Output)
@@ -45,6 +57,23 @@ try {
             [ordered]@{ name = $binary.Name; packageVersion = $binary.PackageVersion; file = $relative; sha256 = Get-FileDigest $destination; dependencies = $dlls; versionInfo = $versionInfo }
         }
     )
+    $desktopBuild = Invoke-ToolProcess cargo @('build', '--manifest-path', (Join-Path $script:RepositoryRoot 'desktop/src-tauri/Cargo.toml'), '--release', '--target', $workspace.Target, '--locked', '--message-format=json-render-diagnostics') -TimeoutSeconds 1800
+    if ($desktopBuild.Error) { Write-Host $desktopBuild.Error }
+    Assert-ToolSuccess $desktopBuild 'cargo desktop release build'
+    $desktopSource = Get-DesktopExecutable $desktopBuild.Output
+    if (-not $desktopSource -or -not (Test-Path -LiteralPath $desktopSource -PathType Leaf)) {
+        throw 'Desktop build did not produce ruxcmd-desktop.exe.'
+    }
+    $desktopRelative = 'bin/ruxcmd-desktop.exe'
+    $desktopDestination = Join-Path $stage $desktopRelative
+    Copy-Item -LiteralPath $desktopSource -Destination $desktopDestination
+    $desktopVersionInfo = Assert-DesktopVersionInfo $desktopDestination $workspace
+    $desktopRecord = [ordered]@{
+        productName = 'RuxCmd Desktop'
+        file = $desktopRelative
+        sha256 = Get-FileDigest $desktopDestination
+        versionInfo = $desktopVersionInfo
+    }
     & (Join-Path $PSScriptRoot 'smoke-test.ps1') -BinDir (Join-Path $stage 'bin')
     foreach ($doc in @('README.md', 'README-zh.md', 'CHANGELOG.md')) { Copy-Item -LiteralPath (Join-Path $script:RepositoryRoot $doc) -Destination $stage }
     Copy-Item -LiteralPath (Join-Path $script:RepositoryRoot 'docs/compatibility.md') -Destination $stage
@@ -53,7 +82,7 @@ try {
     })
     $rustc = Invoke-ToolProcess rustc @('--version')
     Assert-ToolSuccess $rustc 'rustc'
-    $manifest = [ordered]@{ schemaVersion = 1; suiteVersion = $workspace.Version; target = $workspace.Target; rustcVersion = $rustc.Output.Trim(); sourceCommit = $commit.Output.Trim(); dirty = $dirty; binaries = $binaryRecords; files = $files }
+    $manifest = [ordered]@{ schemaVersion = 1; suiteVersion = $workspace.Version; target = $workspace.Target; rustcVersion = $rustc.Output.Trim(); sourceCommit = $commit.Output.Trim(); dirty = $dirty; desktop = $desktopRecord; binaries = $binaryRecords; files = $files }
     $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $stage 'manifest.json') -Encoding utf8NoBOM
     ($files | ForEach-Object { "$($_.sha256)  $($_.path)" }) -join "`n" | Set-Content -LiteralPath (Join-Path $stage 'SHA256SUMS') -Encoding utf8NoBOM
     Assert-ArchiveDirectory $stage $manifest
@@ -65,6 +94,7 @@ try {
     foreach ($binary in $workspace.Binaries) {
         Assert-BinaryVersionInfo (Join-Path $verify "bin/$($binary.Name).exe") $binary $workspace | Out-Null
     }
+    Assert-DesktopVersionInfo (Join-Path $verify $desktopRelative) $workspace | Out-Null
     & (Join-Path $PSScriptRoot 'smoke-test.ps1') -BinDir (Join-Path $verify 'bin')
     & (Join-Path $PSScriptRoot 'verify-behavior.ps1') -BinDir (Join-Path $verify 'bin')
     & (Join-Path $PSScriptRoot 'tests/file-batch-tests.ps1') -BinDir (Join-Path $verify 'bin')

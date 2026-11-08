@@ -46,17 +46,26 @@ VersionInfoCopyright={#AppCopyright}
 VersionInfoOriginalFileName={#OutputBaseFilename}.exe
 WizardStyle=modern
 
+[Types]
+Name: "full"; Description: "Full installation"
+Name: "compact"; Description: "Command line only"; Flags: iscustom
+
+[Components]
+Name: "desktop"; Description: "RuxCmd Desktop (UI)"; Types: full
+
 [InstallDelete]
 ; Remove shims from older versions before laying down the new set. The share
 ; directory is installer-owned documentation; reinstall it cleanly.
 Type: files; Name: "{app}\rux-*.cmd"
 Type: filesandordirs; Name: "{app}\share"
+Type: files; Name: "{app}\ruxcmd-desktop.exe"
 
 [UninstallDelete]
 ; Stale shims from versions installed before the current one are not in the
 ; current install log, so remove them explicitly. The uninstaller also
 ; removes every file it recorded.
 Type: files; Name: "{app}\rux-*.cmd"
+Type: files; Name: "{app}\ruxcmd-desktop.exe"
 Type: filesandordirs; Name: "{app}\share"
 Type: dirifempty; Name: "{app}"
 

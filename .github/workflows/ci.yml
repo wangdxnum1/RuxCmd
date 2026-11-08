@@ -16,6 +16,8 @@ jobs:
   windows:
     runs-on: windows-2025
     timeout-minutes: 45
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
     defaults:
       run:
         shell: pwsh
@@ -35,11 +37,19 @@ jobs:
           # changes. A miss simply rebuilds; `cache-workspace-crates: false` keeps
           # this run's crates out of the cache, so a hit can never substitute the
           # 142 release binaries that the compatibility check reads.
-          key: ${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', '.cargo/config.toml', '.github/workflows/ci.yml', '.github/workflows/release.yml') }}
+          key: ${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', '.cargo/config.toml', '.github/workflows/ci.yml', '.github/workflows/release.yml', 'desktop/src-tauri/Cargo.toml', 'desktop/src-tauri/Cargo.lock', 'desktop/src-tauri/build.rs', 'desktop/src-tauri/tauri.conf.json') }}
           cache-targets: true
           cache-workspace-crates: false
       - name: Verify workspace and build release binaries
         run: ./scripts/build.ps1 -Task Verify
+      - name: Desktop checks
+        run: |
+          cargo fmt --manifest-path desktop/src-tauri/Cargo.toml --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo clippy --manifest-path desktop/src-tauri/Cargo.toml --all-targets --locked -- -D warnings
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build and verify ZIP
         run: ./scripts/release.ps1
       - name: Install supported Inno Setup

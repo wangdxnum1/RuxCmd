@@ -132,6 +132,41 @@ function Assert-BinaryVersionInfo {
     [pscustomobject]$expected
 }
 
+function Assert-DesktopVersionInfo {
+    param([string]$Path, $Workspace)
+    if (-not $Workspace.Windows) { throw 'Missing workspace Windows version metadata.' }
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "Desktop executable not found: $Path" }
+    $info = [Diagnostics.FileVersionInfo]::GetVersionInfo((Get-FileSystemPath $Path))
+    $expected = [ordered]@{
+        ProductName = 'RuxCmd Desktop'
+        ProductVersion = [string]$Workspace.Version
+        CompanyName = $Workspace.Windows.companyName
+        LegalCopyright = $Workspace.Windows.copyright
+        FileDescription = 'RuxCmd Desktop'
+    }
+    foreach ($field in $expected.Keys) {
+        $actual = ([string]$info.$field).Trim()
+        $wanted = ([string]$expected[$field]).Trim()
+        if ($actual -cne $wanted) {
+            throw "Desktop version resource mismatch in ${Path}: $field (expected '$wanted', got '$actual')."
+        }
+    }
+    $numeric = ($Workspace.Version -split '[-+]', 2)[0] + '.0'
+    $fileWords = @($info.FileMajorPart, $info.FileMinorPart, $info.FileBuildPart, $info.FilePrivatePart) -join '.'
+    $productWords = @($info.ProductMajorPart, $info.ProductMinorPart, $info.ProductBuildPart, $info.ProductPrivatePart) -join '.'
+    if ($fileWords -cne $numeric -or $productWords -cne $numeric) {
+        throw "Desktop version resource fixed numeric version mismatch in $Path"
+    }
+    [pscustomobject]@{
+        ProductName = $info.ProductName
+        ProductVersion = $info.ProductVersion
+        FileVersion = $info.FileVersion
+        CompanyName = $info.CompanyName
+        LegalCopyright = $info.LegalCopyright
+        FileDescription = $info.FileDescription
+    }
+}
+
 function Assert-ReleaseVersion {
     param([string]$Version, [string]$ExpectedTag)
     if ($Version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') { throw "Invalid suite version: $Version" }
