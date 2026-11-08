@@ -16,8 +16,14 @@ pub struct AppState {
     pub cache: Mutex<ReleaseCache>,
 }
 
-/// Only allow the domains the design lists for the desktop client.
-const ALLOWED_EXTERNAL_HOSTS: [&str; 3] = ["api.github.com", "github.com", "objects.githubusercontent.com"];
+/// Only allow the domains the design lists for the desktop client, plus the
+/// host GitHub currently redirects release assets to.
+const ALLOWED_EXTERNAL_HOSTS: [&str; 4] = [
+    "api.github.com",
+    "github.com",
+    "objects.githubusercontent.com",
+    "release-assets.githubusercontent.com",
+];
 
 #[tauri::command]
 pub fn get_install_info() -> InstallInfo {

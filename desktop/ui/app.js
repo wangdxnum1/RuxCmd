@@ -448,6 +448,7 @@
 
     var releaseButton = el('btnReleasePage');
     if (releaseButton) releaseButton.setAttribute('data-url', latest.html_url);
+    renderSidecarChecks(result);
   }
 
   function renderNotes(latest) {
@@ -471,6 +472,33 @@
     );
   }
 
+  function digestOf(value) {
+    return value ? shortenDigest('sha256:' + value) : '—';
+  }
+
+  function renderSidecarChecks(result) {
+    var node = el('sidecarNote');
+    if (!node) return;
+    var checks = result.sidecarChecks || [];
+    if (!checks.length) {
+      node.textContent = 'digest ↔ .sha256 交叉校验：未执行。';
+      return;
+    }
+    var passed = checks.filter(function (check) { return check.matches === true; }).length;
+    var parts = checks.map(function (check) {
+      if (check.matches === true) {
+        return check.binary + ' 与 ' + check.sidecar + ' 一致 (' + digestOf(check.digestSha256) + ')';
+      }
+      if (check.matches === false) {
+        return check.binary + ' 与 ' + check.sidecar + ' 不一致（GitHub API '
+          + digestOf(check.digestSha256) + ' ↔ sidecar ' + digestOf(check.sidecarSha256) + '）';
+      }
+      return check.binary + ' 未校验：' + (check.error || '原因未知');
+    });
+    node.textContent = 'digest ↔ .sha256 交叉校验：' + passed + '/' + checks.length + ' 一致。'
+      + parts.join('；') + '。';
+  }
+
   function renderUpdateResult(result) {
     var latest = result.latest;
     if (!latest) {
@@ -481,19 +509,46 @@
     }
 
     var prerelease = latest.prerelease ? '（预发布）' : '';
-    if (result.status === 'upToDate') {
-      setBadge(false);
+    var checks = result.sidecarChecks || [];
+    var mismatched = checks.filter(function (check) { return check.matches === false; });
+    var unverified = checks.filter(function (check) { return check.matches !== true; });
+
+    if (mismatched.length) {
+      setBadge(true);
       renderBanner(
-        'ok',
-        '已是最新版本 v' + latest.version + prerelease + previewTag,
-        '当前套件版本 ' + (result.currentVersion ? 'v' + result.currentVersion : '未知') + ' 不低于发布基线。'
+        'err',
+        'v' + latest.version + ' 资产哈希不一致' + prerelease + previewTag,
+        'digest 与 .sha256 sidecar 交叉校验未通过：'
+          + mismatched.map(function (check) { return check.binary; }).join('、')
+          + '。此时无法确认版本是否可信，也不判断版本新旧。'
       );
     } else if (!result.assetsComplete) {
       setBadge(true);
       renderBanner(
         'err',
         '发现新版本 v' + latest.version + prerelease + previewTag + '，但资产不完整',
-        '缺少资产：' + result.missingAssets.join('、') + '。发布基线要求四个资产齐全；P1 不会下载或安装。'
+        '缺少资产：' + result.missingAssets.join('、')
+          + '。发布基线要求四个资产齐全；此时不判断版本新旧。P1 不会下载或安装。'
+      );
+    } else if (checks.length === 0 || unverified.length) {
+      setBadge(true);
+      renderBanner(
+        'warn',
+        'v' + latest.version + ' 的资产校验未完成' + prerelease + previewTag,
+        (checks.length === 0
+          ? '后端没有返回 sidecar 校验结果。'
+          : '未完成：' + unverified.map(function (check) {
+            return check.binary + '（' + (check.error || '原因未知') + '）';
+          }).join('、') + '。')
+          + '此时不判断版本新旧。'
+      );
+    } else if (result.status === 'upToDate') {
+      setBadge(false);
+      renderBanner(
+        'ok',
+        '已是最新版本 v' + latest.version + prerelease + previewTag,
+        '当前套件版本 ' + (result.currentVersion ? 'v' + result.currentVersion : '未知')
+          + ' 不低于发布基线，且四个资产与 sidecar 校验一致。'
       );
     } else {
       setBadge(true);
@@ -517,7 +572,7 @@
     setBadge(false);
 
     if (kind === 'offline') {
-      renderBanner('warn', '无法检查更新（离线）' + previewTag, message + '。离线不等于已是最新版本。');
+      renderBanner('warn', '无法检查更新（离线）' + previewTag, message + '。离线时无法判断版本新旧。');
     } else if (kind === 'rateLimited') {
       var retry = error && error.retryAfterSeconds
         ? '约 ' + Math.ceil(error.retryAfterSeconds / 60) + ' 分钟后可重试。'
@@ -531,16 +586,36 @@
       renderBanner('err', '检查更新失败' + previewTag, message);
     }
 
-    setText('cacheHint', '上次检查失败；离线或限流时不会显示「已是最新」。');
+    setText('cacheHint', '上次检查失败；离线或限流时不判断版本新旧。');
   }
 
   function previewCheck() {
+    var zipDigest = 'e90ab1897a9c0da88671c7b420b137526e5d97edee4e6139a0826f42226c7045';
+    var setupDigest = 'a7b30d642c83e4e238b5b40b4977d56ea58b16352b82af116fb331d7965eeb17';
     return {
       status: 'upToDate',
       currentVersion: '0.5.11',
       latest: PREVIEW_RELEASE,
       assetsComplete: true,
       missingAssets: [],
+      sidecarChecks: [
+        {
+          binary: 'ruxcmd-0.5.11-x86_64-pc-windows-msvc.zip',
+          sidecar: 'ruxcmd-0.5.11-x86_64-pc-windows-msvc.zip.sha256',
+          digestSha256: zipDigest,
+          sidecarSha256: zipDigest,
+          matches: true,
+          error: null
+        },
+        {
+          binary: 'ruxcmd-0.5.11-x86_64-pc-windows-msvc-setup.exe',
+          sidecar: 'ruxcmd-0.5.11-x86_64-pc-windows-msvc-setup.exe.sha256',
+          digestSha256: setupDigest,
+          sidecarSha256: setupDigest,
+          matches: true,
+          error: null
+        }
+      ],
       checkedAt: new Date().toISOString(),
       fromCache: false,
       nextRefreshSeconds: 600

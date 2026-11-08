@@ -78,6 +78,8 @@ pub struct GhAsset {
     pub size: u64,
     pub digest: Option<String>,
     pub state: String,
+    #[serde(default)]
+    pub browser_download_url: Option<String>,
 }
 
 /// Release data normalized for the UI (camelCase fields).
@@ -102,6 +104,25 @@ pub struct ReleaseAsset {
     pub size: u64,
     pub digest: Option<String>,
     pub state: String,
+    /// Used by the backend to fetch the `.sha256` sidecar; never exposed to the UI.
+    #[serde(skip_serializing)]
+    pub download_url: Option<String>,
+}
+
+/// Result of comparing the API's asset digest with the hash published inside
+/// the matching `.sha256` sidecar file.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SidecarCheck {
+    pub binary: String,
+    pub sidecar: String,
+    /// SHA-256 reported by the GitHub API for the binary asset.
+    pub digest_sha256: Option<String>,
+    /// SHA-256 written inside the sidecar file.
+    pub sidecar_sha256: Option<String>,
+    /// `None` means the comparison could not be performed (see `error`).
+    pub matches: Option<bool>,
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -120,6 +141,7 @@ pub struct UpdateCheck {
     pub latest: Option<ReleaseInfo>,
     pub assets_complete: bool,
     pub missing_assets: Vec<String>,
+    pub sidecar_checks: Vec<SidecarCheck>,
     pub checked_at: String,
     pub from_cache: bool,
     pub next_refresh_seconds: u64,
