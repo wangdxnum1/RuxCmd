@@ -2,7 +2,8 @@
 
 **简体中文** | [English](suite-manager-signing.md)
 
-> 状态：推荐方案（待维护者确认后执行）。撰写日期 2026-11-08。
+> 状态：**未采纳，仅作未来参考**（2026-11-08 维护者决定暂不签名）。撰写日期 2026-11-08。
+> 本文保留完整的调研结论与备选对比，供日后决定启用签名时直接复用；**当前不申请、不接入 CI、不作为任何阶段的前置条件**。
 > 适用对象：Suite Manager 的 Tauri 安装包 / 可执行程序；顺带覆盖现有 RuxCmd 发布资产（setup.exe 与 142 个 exe）。
 > 依据：[设计说明](suite-manager-design-zh.md) 第 7 节「安全与信任链」。
 
@@ -67,18 +68,20 @@ RuxCmd 的条件与 SignPath 高度匹配：
 | Azure Artifact Signing（原 Trusted Signing） | 按量付费，Basic / Premium SKU；[定价页](https://azure.microsoft.com/en-us/pricing/details/artifact-signing/) 需报价 | Azure 托管，FIPS 140-3 Level 3 HSM | 需 Azure 订阅 + 身份核验；个人身份核验较麻烦 | 若 SignPath 申请被拒、或未来需要企业级 SLA / 私有信任场景 |
 | 自购 OV 代码签名证书 | 年费（数百美元级，各 CA 不同） | 2023 起 CA 强制 HSM/token 存储，CI 集成仍需云签名服务 | 个人可买，需身份验证 | 想让发布者显示为自己名字时；但每年续费 + 管理负担 |
 | 自购 EV 代码签名证书 | 年费更高 | 硬件 token | 需 organization 身份核验，个人难申请 | 追求最快 SmartScreen 声誉；对个人维护者性价比低 |
-| 暂不签名 + 文档声明 | 0 | — | — | 现状，winget 清单已声明未签名；**不作为最终方案**，Suite Manager 会放大这个短板 |
+| 暂不签名 + 文档声明 | 0 | — | — | **当前采用**（2026-11-08 决定）；winget 清单已声明未签名。代价是首次运行 SmartScreen 警告与「未知发布者」，Suite Manager 会放大这个短板——以 UI 内如实告知 + 三方哈希校验缓解 |
 
-## 3. 分阶段建议
+## 3. 分阶段建议（当前不执行）
+
+> 下列步骤**仅为日后启用签名时的实施顺序参考**，当前不启动任何一步。P0–P4 的 Suite Manager 开发不因签名阻塞。
 
 | 阶段 | 动作 | 风险 |
 | --- | --- | --- |
-| 现在（P0/P1） | 提交 SignPath 申请、起草 Code signing policy 文档、确认发布者身份可接受 | 低，不阻塞 UI 原型与只读版本 |
-| P2（更新功能落地前） | 落地 CI 签名 job，先只签 Suite Manager 安装包；同步把「先签名后算哈希」写进发布流程 | 中，会改动 Release workflow |
-| P3 | 扩展签名到 RuxCmd `setup.exe`；更新 winget / scoop 清单移除「未签名」声明；核对哈希链 | 中 |
-| 后续 | 若下载量起来仍有 SmartScreen 提示，走微软文件提交复核；或评估升级 EV | 低 |
+| 启用时（先决） | 提交 SignPath 申请、起草 Code signing policy 文档、确认发布者身份可接受 | 低 |
+| 启用时（CI） | 落地 CI 签名 job，先只签 Suite Manager 安装包；同步把「先签名后算哈希」写进发布流程 | 中，会改动 Release workflow |
+| 启用时（扩展） | 扩展签名到 RuxCmd `setup.exe`；更新 winget / scoop 清单移除「未签名」声明；核对哈希链 | 中 |
+| 启用后 | 若下载量起来仍有 SmartScreen 提示，走微软文件提交复核；或评估升级 EV | 低 |
 
-**关键排序**：签名不必阻塞 P0 原型与 P1 只读版本，但**必须在 P2「更新」上线前完成**——一个会下载并执行新二进制的程序，签名是上线前置条件，不是事后补丁。
+**若日后启用**：签名一旦插入发布流程，必须「先签名 → 重算 `.sha256` → 回填清单 → `check-manifests`」，因为签名会改变 ZIP / setup.exe 字节；这会改动 Release workflow，需单独成轮验证。
 
 ## 4. 风险与对策
 

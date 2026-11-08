@@ -2,7 +2,8 @@
 
 [**English**](suite-manager-signing.md) | 简体中文
 
-> Status: recommended plan (pending maintainer confirmation). Written 2026-11-08.
+> Status: **not adopted, future reference only** (maintainer decided on 2026-11-08 to skip signing for now). Written 2026-11-08.
+> This document keeps the full research and alternatives so it can be reused directly if signing is enabled later. **No application, no CI integration, and not a prerequisite for any phase today.**
 > Applies to: the Suite Manager Tauri installer/executable; also covers existing RuxCmd release assets (setup.exe and the 142 exes) where relevant.
 > Context: [Design](suite-manager-design.md) §7 "Security and trust chain".
 
@@ -67,18 +68,20 @@ RuxCmd matches SignPath's conditions closely:
 | Azure Artifact Signing (formerly Trusted Signing) | Pay-as-you-go, Basic / Premium SKU; [pricing page](https://azure.microsoft.com/en-us/pricing/details/artifact-signing/) requires a quote | Azure-managed, FIPS 140-3 Level 3 HSM | Needs Azure subscription + identity validation; awkward for individuals | Fallback if SignPath declines, or future enterprise SLA / private-trust needs |
 | Self-purchased OV code signing certificate | Annual fee (hundreds of USD, varies by CA) | Since 2023 CAs mandate HSM/token storage; CI still needs a cloud signing service | Individuals can buy with identity validation | When you want the publisher to show your own name; annual renewal + management burden |
 | Self-purchased EV certificate | Higher annual fee | Hardware token | Organization validation, hard for individuals | Fastest SmartScreen reputation; poor value for a solo maintainer |
-| Stay unsigned + document it | 0 | — | — | Current state; winget manifest already declares unsigned. **Not a final answer** — Suite Manager amplifies the gap |
+| Stay unsigned + document it | 0 | — | — | **Current choice** (decided 2026-11-08); winget manifest already declares unsigned. Cost: first-run SmartScreen warning and "Unknown publisher", amplified by Suite Manager — mitigated by honest in-UI disclosure + the mandatory three-way hash check |
 
-## 3. Phasing
+## 3. Phasing (not currently executed)
+
+> The steps below are **reference only for a future decision to enable signing**. None is started today. Suite Manager P0–P4 development is not blocked by signing.
 
 | Phase | Action | Risk |
 | --- | --- | --- |
-| Now (P0/P1) | Submit SignPath application, draft Code signing policy, confirm the publisher identity is acceptable | Low; does not block the prototype or read-only build |
-| Before P2 (update feature) | Land the CI signing job, initially for the Suite Manager installer only; encode "sign then hash" into the release flow | Medium; changes the Release workflow |
-| P3 | Extend signing to RuxCmd `setup.exe`; remove "unsigned" wording from winget / scoop manifests; verify hash chain | Medium |
-| Later | If SmartScreen still warns at scale, submit files to Microsoft for review; or evaluate EV | Low |
+| At adoption (prereq) | Submit SignPath application, draft Code signing policy, confirm the publisher identity is acceptable | Low |
+| At adoption (CI) | Land the CI signing job, initially for the Suite Manager installer only; encode "sign then hash" into the release flow | Medium; changes the Release workflow |
+| At adoption (extend) | Extend signing to RuxCmd `setup.exe`; remove "unsigned" wording from winget / scoop manifests; verify hash chain | Medium |
+| After adoption | If SmartScreen still warns at scale, submit files to Microsoft for review; or evaluate EV | Low |
 
-**Key ordering**: signing need not block the P0 prototype or P1 read-only build, but **must be complete before P2 "update" ships** — for a program that downloads and executes new binaries, signing is a launch prerequisite, not a retrofit.
+**If enabled later**: inserting signing into the release flow requires "sign → recompute `.sha256` → sync manifests → `check-manifests`", because signing changes the ZIP / setup.exe bytes; that changes the Release workflow and needs its own verification round.
 
 ## 4. Risks and mitigations
 

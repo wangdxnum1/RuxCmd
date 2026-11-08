@@ -11,11 +11,11 @@
 | # | Decision | Detail |
 | --- | --- | --- |
 | 1 | **Tauri 2.x stable line** | Pin major 2, do not chase 3.0 alpha; do not rely on `releases/latest` (mixes prereleases) |
-| 2 | **Code signing via SignPath Foundation free OSS plan** | See [Code signing plan](suite-manager-signing.md): HSM-held key, CI integration, manual approval; must be complete before P2 update ships |
+| 2 | **No code signing for now** (maintainer decision, 2026-11-08) | Keep the [Code signing plan](suite-manager-signing.md) as **future reference only**: no application, no CI integration, not a P2 prerequisite. Current state matches the winget manifest: unsigned, possible first-run SmartScreen warning; disclose this honestly to users |
 | 3 | **Code lives at the repository root as `suite-manager/`** | Own `Cargo.toml`, not under `crates/*`; keeps the 142-command Verify / packaging gates untouched. See §3.1 and §8 |
 | 4 | **Current prototype is UI v1; no further iteration for now** | [suite-manager-prototype.html](suite-manager-prototype.html) is the frozen v1: About / Check update / Settings, three update states, progress + rollback guidance; later changes get a new version |
 
-Companion docs: [Code signing plan](suite-manager-signing.md) ([简体中文](suite-manager-signing-zh.md)) · [UI prototype](suite-manager-prototype.html).
+Companion docs: [Code signing plan (not adopted, reference only)](suite-manager-signing.md) ([简体中文](suite-manager-signing-zh.md)) · [UI prototype](suite-manager-prototype.html).
 
 ## 1. Positioning
 
@@ -228,7 +228,7 @@ Events (backend→frontend): `update-progress` (stage + bytes), `update-stage`, 
 
 ## 7. Security and trust chain (critical)
 
-1. **An unsigned UI breaks the trust chain**: a program that downloads and executes new binaries should not itself trigger a SmartScreen warning. [scripts/packaging/winget/wangdxnum1.RuxCmd.installer.yaml](../scripts/packaging/winget/wangdxnum1.RuxCmd.installer.yaml) already declares the installer is unsigned. **Decision 2**: adopt the [SignPath Foundation free OSS signing plan](suite-manager-signing.md), which must land **before P2 "update" ships** — signing is a launch prerequisite, not a retrofit. Note signing does not immediately eliminate SmartScreen warnings (reputation-based); see signing plan §0.
+1. **Unsigned trust-chain risk (known, accepted)**: a program that downloads and executes new binaries shows a SmartScreen warning and "Unknown publisher" on first run when unsigned. [scripts/packaging/winget/wangdxnum1.RuxCmd.installer.yaml](../scripts/packaging/winget/wangdxnum1.RuxCmd.installer.yaml) already declares the installer is unsigned. **Decision 2: no signing for now** — the [Code signing plan](suite-manager-signing.md) is future reference only. P2 is therefore not blocked by signing, but the UI must disclose "unsigned / warning possible" and offer hash verification so users can check integrity themselves; the three-way hash check (next item) stays mandatory regardless of signing. Note signing would not immediately eliminate SmartScreen warnings anyway (reputation-based); see signing plan §0.
 2. **Three-way hash verification**: after download, compare ① the `.zip.sha256` sidecar content, ② the locally computed SHA256, and ③ the GitHub asset `digest`. Only install when all three agree. This embeds the "published asset digest ↔ manifest hash" independent check that roadmap 4.2 wants.
 3. **TLS only** for HTTP; validate target domains; never downgrade to http when update checking fails.
 4. **Never execute downloaded content**: the downloads are a ZIP / setup.exe, and the update is handed to existing scripts; the UI does not parse or load resources from inside the archive.
@@ -244,7 +244,7 @@ Events (backend→frontend): `update-progress` (stage + bytes), `update-stage`, 
 | Include in `build.ps1 -Task Verify` | **Not yet**. Independent CI for the root-level `suite-manager/`, so the 142-command Verify stays fast |
 | Code location | **Repository root `suite-manager/`** (decision 3), own `Cargo.toml` |
 | Versioning | Independent (e.g. `0.1.0`), decoupled from the suite version |
-| Signing | See [Code signing plan](suite-manager-signing.md); note "sign → recompute `.sha256` → sync manifests" changes the Release workflow |
+| Signing | **Not adopted**; [Code signing plan](suite-manager-signing.md) is reference only. The Release workflow keeps "package → compute `.sha256` → upload" unchanged |
 | Provenance | `sourceCommit` shown in About refers to the **suite** source commit, not the Manager's own; the UI must label it clearly |
 
 ## 9. Suggested phasing
@@ -252,8 +252,8 @@ Events (backend→frontend): `update-progress` (stage + bytes), `update-stage`, 
 | Phase | Content | Risk |
 | --- | --- | --- |
 | P0 Prototype | ✅ **v1 frozen**: [suite-manager-prototype.html](suite-manager-prototype.html), three views + three update states + progress; maintainer approved, no iteration for now | none |
-| P1 Read-only | Tauri 2.x skeleton (root `suite-manager/`) + `detect` + `release` + `integrity`; About / Check update usable, **no writes at all**; submit SignPath application and Code signing policy in parallel | low |
-| P2 Update | `prepare_update` / `apply_update` + progress + rollback guidance; **signing must land first** | medium (the only write path) |
+| P1 Read-only | Tauri 2.x skeleton (root `suite-manager/`) + `detect` + `release` + `integrity`; About / Check update usable, **no writes at all** | low |
+| P2 Update | `prepare_update` / `apply_update` + progress + rollback guidance; signing does not block, but the UI must show an "unsigned" notice and hash verification results | medium (the only write path) |
 | P3 Distribution | Independent packaging, independent CI, possible winget/scoop entry, docs-site link | medium |
 | P4 Extras | Tray icon, update notifications, diagnostics export, ARM64 | low |
 
