@@ -3,8 +3,7 @@ use std::time::{Duration, Instant};
 use semver::Version;
 
 use crate::model::{
-    GhRelease, ReleaseAsset, ReleaseInfo, SidecarCheck, UpdateCheck, UpdateCheckError,
-    UpdateStatus,
+    GhRelease, ReleaseAsset, ReleaseInfo, SidecarCheck, UpdateCheck, UpdateCheckError, UpdateStatus,
 };
 use crate::util;
 
@@ -55,13 +54,7 @@ pub fn check(
     include_prerelease: bool,
     current_version: Option<&str>,
 ) -> Result<UpdateCheck, UpdateCheckError> {
-    check_at(
-        API_BASE,
-        false,
-        cache,
-        include_prerelease,
-        current_version,
-    )
+    check_at(API_BASE, false, cache, include_prerelease, current_version)
 }
 
 fn check_at(
@@ -101,7 +94,12 @@ fn check_at(
         Fetch::NotModified => match slot {
             Some(entry) => {
                 entry.fetched_at = Instant::now();
-                return Ok(build_check(entry, current_version, true, MIN_REFRESH_SECONDS));
+                return Ok(build_check(
+                    entry,
+                    current_version,
+                    true,
+                    MIN_REFRESH_SECONDS,
+                ));
             }
             None => match fetch(&url, None, allow_insecure_http)? {
                 Fetch::Body { body, etag } => (body, etag),
@@ -244,8 +242,8 @@ fn normalize_proxy_url(raw: &str) -> Option<String> {
 
 #[cfg(windows)]
 fn windows_system_proxy() -> Option<String> {
-    use winreg::enums::HKEY_CURRENT_USER;
     use winreg::RegKey;
+    use winreg::enums::HKEY_CURRENT_USER;
 
     let key = RegKey::predef(HKEY_CURRENT_USER)
         .open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings")
@@ -317,8 +315,9 @@ fn parse_release(body: &str, include_prerelease: bool) -> Result<ReleaseInfo, Up
         return Ok(normalize_release(best));
     }
 
-    let release: GhRelease = serde_json::from_str(body)
-        .map_err(|error| UpdateCheckError::invalid_response(format!("发布信息无法解析：{error}")))?;
+    let release: GhRelease = serde_json::from_str(body).map_err(|error| {
+        UpdateCheckError::invalid_response(format!("发布信息无法解析：{error}"))
+    })?;
     if release.draft {
         return Err(UpdateCheckError::invalid_response(
             "GitHub 返回了草稿发布，拒绝使用",
@@ -505,8 +504,8 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        check_at, ensure_allowed_url, normalize_proxy_url, parse_sidecar_hash, ReleaseCache,
-        MIN_REFRESH_SECONDS,
+        MIN_REFRESH_SECONDS, ReleaseCache, check_at, ensure_allowed_url, normalize_proxy_url,
+        parse_sidecar_hash,
     };
     use crate::model::UpdateStatus;
 
@@ -606,13 +605,14 @@ mod tests {
                         .nth(1)
                         .unwrap_or_default()
                         .to_string();
-                    let headers = lines.take_while(|line| !line.is_empty()).collect::<Vec<_>>().join("\n");
-                    log.lock()
-                        .unwrap()
-                        .push(RequestLog {
-                            path: path.clone(),
-                            headers: headers.clone(),
-                        });
+                    let headers = lines
+                        .take_while(|line| !line.is_empty())
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    log.lock().unwrap().push(RequestLog {
+                        path: path.clone(),
+                        headers: headers.clone(),
+                    });
                     let response = handler(&base_for_thread, &path, &headers);
                     let mut raw = format!(
                         "HTTP/1.1 {} {}\r\nContent-Length: {}\r\nConnection: close\r\n",
@@ -696,7 +696,10 @@ mod tests {
     fn etag_304_reuses_sidecar_results_without_refetching() {
         let server = MockServer::start(|base, path, headers| {
             if path == "/repos/wangdxnum1/RuxCmd/releases/latest" {
-                if headers.to_lowercase().contains("if-none-match: \"mock-etag\"") {
+                if headers
+                    .to_lowercase()
+                    .contains("if-none-match: \"mock-etag\"")
+                {
                     return MockResponse::new(304, "");
                 }
                 MockResponse::ok(release_json(&[
@@ -716,8 +719,8 @@ mod tests {
         });
 
         let mut cache = ReleaseCache::default();
-        let first = check_at(&server.base, true, &mut cache, false, Some("0.5.11"))
-            .expect("first check");
+        let first =
+            check_at(&server.base, true, &mut cache, false, Some("0.5.11")).expect("first check");
         assert!(!first.from_cache);
         assert_eq!(server.request_paths().len(), 3);
 
@@ -725,16 +728,23 @@ mod tests {
             entry.fetched_at = std::time::Instant::now()
                 - std::time::Duration::from_secs(MIN_REFRESH_SECONDS + 30);
         }
-        let second = check_at(&server.base, true, &mut cache, false, Some("0.5.11"))
-            .expect("second check");
+        let second =
+            check_at(&server.base, true, &mut cache, false, Some("0.5.11")).expect("second check");
         assert!(second.from_cache, "a 304 must be reused from cache");
-        assert!(second.sidecar_checks.iter().all(|check| check.matches == Some(true)));
+        assert!(
+            second
+                .sidecar_checks
+                .iter()
+                .all(|check| check.matches == Some(true))
+        );
         let requests = server.requests.lock().unwrap().clone();
         assert_eq!(requests.len(), 4, "only the API request is repeated");
         let last = requests.last().unwrap();
         assert_eq!(last.path, "/repos/wangdxnum1/RuxCmd/releases/latest");
         assert!(
-            last.headers.to_lowercase().contains("if-none-match: \"mock-etag\""),
+            last.headers
+                .to_lowercase()
+                .contains("if-none-match: \"mock-etag\""),
             "second request headers: {}",
             last.headers
         );
@@ -806,12 +816,16 @@ mod tests {
             .find(|check| check.binary == ZIP)
             .expect("zip check");
         assert_eq!(zip_check.matches, Some(false));
-        assert_eq!(zip_check.sidecar_sha256.as_deref(), Some(hash('b').as_str()));
+        assert_eq!(
+            zip_check.sidecar_sha256.as_deref(),
+            Some(hash('b').as_str())
+        );
     }
 
     #[test]
     fn http_404_is_not_found() {
-        let server = MockServer::start(|_base, _path, _headers| MockResponse::new(404, "not found"));
+        let server =
+            MockServer::start(|_base, _path, _headers| MockResponse::new(404, "not found"));
         let mut cache = ReleaseCache::default();
         let error = check_at(&server.base, true, &mut cache, false, Some("0.5.11"))
             .expect_err("404 must fail");
@@ -822,16 +836,28 @@ mod tests {
     #[test]
     fn offline_is_reported_as_offline() {
         let mut cache = ReleaseCache::default();
-        let error = check_at("http://127.0.0.1:1", true, &mut cache, false, Some("0.5.11"))
-            .expect_err("connection refused");
+        let error = check_at(
+            "http://127.0.0.1:1",
+            true,
+            &mut cache,
+            false,
+            Some("0.5.11"),
+        )
+        .expect_err("connection refused");
         assert_eq!(error.kind, "offline");
     }
 
     #[test]
     fn non_allowlisted_host_is_refused() {
         let mut cache = ReleaseCache::default();
-        let error = check_at("https://example.com", false, &mut cache, false, Some("0.5.11"))
-            .expect_err("host not allowed");
+        let error = check_at(
+            "https://example.com",
+            false,
+            &mut cache,
+            false,
+            Some("0.5.11"),
+        )
+        .expect_err("host not allowed");
         assert_eq!(error.kind, "invalidResponse");
         assert!(error.message.contains("允许列表"));
     }
@@ -867,10 +893,7 @@ mod tests {
             } else if path == "/real/zip.sha256" {
                 MockResponse::ok(format!("{}  {ZIP}\r\n", hash('a')))
             } else if path.ends_with(".zip.sha256") {
-                MockResponse::new(302, "").header(
-                    "Location",
-                    &format!("{base}/real/zip.sha256"),
-                )
+                MockResponse::new(302, "").header("Location", &format!("{base}/real/zip.sha256"))
             } else if path.ends_with("-setup.exe.sha256") {
                 MockResponse::ok(format!("{}  {SETUP}\r\n", hash('a')))
             } else {
@@ -881,11 +904,18 @@ mod tests {
         let mut cache = ReleaseCache::default();
         let result = check_at(&server.base, true, &mut cache, false, Some("0.5.11"))
             .expect("redirect should be followed");
-        assert!(result.sidecar_checks.iter().all(|check| check.matches == Some(true)));
-        assert!(server
-            .request_paths()
-            .iter()
-            .any(|path| path == "/real/zip.sha256"));
+        assert!(
+            result
+                .sidecar_checks
+                .iter()
+                .all(|check| check.matches == Some(true))
+        );
+        assert!(
+            server
+                .request_paths()
+                .iter()
+                .any(|path| path == "/real/zip.sha256")
+        );
     }
 
     #[test]
@@ -952,8 +982,8 @@ mod tests {
         }
 
         if let Some(entry) = cache.stable.as_mut() {
-            entry.fetched_at =
-                std::time::Instant::now() - std::time::Duration::from_secs(MIN_REFRESH_SECONDS + 30);
+            entry.fetched_at = std::time::Instant::now()
+                - std::time::Duration::from_secs(MIN_REFRESH_SECONDS + 30);
         }
         let second = check_at(
             "https://api.github.com",
@@ -967,6 +997,9 @@ mod tests {
             "second from_cache={} (true means GitHub returned 304 to If-None-Match)",
             second.from_cache
         );
-        assert!(second.from_cache, "expected a real 304 for the second request");
+        assert!(
+            second.from_cache,
+            "expected a real 304 for the second request"
+        );
     }
 }

@@ -1,14 +1,13 @@
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
+use winreg::HKEY;
 use winreg::RegKey;
 use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ};
-use winreg::HKEY;
 
 use crate::model::{ChecksumStatus, InstallInfo, InstallMethod};
 
-const UNINSTALL_KEY: &str =
-    r"Software\Microsoft\Windows\CurrentVersion\Uninstall\{06BD23F3-4290-4F15-AEC6-55FD9DC91B9F}_is1";
+const UNINSTALL_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\{06BD23F3-4290-4F15-AEC6-55FD9DC91B9F}_is1";
 const USER_ENV_KEY: &str = "Environment";
 const STATE_FILE: &str = ".ruxcmd-install.json";
 
@@ -84,8 +83,12 @@ pub fn detect_installation() -> InstallInfo {
         add_candidate(&mut candidates, dir);
     }
 
-    let script = candidates.iter().find(|candidate| candidate.state.is_some());
-    let manifest_candidate = candidates.iter().find(|candidate| candidate.manifest.is_some());
+    let script = candidates
+        .iter()
+        .find(|candidate| candidate.state.is_some());
+    let manifest_candidate = candidates
+        .iter()
+        .find(|candidate| candidate.manifest.is_some());
 
     let (method, install_dir) = if let Some(record) = &inno {
         if script.is_some() {
@@ -102,9 +105,15 @@ pub fn detect_installation() -> InstallInfo {
         (InstallMethod::Script, Some(dir))
     } else if let Some(candidate) = manifest_candidate {
         (InstallMethod::Portable, Some(candidate.dir.clone()))
-    } else if candidates.iter().any(|candidate| has_executables(&candidate.dir)) {
+    } else if candidates
+        .iter()
+        .any(|candidate| has_executables(&candidate.dir))
+    {
         warnings.push("安装目录存在可执行文件，但缺少状态文件与发布清单".to_string());
-        (InstallMethod::Unknown, candidates.first().map(|candidate| candidate.dir.clone()))
+        (
+            InstallMethod::Unknown,
+            candidates.first().map(|candidate| candidate.dir.clone()),
+        )
     } else {
         (InstallMethod::NotInstalled, None)
     };
@@ -114,9 +123,16 @@ pub fn detect_installation() -> InstallInfo {
         .map(|dir| read_candidate(dir))
         .or_else(|| candidates.first().cloned());
 
-    let state = candidate.as_ref().and_then(|candidate| candidate.state.as_ref());
-    let manifest = candidate.as_ref().and_then(|candidate| candidate.manifest.as_ref());
-    if let Some(problem) = candidate.as_ref().and_then(|candidate| candidate.manifest_problem.as_ref()) {
+    let state = candidate
+        .as_ref()
+        .and_then(|candidate| candidate.state.as_ref());
+    let manifest = candidate
+        .as_ref()
+        .and_then(|candidate| candidate.manifest.as_ref());
+    if let Some(problem) = candidate
+        .as_ref()
+        .and_then(|candidate| candidate.manifest_problem.as_ref())
+    {
         warnings.push(problem.clone());
     }
 
@@ -149,12 +165,13 @@ pub fn detect_installation() -> InstallInfo {
         warnings.push("未找到 share/manifest.json，无法显示发布溯源".to_string());
     }
 
-    let (binary_count, shim_count, counts_source) =
-        counts(state, manifest, install_dir.as_deref());
+    let (binary_count, shim_count, counts_source) = counts(state, manifest, install_dir.as_deref());
 
     let path_on_user_path = match install_dir.as_deref() {
         Some(dir) => user_path_contains(dir),
-        None => default_install_dir().as_deref().and_then(user_path_contains),
+        None => default_install_dir()
+            .as_deref()
+            .and_then(user_path_contains),
     };
     if method == InstallMethod::NotInstalled
         && path_on_user_path == Some(true)
@@ -222,12 +239,7 @@ fn read_candidate(dir: &Path) -> Candidate {
     let (manifest, manifest_problem) = match std::fs::read_to_string(&manifest_path) {
         Ok(text) => match serde_json::from_str::<SuiteManifest>(&text) {
             Ok(manifest) => (Some(manifest), None),
-            Err(error) => (
-                None,
-                Some(format!(
-                    "share/manifest.json 无法解析：{error}"
-                )),
-            ),
+            Err(error) => (None, Some(format!("share/manifest.json 无法解析：{error}"))),
         },
         Err(_) => (None, None),
     };
@@ -404,7 +416,10 @@ mod tests {
 
     #[test]
     fn normalizes_path_entries() {
-        assert_eq!(normalize_entry(r#""C:\Tools\RuxCmd\bin\\""#), r"c:\tools\ruxcmd\bin");
+        assert_eq!(
+            normalize_entry(r#""C:\Tools\RuxCmd\bin\\""#),
+            r"c:\tools\ruxcmd\bin"
+        );
         assert_eq!(normalize_entry(r"C:\"), r"c:\");
     }
 

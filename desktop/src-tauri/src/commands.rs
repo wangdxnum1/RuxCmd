@@ -5,9 +5,7 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 
 use crate::detect;
 use crate::integrity;
-use crate::model::{
-    InstallInfo, ManagerInfo, UpdateCheck, UpdateCheckError, VerificationReport,
-};
+use crate::model::{InstallInfo, ManagerInfo, UpdateCheck, UpdateCheckError, VerificationReport};
 use crate::release::{self, ReleaseCache};
 use crate::util;
 
@@ -172,10 +170,7 @@ fn diagnostics_text() -> String {
             None => "unknown",
         }
     );
-    let _ = writeln!(
-        text,
-        "checksum: not checked (run verify_installation)"
-    );
+    let _ = writeln!(text, "checksum: not checked (run verify_installation)");
     let _ = writeln!(
         text,
         "package sha256: {}",

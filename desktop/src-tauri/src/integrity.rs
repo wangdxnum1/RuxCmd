@@ -162,10 +162,14 @@ mod tests {
 
     #[test]
     fn parses_sha256sums_lines() {
-        let text = "ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789  bin/find.exe\n";
+        let text =
+            "ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789  bin/find.exe\n";
         let entries = parse_sums(text).unwrap();
         assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].0, "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789");
+        assert_eq!(
+            entries[0].0,
+            "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+        );
         assert_eq!(entries[0].1, "bin/find.exe");
     }
 

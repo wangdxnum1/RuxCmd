@@ -5,8 +5,8 @@ use std::fs;
 /// `desktop/Cargo.toml` mirrors it because Cargo requires a literal version;
 /// the build fails when the two drift apart.
 fn workspace_version() -> String {
-    let manifest = fs::read_to_string("../../Cargo.toml")
-        .expect("read the repository root Cargo.toml");
+    let manifest =
+        fs::read_to_string("../../Cargo.toml").expect("read the repository root Cargo.toml");
     let mut in_section = false;
     for line in manifest.lines() {
         let trimmed = line.trim();
@@ -14,12 +14,10 @@ fn workspace_version() -> String {
             in_section = trimmed == "[workspace.metadata.ruxcmd]";
             continue;
         }
-        if in_section {
-            if let Some(value) = trimmed.strip_prefix("version") {
-                let value = value.trim_start();
-                if let Some(value) = value.strip_prefix('=') {
-                    return value.trim().trim_matches('"').to_string();
-                }
+        if in_section && let Some(value) = trimmed.strip_prefix("version") {
+            let value = value.trim_start();
+            if let Some(value) = value.strip_prefix('=') {
+                return value.trim().trim_matches('"').to_string();
             }
         }
     }
@@ -54,7 +52,10 @@ fn main() {
     // instead of Cargo's package metadata.
     let merged = match env::var("TAURI_CONFIG") {
         Ok(existing) if !existing.trim().is_empty() => {
-            let body = existing.trim().trim_start_matches('{').trim_end_matches('}');
+            let body = existing
+                .trim()
+                .trim_start_matches('{')
+                .trim_end_matches('}');
             if body.trim().is_empty() {
                 format!(r#"{{"version":"{version}"}}"#)
             } else {
