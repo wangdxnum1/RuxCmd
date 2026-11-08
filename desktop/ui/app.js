@@ -15,7 +15,7 @@
   };
 
   var PREVIEW_MANAGER = {
-    version: '0.1.0',
+    version: '0.5.11',
     target: 'x86_64-pc-windows-msvc',
     buildTime: '2026-11-08T00:00:00Z',
     tauriVersion: '2.x',

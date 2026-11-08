@@ -25,6 +25,8 @@
   },
   "bundle": {
     "active": false,
-    "targets": "all"
+    "targets": "all",
+    "publisher": "Tim and RuxCmd contributors",
+    "copyright": "Copyright (c) 2026 Tim and RuxCmd contributors"
   }
 }
