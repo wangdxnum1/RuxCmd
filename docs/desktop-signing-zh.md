@@ -4,7 +4,7 @@
 
 > 状态：**未采纳，仅作未来参考**（2026-11-08 维护者决定暂不签名）。撰写日期 2026-11-08。
 > 本文保留完整的调研结论与备选对比，供日后决定启用签名时直接复用；**当前不申请、不接入 CI、不作为任何阶段的前置条件**。
-> 适用对象：RuxCmd Desktop 的 Tauri 安装包 / 可执行程序；顺带覆盖现有 RuxCmd 发布资产（setup.exe 与 142 个 exe）。
+> 适用对象：合并后的 RuxCmd `setup.exe`（含 UI 与 142 个 exe）、发布 ZIP 及其中可执行程序。
 > 依据：[设计说明](desktop-design-zh.md) 第 7 节「安全与信任链」。
 
 ## 0. 先纠正一个常见误解
@@ -56,7 +56,7 @@ RuxCmd 的条件与 SignPath 高度匹配：
 3. **配置 SignPath.io**：创建 project、artifact configuration（强制 product name / version 元数据）、signing policy；连接 GitHub Actions，签名请求由 CI 构建产物发起。
 4. **CI 集成**：在 Release workflow 增加签名 job——构建产物上传 SignPath → 人工审批 → 下载已签名产物 → 再生成 `.sha256` / 发布。
    - **顺序很关键**：必须**先签名再算哈希**。现有流程是「打包 → 生成 `.sha256` → 上传」，若插入签名步骤，ZIP / setup.exe 的字节会变，哈希与 `check-manifests` 清单都要在签名后重算。
-   - 建议把签名作为独立可选 job，先只签 **RuxCmd Desktop 安装包**，不动已验证的 142 exe 打包链；等跑通再扩展到 setup.exe。
+   - 建议把签名作为独立可选 job，直接签**合并后的 `setup.exe`**（UI 已包含在内，不再有独立的 Desktop 安装包）；ZIP 内 142 个 exe 的签名扩展另议，避免一次改动已验证的打包链。
 5. **时间戳**：使用 RFC 3161 时间戳服务，保证证书过期后签名仍有效。SignPath.io 支持外部时间戳，配置时显式启用。
 6. **验证**：发布后按项目既有收尾门禁核对——`Get-AuthenticodeSignature` 检查状态 Valid、签名者、时间戳；`Get-FileHash` 与 `.sha256` / GitHub asset digest 三方一致。
 
@@ -77,8 +77,8 @@ RuxCmd 的条件与 SignPath 高度匹配：
 | 阶段 | 动作 | 风险 |
 | --- | --- | --- |
 | 启用时（先决） | 提交 SignPath 申请、起草 Code signing policy 文档、确认发布者身份可接受 | 低 |
-| 启用时（CI） | 落地 CI 签名 job，先只签 RuxCmd Desktop 安装包；同步把「先签名后算哈希」写进发布流程 | 中，会改动 Release workflow |
-| 启用时（扩展） | 扩展签名到 RuxCmd `setup.exe`；更新 winget / scoop 清单移除「未签名」声明；核对哈希链 | 中 |
+| 启用时（CI） | 落地 CI 签名 job，直接签合并后的 `setup.exe`（含 UI）；同步把「先签名后算哈希」写进发布流程 | 中，会改动 Release workflow |
+| 启用时（扩展） | 如需，再扩展到 ZIP 内 142 个 exe；更新 winget / scoop 清单移除「未签名」声明；核对哈希链 | 中 |
 | 启用后 | 若下载量起来仍有 SmartScreen 提示，走微软文件提交复核；或评估升级 EV | 低 |
 
 **若日后启用**：签名一旦插入发布流程，必须「先签名 → 重算 `.sha256` → 回填清单 → `check-manifests`」，因为签名会改变 ZIP / setup.exe 字节；这会改动 Release workflow，需单独成轮验证。
