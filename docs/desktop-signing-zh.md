@@ -1,11 +1,11 @@
-# RuxCmd Suite Manager 代码签名方案
+# RuxCmd Desktop 代码签名方案
 
-**简体中文** | [English](suite-manager-signing.md)
+**简体中文** | [English](desktop-signing.md)
 
 > 状态：**未采纳，仅作未来参考**（2026-11-08 维护者决定暂不签名）。撰写日期 2026-11-08。
 > 本文保留完整的调研结论与备选对比，供日后决定启用签名时直接复用；**当前不申请、不接入 CI、不作为任何阶段的前置条件**。
-> 适用对象：Suite Manager 的 Tauri 安装包 / 可执行程序；顺带覆盖现有 RuxCmd 发布资产（setup.exe 与 142 个 exe）。
-> 依据：[设计说明](suite-manager-design-zh.md) 第 7 节「安全与信任链」。
+> 适用对象：RuxCmd Desktop 的 Tauri 安装包 / 可执行程序；顺带覆盖现有 RuxCmd 发布资产（setup.exe 与 142 个 exe）。
+> 依据：[设计说明](desktop-design-zh.md) 第 7 节「安全与信任链」。
 
 ## 0. 先纠正一个常见误解
 
@@ -43,7 +43,7 @@ RuxCmd 的条件与 SignPath 高度匹配：
 | 必须在项目主页与下载/发布页使用 **"Code signing policy"** 字样，并列出：免费签名提供方、团队角色（Authors / Reviewers / Approvers）、隐私声明 | 需新增一节文档 + 发布页文案；一次性工作 |
 | 所有签名二进制的**产品名/产品版本元数据必须设置并强制** | RuxCmd 已有版本资源基建（`ruxcmd-build` 生成 exe 版本资源），Tauri 侧需在 `tauri.conf.json` / Windows 资源里补齐 |
 | 团队全员 MFA（SignPath 与 GitHub） | 单人维护者：开启 GitHub MFA 即可 |
-| 签名范围限于**自己源码构建的产物** | 只签 Suite Manager 与 RuxCmd 自身 exe；不签第三方依赖二进制（本项目无此情况） |
+| 签名范围限于**自己源码构建的产物** | 只签 RuxCmd Desktop 与 RuxCmd 自身 exe；不签第三方依赖二进制（本项目无此情况） |
 | 条款为 Draft，SignPath 保留随时暂停/撤销权利 | 属于外部依赖风险，见第 4 节备选 |
 
 ### 1.3 落地步骤
@@ -52,11 +52,11 @@ RuxCmd 的条件与 SignPath 高度匹配：
 2. **写 Code signing policy**：新增 `docs/code-signing-policy-zh.md` / `code-signing-policy.md`，并在 README 与 Release 说明里用 "Code signing policy" 字样链接。内容包含：
    - "Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org)"
    - 团队角色（单人维护者：Authors / Reviewers / Approvers 均为仓库 owner，可引用 GitHub 权限组）
-   - 隐私声明：本项目**不向未由用户明确请求的网络系统传输任何信息**（注意：Suite Manager 的「检查更新」会请求 `api.github.com`，需在政策里如实列出，不能套用模板里的"不传输"措辞）
+   - 隐私声明：本项目**不向未由用户明确请求的网络系统传输任何信息**（注意：RuxCmd Desktop 的「检查更新」会请求 `api.github.com`，需在政策里如实列出，不能套用模板里的"不传输"措辞）
 3. **配置 SignPath.io**：创建 project、artifact configuration（强制 product name / version 元数据）、signing policy；连接 GitHub Actions，签名请求由 CI 构建产物发起。
 4. **CI 集成**：在 Release workflow 增加签名 job——构建产物上传 SignPath → 人工审批 → 下载已签名产物 → 再生成 `.sha256` / 发布。
    - **顺序很关键**：必须**先签名再算哈希**。现有流程是「打包 → 生成 `.sha256` → 上传」，若插入签名步骤，ZIP / setup.exe 的字节会变，哈希与 `check-manifests` 清单都要在签名后重算。
-   - 建议把签名作为独立可选 job，先只签 **Suite Manager 安装包**，不动已验证的 142 exe 打包链；等跑通再扩展到 setup.exe。
+   - 建议把签名作为独立可选 job，先只签 **RuxCmd Desktop 安装包**，不动已验证的 142 exe 打包链；等跑通再扩展到 setup.exe。
 5. **时间戳**：使用 RFC 3161 时间戳服务，保证证书过期后签名仍有效。SignPath.io 支持外部时间戳，配置时显式启用。
 6. **验证**：发布后按项目既有收尾门禁核对——`Get-AuthenticodeSignature` 检查状态 Valid、签名者、时间戳；`Get-FileHash` 与 `.sha256` / GitHub asset digest 三方一致。
 
@@ -68,16 +68,16 @@ RuxCmd 的条件与 SignPath 高度匹配：
 | Azure Artifact Signing（原 Trusted Signing） | 按量付费，Basic / Premium SKU；[定价页](https://azure.microsoft.com/en-us/pricing/details/artifact-signing/) 需报价 | Azure 托管，FIPS 140-3 Level 3 HSM | 需 Azure 订阅 + 身份核验；个人身份核验较麻烦 | 若 SignPath 申请被拒、或未来需要企业级 SLA / 私有信任场景 |
 | 自购 OV 代码签名证书 | 年费（数百美元级，各 CA 不同） | 2023 起 CA 强制 HSM/token 存储，CI 集成仍需云签名服务 | 个人可买，需身份验证 | 想让发布者显示为自己名字时；但每年续费 + 管理负担 |
 | 自购 EV 代码签名证书 | 年费更高 | 硬件 token | 需 organization 身份核验，个人难申请 | 追求最快 SmartScreen 声誉；对个人维护者性价比低 |
-| 暂不签名 + 文档声明 | 0 | — | — | **当前采用**（2026-11-08 决定）；winget 清单已声明未签名。代价是首次运行 SmartScreen 警告与「未知发布者」，Suite Manager 会放大这个短板——以 UI 内如实告知 + 三方哈希校验缓解 |
+| 暂不签名 + 文档声明 | 0 | — | — | **当前采用**（2026-11-08 决定）；winget 清单已声明未签名。代价是首次运行 SmartScreen 警告与「未知发布者」，RuxCmd Desktop 会放大这个短板——以 UI 内如实告知 + 三方哈希校验缓解 |
 
 ## 3. 分阶段建议（当前不执行）
 
-> 下列步骤**仅为日后启用签名时的实施顺序参考**，当前不启动任何一步。P0–P4 的 Suite Manager 开发不因签名阻塞。
+> 下列步骤**仅为日后启用签名时的实施顺序参考**，当前不启动任何一步。P0–P4 的 RuxCmd Desktop 开发不因签名阻塞。
 
 | 阶段 | 动作 | 风险 |
 | --- | --- | --- |
 | 启用时（先决） | 提交 SignPath 申请、起草 Code signing policy 文档、确认发布者身份可接受 | 低 |
-| 启用时（CI） | 落地 CI 签名 job，先只签 Suite Manager 安装包；同步把「先签名后算哈希」写进发布流程 | 中，会改动 Release workflow |
+| 启用时（CI） | 落地 CI 签名 job，先只签 RuxCmd Desktop 安装包；同步把「先签名后算哈希」写进发布流程 | 中，会改动 Release workflow |
 | 启用时（扩展） | 扩展签名到 RuxCmd `setup.exe`；更新 winget / scoop 清单移除「未签名」声明；核对哈希链 | 中 |
 | 启用后 | 若下载量起来仍有 SmartScreen 提示，走微软文件提交复核；或评估升级 EV | 低 |
 

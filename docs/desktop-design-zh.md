@@ -1,6 +1,6 @@
-# RuxCmd Suite Manager 设计说明
+# RuxCmd Desktop 设计说明
 
-**简体中文** | [English](suite-manager-design.md)
+**简体中文** | [English](desktop-design.md)
 
 > 状态：**设计已定稿（v1，未开工）**。撰写日期 2026-11-08，基于套件 v0.5.11。
 > 技术选型：**Tauri**（Rust 后端 + Web 前端），Windows x64 / MSVC 优先。
@@ -11,23 +11,23 @@
 | # | 决策 | 说明 |
 | --- | --- | --- |
 | 1 | **Tauri 2.x 稳定线** | 锁定 major 2，不追 3.0 alpha；选型时不依赖 `releases/latest`（会混入预发布） |
-| 2 | **暂不实施代码签名**（2026-11-08 维护者决定） | [代码签名方案](suite-manager-signing-zh.md) 保留为**未来参考**，不启动申请、不接入 CI、不作为 P2 前置条件。当前状态与 winget 清单一致：未签名、首次运行可能有 SmartScreen 警告；该风险如实告知用户，不掩盖 |
-| 3 | **代码放在主仓库顶层 `suite-manager/`** | 独立 `Cargo.toml`，不加入 `crates/*`；不污染 142 命令的 Verify / 打包门禁。见 §3.1 与 §8 |
-| 4 | **UI 采用当前原型为 v1，暂不迭代** | [suite-manager-prototype.html](suite-manager-prototype.html) 即 v1 定稿：About / 检查更新 / 设置三视图、三种更新状态、更新进度与回滚提示；后续改动另立版本 |
+| 2 | **暂不实施代码签名**（2026-11-08 维护者决定） | [代码签名方案](desktop-signing-zh.md) 保留为**未来参考**，不启动申请、不接入 CI、不作为 P2 前置条件。当前状态与 winget 清单一致：未签名、首次运行可能有 SmartScreen 警告；该风险如实告知用户，不掩盖 |
+| 3 | **代码放在主仓库顶层 `desktop/`** | 独立 `Cargo.toml`，不加入 `crates/*`；不污染 142 命令的 Verify / 打包门禁。见 §3.1 与 §8 |
+| 4 | **UI 采用当前原型为 v1，暂不迭代** | [desktop-prototype.html](desktop-prototype.html) 即 v1 定稿：About / 检查更新 / 设置三视图、三种更新状态、更新进度与回滚提示；后续改动另立版本 |
 
-配套文档：[代码签名方案（暂不实施，留作参考）](suite-manager-signing-zh.md)（[English](suite-manager-signing.md)）· [UI 原型](suite-manager-prototype.html)。
+配套文档：[代码签名方案（暂不实施，留作参考）](desktop-signing-zh.md)（[English](desktop-signing.md)）· [UI 原型](desktop-prototype.html)。
 
 ## 1. 定位
 
-**RuxCmd Suite Manager 是用户唯一需要记住的图形入口：我装了什么、是不是最新、怎么安全地换到新版。**
+**RuxCmd Desktop 是用户唯一需要记住的图形入口：我装了什么、是不是最新、怎么安全地换到新版。**
 
 它服务的是「安装生命周期」，不是命令本身：
 
 - 套件由 142 个独立 exe 组成，安装后在当前系统里几乎不可见——脚本安装只留下 `%LOCALAPPDATA%\RuxCmd\bin\.ruxcmd-install.json` 与一条用户 PATH；Inno 安装只留下「设置 → 应用」里一条卸载记录（图标是 `find.exe`）。没有开始菜单项、没有统一 `--version` 入口。
-- [发展方向与见解](roadmap-zh.md) 判断当前最缺的是「分发与可见性」。winget / scoop 是借别人的入口，Suite Manager 是项目自有的落地页。
+- [发展方向与见解](roadmap-zh.md) 判断当前最缺的是「分发与可见性」。winget / scoop 是借别人的入口，RuxCmd Desktop 是项目自有的落地页。
 - 已有的 [scripts/install.ps1](../scripts/install.ps1) 实现了可靠的更新链路：SHA256 校验 → 解压 → 备份到 `<InstallDir>.old-<版本>` → 原子替换 → PATH/shim 修复 → 失败回滚。**但没有任何「查当前最新版」的能力**，用户必须自己去 GitHub Releases 页面看。
 
-因此 Suite Manager 补两件事：**存在感**（About）与**版本闭环**（检查更新 + 更新）。
+因此 RuxCmd Desktop 补两件事：**存在感**（About）与**版本闭环**（检查更新 + 更新）。
 
 ### 1.1 明确不做
 
@@ -82,7 +82,7 @@
 - **Tauri 2.x 稳定线**（锁定 major，不追 alpha；Tauri 3 目前为 alpha，GitHub `releases/latest` 会混入预发布，选型时显式指定 2.x）。理由：与套件同为 Rust、单文件分发、无 Node/.NET 运行时依赖、可复用项目既有的 `windows` crate 使用经验。
 - 前端用原生 HTML/CSS/JS 或极轻量框架；不引入构建复杂度高的前端栈——本项目是 CLI 工具集，UI 不是主战场。
 - 目标平台与套件一致：`x86_64-pc-windows-msvc`。ARM64 延后。
-- **独立于套件 workspace**（已决策 3）：放在**主仓库顶层 `suite-manager/`**，独立 `Cargo.toml`，不加入 `crates/*`，避免污染 142 个命令的 Verify / 打包门禁。
+- **独立于套件 workspace**（已决策 3）：放在**主仓库顶层 `desktop/`**，独立 `Cargo.toml`，不加入 `crates/*`，避免污染 142 个命令的 Verify / 打包门禁。
 - **版本独立**：Manager 有自己的版本号（如 `0.1.0`），不随套件 0.5.x→0.6.0 联动。About 页同时显示「Manager 版本」与「套件版本」，避免混淆。
 
 ## 4. 数据模型
@@ -228,7 +228,7 @@ UpdateAvailable ──confirm──> Downloading(progress)
 
 ## 7. 安全与信任链（重点）
 
-1. **未签名带来的信任链风险（已知、已接受）**：一个「下载并执行新二进制」的程序自身若未签名，首次运行会有 SmartScreen 警告，且用户看到「未知发布者」。[scripts/packaging/winget/wangdxnum1.RuxCmd.installer.yaml](../scripts/packaging/winget/wangdxnum1.RuxCmd.installer.yaml) 已声明安装包未签名。**已决策 2：暂不实施签名**——[代码签名方案](suite-manager-signing-zh.md) 仅作未来参考。因此 P2 不因签名阻塞，但必须在 UI 中如实告知用户「未签名 + 可能有警告」，并提供哈希校验方法让用户自行验证；三方哈希校验（见下一条）仍是强制的，与签名与否无关。签名也不会立刻消除 SmartScreen 警告（声誉机制），详见签名方案 §0。
+1. **未签名带来的信任链风险（已知、已接受）**：一个「下载并执行新二进制」的程序自身若未签名，首次运行会有 SmartScreen 警告，且用户看到「未知发布者」。[scripts/packaging/winget/wangdxnum1.RuxCmd.installer.yaml](../scripts/packaging/winget/wangdxnum1.RuxCmd.installer.yaml) 已声明安装包未签名。**已决策 2：暂不实施签名**——[代码签名方案](desktop-signing-zh.md) 仅作未来参考。因此 P2 不因签名阻塞，但必须在 UI 中如实告知用户「未签名 + 可能有警告」，并提供哈希校验方法让用户自行验证；三方哈希校验（见下一条）仍是强制的，与签名与否无关。签名也不会立刻消除 SmartScreen 警告（声誉机制），详见签名方案 §0。
 2. **三方哈希校验**：下载后必须同时核对 ①`.zip.sha256` sidecar 内容、②本地计算的 SHA256、③GitHub asset `digest`；三者一致才允许安装。这把 roadmap 4.2 想做的「已发布 asset digest ↔ 清单哈希独立比对」直接内置到更新器里。
 3. **HTTP 只走 TLS**，校验目标域名；不因「检查更新」失败而降级到 http。
 4. **不执行下载内容**：下载的是 ZIP / setup.exe，更新动作交给既有脚本；UI 不解析、不加载归档内资源。
@@ -241,18 +241,18 @@ UpdateAvailable ──confirm──> Downloading(progress)
 | --- | --- |
 | 是否进 142 exe 的 ZIP | **暂不**。等形态稳定后单独评估；避免改变已验证的打包清单与 `check-manifests` 门禁 |
 | 是否进 scoop / winget 清单 | **暂不**。作为独立可选资产（单独 Release 资产） |
-| 是否纳入 `build.ps1 -Task Verify` | **暂不**。主仓库顶层 `suite-manager/` 配独立 CI，避免拖慢 142 命令的 Verify |
-| 代码位置 | **主仓库顶层 `suite-manager/`**（已决策 3），独立 `Cargo.toml` |
+| 是否纳入 `build.ps1 -Task Verify` | **暂不**。主仓库顶层 `desktop/` 配独立 CI，避免拖慢 142 命令的 Verify |
+| 代码位置 | **主仓库顶层 `desktop/`**（已决策 3），独立 `Cargo.toml` |
 | 版本号 | 独立（如 `0.1.0`），不与套件版本联动 |
 | 发布溯源 | Manager 的 About 展示的 `sourceCommit` 指**套件**源码提交，不是 Manager 自身；UI 需标注清楚 |
-| 签名 | **暂不实施**；[代码签名方案](suite-manager-signing-zh.md) 留作参考。当前不改变 Release workflow 的「打包 → 算 `.sha256` → 上传」顺序 |
+| 签名 | **暂不实施**；[代码签名方案](desktop-signing-zh.md) 留作参考。当前不改变 Release workflow 的「打包 → 算 `.sha256` → 上传」顺序 |
 
 ## 9. 路线（建议分阶段）
 
 | 阶段 | 内容 | 风险 |
 | --- | --- | --- |
-| P0 原型 | ✅ **v1 已定稿**：[suite-manager-prototype.html](suite-manager-prototype.html)，三视图 + 三种更新状态 + 更新进度；维护者确认满意，暂不迭代 | 无 |
-| P1 只读 | Tauri 2.x 骨架（主仓库顶层 `suite-manager/`）+ `detect` + `release` + `integrity`，About / 检查更新可用，**不含任何写操作** | 低 |
+| P0 原型 | ✅ **v1 已定稿**：[desktop-prototype.html](desktop-prototype.html)，三视图 + 三种更新状态 + 更新进度；维护者确认满意，暂不迭代 | 无 |
+| P1 只读 | Tauri 2.x 骨架（主仓库顶层 `desktop/`）+ `detect` + `release` + `integrity`，About / 检查更新可用，**不含任何写操作** | 低 |
 | P2 更新 | `prepare_update` / `apply_update` + 进度 + 回滚指引；签名不阻塞，但 UI 需展示「未签名」提示与哈希校验结果 | 中（唯一写路径） |
 | P3 分发 | 独立打包、独立 CI、可能纳入 winget / scoop、文档站入口 | 中 |
 | P4 增值 | 托盘、更新通知、诊断导出、ARM64 | 低 |
@@ -266,4 +266,4 @@ UpdateAvailable ──confirm──> Downloading(progress)
 
 ---
 
-*本文随设计演进更新；实现细节与逐轮记录以代码和台账为准。配套 UI 原型见 [suite-manager-prototype.html](suite-manager-prototype.html)。*
+*本文随设计演进更新；实现细节与逐轮记录以代码和台账为准。配套 UI 原型见 [desktop-prototype.html](desktop-prototype.html)。*

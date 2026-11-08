@@ -1,6 +1,6 @@
-# RuxCmd Suite Manager Design
+# RuxCmd Desktop Design
 
-[**English**](suite-manager-design.md) | 简体中文
+[**English**](desktop-design.md) | 简体中文
 
 > Status: **design finalized (v1, not started)**. Written 2026-11-08, based on suite v0.5.11.
 > Stack: **Tauri** (Rust backend + web frontend), Windows x64 / MSVC first.
@@ -11,23 +11,23 @@
 | # | Decision | Detail |
 | --- | --- | --- |
 | 1 | **Tauri 2.x stable line** | Pin major 2, do not chase 3.0 alpha; do not rely on `releases/latest` (mixes prereleases) |
-| 2 | **No code signing for now** (maintainer decision, 2026-11-08) | Keep the [Code signing plan](suite-manager-signing.md) as **future reference only**: no application, no CI integration, not a P2 prerequisite. Current state matches the winget manifest: unsigned, possible first-run SmartScreen warning; disclose this honestly to users |
-| 3 | **Code lives at the repository root as `suite-manager/`** | Own `Cargo.toml`, not under `crates/*`; keeps the 142-command Verify / packaging gates untouched. See §3.1 and §8 |
-| 4 | **Current prototype is UI v1; no further iteration for now** | [suite-manager-prototype.html](suite-manager-prototype.html) is the frozen v1: About / Check update / Settings, three update states, progress + rollback guidance; later changes get a new version |
+| 2 | **No code signing for now** (maintainer decision, 2026-11-08) | Keep the [Code signing plan](desktop-signing.md) as **future reference only**: no application, no CI integration, not a P2 prerequisite. Current state matches the winget manifest: unsigned, possible first-run SmartScreen warning; disclose this honestly to users |
+| 3 | **Code lives at the repository root as `desktop/`** | Own `Cargo.toml`, not under `crates/*`; keeps the 142-command Verify / packaging gates untouched. See §3.1 and §8 |
+| 4 | **Current prototype is UI v1; no further iteration for now** | [desktop-prototype.html](desktop-prototype.html) is the frozen v1: About / Check update / Settings, three update states, progress + rollback guidance; later changes get a new version |
 
-Companion docs: [Code signing plan (not adopted, reference only)](suite-manager-signing.md) ([简体中文](suite-manager-signing-zh.md)) · [UI prototype](suite-manager-prototype.html).
+Companion docs: [Code signing plan (not adopted, reference only)](desktop-signing.md) ([简体中文](desktop-signing-zh.md)) · [UI prototype](desktop-prototype.html).
 
 ## 1. Positioning
 
-**RuxCmd Suite Manager is the one graphical entry point a user needs to remember: what I installed, whether it is current, and how to move to a new version safely.**
+**RuxCmd Desktop is the one graphical entry point a user needs to remember: what I installed, whether it is current, and how to move to a new version safely.**
 
 It serves the *installation lifecycle*, not the commands themselves:
 
 - The suite is 142 standalone executables that are nearly invisible once installed — the script installer leaves only `%LOCALAPPDATA%\RuxCmd\bin\.ruxcmd-install.json` plus one user-PATH entry; the Inno installer leaves only one "Settings > Apps" uninstall record (whose icon is `find.exe`). There is no Start-menu entry and no unified `--version` entry point.
-- [Direction and insights](roadmap.md) identifies distribution and visibility as the current gap. winget/scoop are borrowed entry points; Suite Manager is the project's own landing surface.
+- [Direction and insights](roadmap.md) identifies distribution and visibility as the current gap. winget/scoop are borrowed entry points; RuxCmd Desktop is the project's own landing surface.
 - [scripts/install.ps1](../scripts/install.ps1) already implements a reliable update chain: SHA256 verification → extract → back up to `<InstallDir>.old-<version>` → atomic replacement → PATH/shim repair → rollback on failure. **But there is no way to discover the latest version**; users must open GitHub Releases manually.
 
-Suite Manager therefore adds two things: **presence** (About) and a **version loop** (check + update).
+RuxCmd Desktop therefore adds two things: **presence** (About) and a **version loop** (check + update).
 
 ### 1.1 Explicit non-goals
 
@@ -82,7 +82,7 @@ In one sentence: **it is the frontend to the installation, not a control panel f
 - **Tauri 2.x stable line** (pin the major, do not chase alpha; Tauri 3 is currently alpha and GitHub `releases/latest` mixes prereleases). Rationale: same language as the suite, single-file distribution, no Node/.NET runtime dependency, reuses the project's existing `windows` crate experience.
 - Frontend: plain HTML/CSS/JS or a very light framework; no heavy frontend build. This is a CLI tool suite — the UI is not the main battlefield.
 - Target matches the suite: `x86_64-pc-windows-msvc`. ARM64 deferred.
-- **Outside the suite workspace** (decision 3): at the **repository root as `suite-manager/`**, with its own `Cargo.toml`, not under `crates/*`, so the 142-command Verify / packaging gates stay untouched.
+- **Outside the suite workspace** (decision 3): at the **repository root as `desktop/`**, with its own `Cargo.toml`, not under `crates/*`, so the 142-command Verify / packaging gates stay untouched.
 - **Independent version**: the Manager has its own version (e.g. `0.1.0`), decoupled from suite 0.5.x → 0.6.0. About shows both "Manager version" and "Suite version" explicitly to avoid confusion.
 
 ## 4. Data model
@@ -228,7 +228,7 @@ Events (backend→frontend): `update-progress` (stage + bytes), `update-stage`, 
 
 ## 7. Security and trust chain (critical)
 
-1. **Unsigned trust-chain risk (known, accepted)**: a program that downloads and executes new binaries shows a SmartScreen warning and "Unknown publisher" on first run when unsigned. [scripts/packaging/winget/wangdxnum1.RuxCmd.installer.yaml](../scripts/packaging/winget/wangdxnum1.RuxCmd.installer.yaml) already declares the installer is unsigned. **Decision 2: no signing for now** — the [Code signing plan](suite-manager-signing.md) is future reference only. P2 is therefore not blocked by signing, but the UI must disclose "unsigned / warning possible" and offer hash verification so users can check integrity themselves; the three-way hash check (next item) stays mandatory regardless of signing. Note signing would not immediately eliminate SmartScreen warnings anyway (reputation-based); see signing plan §0.
+1. **Unsigned trust-chain risk (known, accepted)**: a program that downloads and executes new binaries shows a SmartScreen warning and "Unknown publisher" on first run when unsigned. [scripts/packaging/winget/wangdxnum1.RuxCmd.installer.yaml](../scripts/packaging/winget/wangdxnum1.RuxCmd.installer.yaml) already declares the installer is unsigned. **Decision 2: no signing for now** — the [Code signing plan](desktop-signing.md) is future reference only. P2 is therefore not blocked by signing, but the UI must disclose "unsigned / warning possible" and offer hash verification so users can check integrity themselves; the three-way hash check (next item) stays mandatory regardless of signing. Note signing would not immediately eliminate SmartScreen warnings anyway (reputation-based); see signing plan §0.
 2. **Three-way hash verification**: after download, compare ① the `.zip.sha256` sidecar content, ② the locally computed SHA256, and ③ the GitHub asset `digest`. Only install when all three agree. This embeds the "published asset digest ↔ manifest hash" independent check that roadmap 4.2 wants.
 3. **TLS only** for HTTP; validate target domains; never downgrade to http when update checking fails.
 4. **Never execute downloaded content**: the downloads are a ZIP / setup.exe, and the update is handed to existing scripts; the UI does not parse or load resources from inside the archive.
@@ -241,18 +241,18 @@ Events (backend→frontend): `update-progress` (stage + bytes), `update-stage`, 
 | --- | --- |
 | Include in the 142-exe ZIP | **Not yet**. Re-evaluate once the shape is stable; avoid changing the verified package inventory and the `check-manifests` gate |
 | Include in scoop / winget manifests | **Not yet**. Ship as a separate optional release asset |
-| Include in `build.ps1 -Task Verify` | **Not yet**. Independent CI for the root-level `suite-manager/`, so the 142-command Verify stays fast |
-| Code location | **Repository root `suite-manager/`** (decision 3), own `Cargo.toml` |
+| Include in `build.ps1 -Task Verify` | **Not yet**. Independent CI for the root-level `desktop/`, so the 142-command Verify stays fast |
+| Code location | **Repository root `desktop/`** (decision 3), own `Cargo.toml` |
 | Versioning | Independent (e.g. `0.1.0`), decoupled from the suite version |
-| Signing | **Not adopted**; [Code signing plan](suite-manager-signing.md) is reference only. The Release workflow keeps "package → compute `.sha256` → upload" unchanged |
+| Signing | **Not adopted**; [Code signing plan](desktop-signing.md) is reference only. The Release workflow keeps "package → compute `.sha256` → upload" unchanged |
 | Provenance | `sourceCommit` shown in About refers to the **suite** source commit, not the Manager's own; the UI must label it clearly |
 
 ## 9. Suggested phasing
 
 | Phase | Content | Risk |
 | --- | --- | --- |
-| P0 Prototype | ✅ **v1 frozen**: [suite-manager-prototype.html](suite-manager-prototype.html), three views + three update states + progress; maintainer approved, no iteration for now | none |
-| P1 Read-only | Tauri 2.x skeleton (root `suite-manager/`) + `detect` + `release` + `integrity`; About / Check update usable, **no writes at all** | low |
+| P0 Prototype | ✅ **v1 frozen**: [desktop-prototype.html](desktop-prototype.html), three views + three update states + progress; maintainer approved, no iteration for now | none |
+| P1 Read-only | Tauri 2.x skeleton (root `desktop/`) + `detect` + `release` + `integrity`; About / Check update usable, **no writes at all** | low |
 | P2 Update | `prepare_update` / `apply_update` + progress + rollback guidance; signing does not block, but the UI must show an "unsigned" notice and hash verification results | medium (the only write path) |
 | P3 Distribution | Independent packaging, independent CI, possible winget/scoop entry, docs-site link | medium |
 | P4 Extras | Tray icon, update notifications, diagnostics export, ARM64 | low |
@@ -266,4 +266,4 @@ Events (backend→frontend): `update-progress` (stage + bytes), `update-stage`, 
 
 ---
 
-*This document evolves with the design; implementation details and round-by-round records live in code and the ledger. The companion UI prototype is [suite-manager-prototype.html](suite-manager-prototype.html).*
+*This document evolves with the design; implementation details and round-by-round records live in code and the ledger. The companion UI prototype is [desktop-prototype.html](desktop-prototype.html).*
