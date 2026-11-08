@@ -192,6 +192,7 @@ rust-toolchain.toml      固定 Rust 工具链
 - [开发说明](docs/development-zh.md)（[English](docs/development.md)）
 - [命令兼容性](docs/compatibility-zh.md)（[English](docs/compatibility.md)）
 - [发展方向与见解](docs/roadmap-zh.md)（[English](docs/roadmap.md)）
+- [Suite Manager 设计说明](docs/suite-manager-design-zh.md)（[English](docs/suite-manager-design.md)）、[代码签名方案](docs/suite-manager-signing-zh.md)（[English](docs/suite-manager-signing.md)）与 [UI 原型](docs/suite-manager-prototype.html)
 - [行为准则](CODE_OF_CONDUCT.md)
 - [安全策略](SECURITY.md)
 - [变更记录](CHANGELOG.md)

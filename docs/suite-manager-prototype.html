@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RuxCmd Suite Manager — UI 原型</title>
+<style>
+  :root{
+    --bg:#0d1117; --surface:#161b22; --surface2:#1c2330; --line:#2a3441;
+    --text:#e6edf3; --muted:#8b98a8; --dim:#5d6b7d;
+    --accent:#4aa8ff; --accent-soft:rgba(74,168,255,.12);
+    --green:#3fb950; --green-soft:rgba(63,185,80,.12);
+    --amber:#d29922; --amber-soft:rgba(210,153,34,.12);
+    --red:#f85149; --red-soft:rgba(248,81,73,.12);
+    --mono:ui-monospace,"Cascadia Code","SF Mono",Consolas,monospace;
+    --sans:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13.5px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  button{font-family:inherit;cursor:pointer}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  /* ---- window frame ---- */
+  .window{max-width:960px;margin:28px auto;border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.55);background:var(--bg)}
+  .titlebar{height:40px;background:#11161d;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 14px;gap:10px}
+  .dots{display:flex;gap:7px;margin-right:6px}
+  .dots i{width:10px;height:10px;border-radius:50%;display:block;background:#30363d}
+  .tb-title{font-size:12px;color:var(--muted);letter-spacing:.3px}
+  .tb-right{margin-left:auto;font-size:11px;color:var(--dim);font-family:var(--mono)}
+  .app{display:flex;min-height:560px}
+
+  /* ---- sidebar ---- */
+  .sidebar{width:212px;background:#10151c;border-right:1px solid var(--line);padding:18px 12px;display:flex;flex-direction:column;gap:4px;flex-shrink:0}
+  .brand{display:flex;align-items:center;gap:10px;padding:4px 8px 18px}
+  .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(140deg,#4aa8ff,#2f6fd0);display:grid;place-items:center;font:700 15px var(--mono);color:#fff;box-shadow:0 4px 14px rgba(74,168,255,.25)}
+  .brand-txt b{display:block;font-size:14px;letter-spacing:.2px}
+  .brand-txt span{font-size:11px;color:var(--dim);font-family:var(--mono)}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:8px;color:var(--muted);font-size:13px;border:1px solid transparent;background:none;text-align:left;width:100%;transition:.15s}
+  .nav-item:hover{background:var(--surface);color:var(--text)}
+  .nav-item.active{background:var(--accent-soft);color:var(--accent);border-color:rgba(74,168,255,.22)}
+  .nav-item svg{width:16px;height:16px;flex-shrink:0}
+  .nav-item .badge{margin-left:auto;font-size:10px;background:var(--green);color:#08120a;border-radius:20px;padding:1px 7px;font-weight:700}
+  .side-foot{margin-top:auto;padding:12px 10px 4px;border-top:1px solid var(--line);font-size:11px;color:var(--dim);line-height:1.8}
+  .side-foot b{color:var(--muted);font-weight:600}
+
+  /* ---- main ---- */
+  .main{flex:1;padding:26px 30px 30px;min-width:0;overflow:auto}
+  .view{display:none;animation:fade .22s ease}
+  .view.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .view-head{margin-bottom:20px}
+  .view-head h1{font-size:20px;font-weight:650;letter-spacing:.2px}
+  .view-head p{color:var(--muted);font-size:12.5px;margin-top:4px}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin-bottom:14px}
+  .card-title{font-size:11px;text-transform:uppercase;letter-spacing:1.1px;color:var(--dim);font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .card-title .line{flex:1;height:1px;background:var(--line)}
+
+  /* hero */
+  .hero{display:flex;align-items:center;gap:18px;padding:20px;background:linear-gradient(120deg,rgba(74,168,255,.09),rgba(74,168,255,0) 60%),var(--surface);border:1px solid rgba(74,168,255,.2);border-radius:var(--radius);margin-bottom:14px}
+  .hero .logo{width:52px;height:52px;font-size:22px;border-radius:13px}
+  .hero h2{font-size:19px;font-weight:650}
+  .hero .sub{color:var(--muted);font-size:12px;margin-top:2px}
+  .hero .ver{margin-left:auto;text-align:right}
+  .hero .ver .big{font:600 26px var(--mono);color:var(--accent);letter-spacing:-.5px}
+  .hero .ver .lbl{font-size:11px;color:var(--dim)}
+
+  /* grid */
+  .kv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 26px}
+  .kv .row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px dashed var(--line);font-size:12.5px}
+  .kv .row:last-child,.kv .row:nth-last-child(2):nth-child(odd){border-bottom:none}
+  .kv .k{color:var(--muted);flex-shrink:0}
+  .kv .v{font-family:var(--mono);font-size:12px;text-align:right;word-break:break-all;color:var(--text)}
+  .kv .v.path{font-size:11px;color:var(--accent)}
+
+  /* pills */
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+  .pill.ok{background:var(--green-soft);color:var(--green);border:1px solid rgba(63,185,80,.25)}
+  .pill.warn{background:var(--amber-soft);color:var(--amber);border:1px solid rgba(210,153,34,.25)}
+  .pill.info{background:var(--accent-soft);color:var(--accent);border:1px solid rgba(74,168,255,.25)}
+  .pill.err{background:var(--red-soft);color:var(--red);border:1px solid rgba(248,81,73,.25)}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+  /* buttons */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:9px 16px;border-radius:8px;border:1px solid var(--line);background:var(--surface2);color:var(--text);font-size:12.5px;font-weight:600;transition:.15s}
+  .btn:hover{border-color:#3d4b5c;background:#232c3a}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#06121f}
+  .btn.primary:hover{background:#6ab8ff;border-color:#6ab8ff}
+  .btn.ghost{background:transparent}
+  .btn.danger{background:var(--red-soft);border-color:rgba(248,81,73,.3);color:var(--red)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn svg{width:14px;height:14px}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+  /* update banner */
+  .banner{border-radius:var(--radius);padding:18px 20px;margin-bottom:14px;border:1px solid var(--line);background:var(--surface);display:flex;gap:16px;align-items:flex-start}
+  .banner .ic{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;flex-shrink:0;font-size:18px}
+  .banner.info .ic{background:var(--accent-soft);color:var(--accent)}
+  .banner.ok .ic{background:var(--green-soft);color:var(--green)}
+  .banner.warn .ic{background:var(--amber-soft);color:var(--amber)}
+  .banner.err .ic{background:var(--red-soft);color:var(--red)}
+  .banner h3{font-size:14px;font-weight:650;margin-bottom:3px}
+  .banner p{font-size:12.5px;color:var(--muted)}
+  .banner .spacer{flex:1}
+  .ver-compare{display:flex;align-items:center;gap:12px;margin-top:14px;font-family:var(--mono);font-size:13px}
+  .ver-compare .box{background:var(--surface2);border:1px solid var(--line);border-radius:7px;padding:6px 12px}
+  .ver-compare .box.new{border-color:rgba(74,168,255,.45);color:var(--accent)}
+  .ver-compare .arrow{color:var(--dim)}
+
+  /* asset table */
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{text-align:left;color:var(--dim);font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.8px;padding:8px 10px;border-bottom:1px solid var(--line)}
+  td{padding:9px 10px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:11.5px}
+  tr:last-child td{border-bottom:none}
+  td.name{font-family:var(--sans);font-size:12px;color:var(--text)}
+  td.size{color:var(--muted);white-space:nowrap}
+  td .hash{color:var(--dim);font-size:10.5px}
+  .tag{font-size:10px;padding:2px 7px;border-radius:5px;background:var(--green-soft);color:var(--green)}
+
+  /* notes */
+  .notes{background:#0e131a;border:1px solid var(--line);border-radius:8px;padding:14px 16px;font-size:12.5px;color:var(--muted);max-height:150px;overflow:auto}
+  .notes h4{color:var(--text);font-size:12.5px;margin-bottom:6px}
+  .notes li{margin-left:16px;margin-bottom:3px}
+
+  /* progress */
+  .progress-wrap{margin-top:4px}
+  .bar{height:7px;background:var(--surface2);border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+  .bar > i{display:block;height:100%;width:0;background:linear-gradient(90deg,#2f6fd0,var(--accent));border-radius:10px;transition:width .35s ease}
+  .steps{display:flex;gap:0;margin:14px 0 4px}
+  .step{flex:1;text-align:center;font-size:10.5px;color:var(--dim);position:relative;padding-top:20px}
+  .step::before{content:"";position:absolute;top:3px;left:50%;transform:translateX(-50%);width:11px;height:11px;border-radius:50%;background:var(--surface2);border:2px solid var(--line)}
+  .step.done{color:var(--green)} .step.done::before{background:var(--green);border-color:var(--green)}
+  .step.cur{color:var(--accent)} .step.cur::before{background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+  .stage-line{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:8px;font-family:var(--mono)}
+
+  /* settings */
+  .setting{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--line);gap:20px}
+  .setting:last-child{border-bottom:none}
+  .setting .lbl b{display:block;font-size:12.5px;font-weight:600}
+  .setting .lbl span{font-size:11.5px;color:var(--dim)}
+  .switch{width:38px;height:21px;border-radius:20px;background:var(--surface2);border:1px solid var(--line);position:relative;flex-shrink:0;transition:.2s}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:var(--dim);transition:.2s}
+  .switch.on{background:var(--accent);border-color:var(--accent)}
+  .switch.on::after{left:19px;background:#fff}
+  select{background:var(--surface2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:6px 10px;font-family:inherit;font-size:12px}
+
+  /* modal */
+  .overlay{position:fixed;inset:0;background:rgba(3,6,10,.72);display:none;place-items:center;z-index:50;padding:20px}
+  .overlay.show{display:grid}
+  .modal{width:min(460px,100%);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  .modal h3{font-size:15px;margin-bottom:8px}
+  .modal p{font-size:12.5px;color:var(--muted);margin-bottom:14px}
+  .modal .chk{background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:12px 14px;font-size:11.5px;font-family:var(--mono);color:var(--muted);margin-bottom:18px;line-height:1.9}
+  .modal .chk b{color:var(--text);font-weight:600}
+  .modal .actions{justify-content:flex-end}
+
+  /* misc */
+  .hint{font-size:11px;color:var(--dim);margin-top:10px;line-height:1.7}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--dim);margin-top:10px}
+  .legend i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}
+  .proto-note{max-width:960px;margin:0 auto 24px;font-size:11.5px;color:var(--dim);line-height:1.7;border-left:2px solid var(--amber);padding-left:12px}
+  .proto-note b{color:var(--amber)}
+</style>
+</head>
+<body>
+
+<div class="proto-note">
+  <b>原型说明</b> · 单文件静态原型，用于验证信息架构与交互，非 Tauri 应用。数据取自本机真实探测（Inno 安装 0.5.11）与 GitHub Releases API v0.5.11 真实返回。<br>
+  点击左侧导航切换视图；「检查更新」可切换 有更新 / 已是最新 / 离线 三种状态；「更新」按钮走模拟进度；右上角 <span style="font-family:var(--mono)">DEV</span> 可重置。所有网络与写操作均为模拟。
+</div>
+
+<div class="window">
+  <div class="titlebar">
+    <div class="dots"><i></i><i></i><i></i></div>
+    <span class="tb-title">RuxCmd Suite Manager</span>
+    <span class="tb-right">tauri · prototype</span>
+  </div>
+
+  <div class="app">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">R</div>
+        <div class="brand-txt"><b>RuxCmd</b><span>Suite Manager</span></div>
+      </div>
+      <button class="nav-item active" data-view="about">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+        关于 / About
+      </button>
+      <button class="nav-item" data-view="update">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+        检查更新
+        <span class="badge" id="navBadge">1</span>
+      </button>
+      <button class="nav-item" data-view="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1-2.8 2.8-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21h-4v-.2a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1-2.8-2.8.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3v-4h.2a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1 2.8-2.8.1.1a1.6 1.6 0 0 0 1.8.3 1.6 1.6 0 0 0 1-1.5V3h4v.2a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1 2.8 2.8-.1.1a1.6 1.6 0 0 0-.3 1.8 1.6 1.6 0 0 0 1.5 1H21v4h-.2a1.6 1.6 0 0 0-1.4 1z"/></svg>
+        设置
+      </button>
+      <div class="side-foot">
+        <b>套件版本</b> 0.5.11<br>
+        <b>Manager</b> 0.1.0 (prototype)<br>
+        <b>平台</b> x86_64-pc-windows-msvc
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+
+      <!-- ============ ABOUT ============ -->
+      <section class="view active" id="view-about">
+        <div class="view-head"><h1>关于 RuxCmd</h1><p>安装状态、发布溯源与完整性自检</p></div>
+
+        <div class="hero">
+          <div class="logo">R</div>
+          <div>
+            <h2>RuxCmd</h2>
+            <div class="sub">Linux 风格命令集 · Windows 原生语义 · Rust 实现</div>
+            <div style="margin-top:9px">
+              <span class="pill ok"><span class="dot"></span>已安装</span>
+              <span class="pill info" style="margin-left:6px"><span class="dot"></span>Inno 安装包</span>
+            </div>
+          </div>
+          <div class="ver"><div class="big">0.5.11</div><div class="lbl">套件版本 / suite version</div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">安装信息 <span class="line"></span></div>
+          <div class="kv">
+            <div class="row"><span class="k">安装方式</span><span class="v">Inno Setup (HKCU)</span></div>
+            <div class="row"><span class="k">安装目录</span><span class="v path">C:\Users\Tim\AppData\Local\RuxCmd\bin\</span></div>
+            <div class="row"><span class="k">用户 PATH</span><span class="v"><span class="pill ok">已加入</span></span></div>
+            <div class="row"><span class="k">rux- 前缀 shim</span><span class="v">16 个</span></div>
+            <div class="row"><span class="k">可执行文件</span><span class="v">142 个</span></div>
+            <div class="row"><span class="k">目标平台</span><span class="v">x86_64-pc-windows-msvc</span></div>
+            <div class="row"><span class="k">Rust 工具链</span><span class="v">1.99.0</span></div>
+            <div class="row"><span class="k">Manager 版本</span><span class="v">0.1.0 (prototype)</span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">发布溯源 <span class="line"></span></div>
+          <div class="kv">
+            <div class="row"><span class="k">源码提交 (suite)</span><span class="v">a8fb923c6c77…49aaa</span></div>
+            <div class="row"><span class="k">dirty 标记</span><span class="v"><span class="pill ok">false</span></span></div>
+            <div class="row"><span class="k">发布时间</span><span class="v">2026-11-07 15:21 UTC</span></div>
+            <div class="row"><span class="k">发布说明来源</span><span class="v">CHANGELOG 0.5.11 节</span></div>
+            <div class="row"><span class="k">逐文件校验 (SHA256SUMS)</span><span class="v"><span class="pill ok">通过</span></span></div>
+            <div class="row"><span class="k">ZIP SHA256</span><span class="v">e90ab189…42226c7045</span></div>
+          </div>
+          <div class="hint">sourceCommit 与 dirty 指<strong>套件</strong>源码提交，不是 Manager 自身；数据来源为发布包内 share/manifest.json。</div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">链接与许可 <span class="line"></span></div>
+          <div class="actions">
+            <a class="btn ghost" href="#">项目主页 ↗</a>
+            <a class="btn ghost" href="#">文档 ↗</a>
+            <a class="btn ghost" href="#">变更记录 ↗</a>
+            <a class="btn ghost" href="#">兼容性表 ↗</a>
+            <button class="btn" onclick="toast('诊断信息已复制（原型模拟）')">复制诊断信息</button>
+          </div>
+          <div class="hint">MIT License · Copyright (c) 2026 Tim and RuxCmd contributors</div>
+        </div>
+      </section>
+
+      <!-- ============ UPDATE ============ -->
+      <section class="view" id="view-update">
+        <div class="view-head"><h1>检查更新</h1><p>套件版本与 GitHub Releases 的对照</p></div>
+
+        <div id="updateBanner"></div>
+
+        <div class="card">
+          <div class="card-title">操作 <span class="line"></span></div>
+          <div class="actions">
+            <button class="btn primary" id="btnCheck" onclick="doCheck()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+              检查更新
+            </button>
+            <button class="btn ghost" onclick="cycleScenario()" title="切换演示状态">切换演示状态 (DEV)</button>
+            <span class="hint" style="margin:0">未认证 GitHub API 限流 60 次/小时 · 使用 ETag 缓存</span>
+          </div>
+        </div>
+
+        <div class="card" id="assetCard">
+          <div class="card-title">目标版本资产 <span class="line"></span> <span class="pill info" id="assetVer">v0.5.12</span></div>
+          <table>
+            <thead><tr><th>文件</th><th>大小</th><th>SHA256 (asset digest)</th><th>状态</th></tr></thead>
+            <tbody>
+              <tr><td class="name">ruxcmd-0.5.12-x86_64-pc-windows-msvc.zip</td><td class="size">56.4 MB</td><td><span class="hash">sha256:7c1f…(待发布)</span></td><td><span class="tag">uploaded</span></td></tr>
+              <tr><td class="name">…zip.sha256</td><td class="size">108 B</td><td><span class="hash">sha256:…</span></td><td><span class="tag">uploaded</span></td></tr>
+              <tr><td class="name">…setup.exe</td><td class="size">16.7 MB</td><td><span class="hash">sha256:…</span></td><td><span class="tag">uploaded</span></td></tr>
+              <tr><td class="name">…setup.exe.sha256</td><td class="size">114 B</td><td><span class="hash">sha256:…</span></td><td><span class="tag">uploaded</span></td></tr>
+            </tbody>
+          </table>
+          <div class="hint">四个资产齐全且 state=uploaded 才允许更新 · 校验三方：sidecar 内容 / 本地 SHA256 / GitHub asset digest</div>
+        </div>
+
+        <div class="card" id="notesCard">
+          <div class="card-title">发布说明 <span class="line"></span></div>
+          <div class="notes">
+            <h4>0.5.12 — 发布自动化收尾（示意）</h4>
+            <ul>
+              <li>Release 成功后自动同步清单哈希（post-release sync job）</li>
+              <li>已发布 asset digest ↔ 清单哈希独立比对</li>
+              <li>基建整合：尺寸后缀 / 日期解析 / 纪元换算统一进 ruxcmd-core</li>
+            </ul>
+            <p style="margin-top:8px;color:var(--dim)">注：原型中的 0.5.12 为演示数据，实际最新版本为 v0.5.11。</p>
+          </div>
+        </div>
+
+        <!-- progress (hidden until update runs) -->
+        <div class="card" id="progressCard" style="display:none">
+          <div class="card-title">更新进度 <span class="line"></span> <span class="pill info" id="stagePill">准备中</span></div>
+          <div class="steps" id="steps">
+            <div class="step" data-s="0">下载</div>
+            <div class="step" data-s="1">校验</div>
+            <div class="step" data-s="2">安装</div>
+            <div class="step" data-s="3">完成</div>
+          </div>
+          <div class="progress-wrap">
+            <div class="bar"><i id="barFill"></i></div>
+            <div class="stage-line"><span id="stageText">等待开始…</span><span id="pctText">0%</span></div>
+          </div>
+          <div class="hint" id="progressHint">更新会备份到 &lt;InstallDir&gt;.old-0.5.11；失败时旧版本保持可用。</div>
+        </div>
+      </section>
+
+      <!-- ============ SETTINGS ============ -->
+      <section class="view" id="view-settings">
+        <div class="view-head"><h1>设置</h1><p>最小化配置，不改套件运行时行为</p></div>
+        <div class="card">
+          <div class="card-title">更新 <span class="line"></span></div>
+          <div class="setting">
+            <div class="lbl"><b>接收预发布版本</b><span>默认关闭；开启后预发布会在界面显式标注</span></div>
+            <div class="switch" onclick="toggle(this)"></div>
+          </div>
+          <div class="setting">
+            <div class="lbl"><b>启动时自动检查</b><span>默认关闭，避免启动时产生网络请求</span></div>
+            <div class="switch" onclick="toggle(this)"></div>
+          </div>
+          <div class="setting">
+            <div class="lbl"><b>最短手动检查间隔</b><span>配合 ETag / 304 缓存，避免触发 GitHub API 限流</span></div>
+            <select><option>15 分钟</option><option selected>1 小时</option><option>6 小时</option><option>从不缓存</option></select>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">界面 <span class="line"></span></div>
+          <div class="setting">
+            <div class="lbl"><b>语言</b><span>与项目双语文档惯例一致</span></div>
+            <select><option selected>简体中文</option><option>English</option></select>
+          </div>
+          <div class="setting">
+            <div class="lbl"><b>主题</b><span>跟随系统 / 深色 / 浅色</span></div>
+            <select><option selected>跟随系统</option><option>深色</option><option>浅色</option></select>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">安全 <span class="line"></span></div>
+          <div class="kv">
+            <div class="row"><span class="k">网络域名白名单</span><span class="v">api.github.com · github.com</span></div>
+            <div class="row"><span class="k">哈希校验</span><span class="v"><span class="pill ok">三方比对 · 强制</span></span></div>
+            <div class="row"><span class="k">写操作</span><span class="v">仅 apply_update 一条命令</span></div>
+            <div class="row"><span class="k">代码签名</span><span class="v"><span class="pill info">SignPath Foundation</span></span></div>
+          </div>
+          <div class="hint">签名方案已定：SignPath Foundation（OSS 免费 + HSM 托管），须在「更新」功能上线前落地。注意签名不会立刻消除 SmartScreen 警告（声誉机制）。</div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h3>确认更新到 0.5.12？</h3>
+    <p>此操作会替换用户 PATH 下的可执行文件。请确认以下事项：</p>
+    <div class="chk">
+      <b>当前版本</b> 0.5.11 (Inno)<br>
+      <b>目标版本</b> 0.5.12<br>
+      <b>下载文件</b> setup.exe + 2 个校验文件<br>
+      <b>备份位置</b> …\RuxCmd\bin.old-0.5.11<br>
+      <b>提示</b> 请关闭正在使用 rux- 命令的终端
+    </div>
+    <div class="actions">
+      <button class="btn ghost" onclick="closeModal()">取消</button>
+      <button class="btn primary" onclick="startUpdate()">开始更新</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" style="position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface2);border:1px solid var(--line);color:var(--text);padding:10px 18px;border-radius:9px;font-size:12px;opacity:0;transition:.25s;pointer-events:none;z-index:60"></div>
+
+<script>
+  /* ---------- navigation ---------- */
+  document.querySelectorAll('.nav-item').forEach(b=>{
+    b.addEventListener('click',()=>{
+      document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
+      document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      document.getElementById('view-'+b.dataset.view).classList.add('active');
+    });
+  });
+  function toggle(el){ el.classList.toggle('on'); }
+  function toast(msg){
+    const t=document.getElementById('toast'); t.textContent=msg;
+    t.style.opacity='1'; t.style.transform='translateX(-50%) translateY(0)';
+    clearTimeout(t._h); t._h=setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(-50%) translateY(20px)';},2200);
+  }
+
+  /* ---------- update scenarios ---------- */
+  // scenario: 'available' | 'uptodate' | 'offline'
+  let scenario = 'available';
+  let checking = false;
+
+  const bannerHTML = {
+    available: `
+      <div class="banner info">
+        <div class="ic">↑</div>
+        <div>
+          <h3>有新版本可用</h3>
+          <p>v0.5.12 已发布 · 2026-11-08 · 稳定版（非预发布 / 非草稿）</p>
+          <div class="ver-compare">
+            <span class="box">0.5.11 <span style="color:var(--dim);font-size:11px">当前</span></span>
+            <span class="arrow">──▶</span>
+            <span class="box new">0.5.12 <span style="font-size:11px">最新</span></span>
+          </div>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn primary" onclick="openModal()">更新到 0.5.12</button>
+      </div>`,
+    uptodate: `
+      <div class="banner ok">
+        <div class="ic">✓</div>
+        <div><h3>已是最新版本</h3><p>当前 0.5.11 与 GitHub Releases 最新稳定版 v0.5.11 一致。检查时间：刚刚。</p></div>
+        <div class="spacer"></div>
+        <span class="pill ok"><span class="dot"></span>Up to date</span>
+      </div>`,
+    offline: `
+      <div class="banner warn">
+        <div class="ic">!</div>
+        <div><h3>无法检查更新</h3><p>网络不可达或 GitHub API 限流（60 次/小时）。这不代表已是最新；请稍后重试。</p></div>
+        <div class="spacer"></div>
+        <button class="btn" onclick="doCheck()">重试</button>
+      </div>`
+  };
+
+  function render(){
+    document.getElementById('updateBanner').innerHTML = bannerHTML[scenario];
+    const show = scenario === 'available';
+    document.getElementById('assetCard').style.display = show ? '' : 'none';
+    document.getElementById('notesCard').style.display  = show ? '' : 'none';
+    document.getElementById('navBadge').style.display  = show ? '' : 'none';
+    document.getElementById('navBadge').textContent    = '1';
+  }
+  function cycleScenario(){
+    const order=['available','uptodate','offline'];
+    scenario = order[(order.indexOf(scenario)+1)%order.length];
+    render();
+    toast('演示状态：'+({available:'有更新',uptodate:'已是最新',offline:'离线'})[scenario]);
+  }
+  function doCheck(){
+    if(checking) return;
+    checking = true;
+    const b=document.getElementById('btnCheck'); b.disabled=true;
+    b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/></svg> 检查中…';
+    setTimeout(()=>{
+      checking=false; b.disabled=false;
+      b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg> 检查更新';
+      render();
+      toast('检查完成 · '+({available:'发现 0.5.12',uptodate:'已是最新',offline:'无法连接'})[scenario]);
+    }, 900);
+  }
+  render();
+
+  /* ---------- modal ---------- */
+  function openModal(){ document.getElementById('overlay').classList.add('show'); }
+  function closeModal(){ document.getElementById('overlay').classList.remove('show'); }
+  document.getElementById('overlay').addEventListener('click',e=>{ if(e.target.id==='overlay') closeModal(); });
+
+  /* ---------- simulated update progress ---------- */
+  let running=false;
+  function startUpdate(){
+    closeModal();
+    if(running) return; running=true;
+    const pc=document.getElementById('progressCard'); pc.style.display='';
+    pc.scrollIntoView({behavior:'smooth',block:'nearest'});
+    const stages=[
+      {pct:18, step:0, label:'下载 setup.exe …', hint:'从 GitHub Releases 下载 · 16.7 MB'},
+      {pct:42, step:0, label:'下载校验文件 …', hint:'zip.sha256 / setup.exe.sha256'},
+      {pct:58, step:1, label:'三方哈希比对 …', hint:'sidecar 内容 / 本地 SHA256 / asset digest'},
+      {pct:74, step:2, label:'备份当前安装 …', hint:'…\\RuxCmd\\bin.old-0.5.11'},
+      {pct:90, step:2, label:'执行 Inno 静默升级 …', hint:'/SILENT · 沿用原安装目录'},
+      {pct:100,step:3, label:'完成 · 已更新到 0.5.12', hint:'重新探测安装状态并刷新 About；旧版本备份保留。'}
+    ];
+    let i=0;
+    const steps=document.querySelectorAll('#steps .step');
+    function tick(){
+      if(i>=stages.length){ toast('更新完成（原型模拟）'); running=false; return; }
+      const s=stages[i];
+      document.getElementById('barFill').style.width=s.pct+'%';
+      document.getElementById('pctText').textContent=s.pct+'%';
+      document.getElementById('stageText').textContent=s.label;
+      document.getElementById('progressHint').textContent=s.hint;
+      const names=['下载','校验','安装','完成'];
+      document.getElementById('stagePill').textContent=names[s.step===3?3:s.step]+(s.step===3?' ✓':'');
+      steps.forEach((el,idx)=>{
+        el.classList.remove('done','cur');
+        if(idx<s.step) el.classList.add('done');
+        else if(idx===s.step) el.classList.add('cur');
+      });
+      if(s.step===3) steps.forEach(el=>{el.classList.remove('cur');el.classList.add('done');});
+      i++; setTimeout(tick, 850);
+    }
+    tick();
+  }
+</script>
+</body>
+</html>

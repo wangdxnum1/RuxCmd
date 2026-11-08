@@ -192,6 +192,7 @@ rust-toolchain.toml      Pinned Rust toolchain
 - [Development notes](docs/development.md) ([开发说明](docs/development-zh.md))
 - [Command compatibility](docs/compatibility.md) ([兼容性说明](docs/compatibility-zh.md))
 - [Direction and insights](docs/roadmap.md) ([简体中文](docs/roadmap-zh.md))
+- [Suite Manager design](docs/suite-manager-design.md) ([简体中文](docs/suite-manager-design-zh.md)), [code signing plan](docs/suite-manager-signing.md) ([简体中文](docs/suite-manager-signing-zh.md)) and [UI prototype](docs/suite-manager-prototype.html)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Security policy](SECURITY.md)
 - [Changelog](CHANGELOG.md)
