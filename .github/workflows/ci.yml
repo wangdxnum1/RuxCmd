@@ -37,12 +37,25 @@ jobs:
           # changes. A miss simply rebuilds; `cache-workspace-crates: false` keeps
           # this run's crates out of the cache, so a hit can never substitute the
           # 142 release binaries that the compatibility check reads.
-          key: ${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', '.cargo/config.toml', '.github/workflows/ci.yml', '.github/workflows/release.yml', 'desktop/src-tauri/Cargo.toml', 'desktop/src-tauri/Cargo.lock', 'desktop/src-tauri/build.rs', 'desktop/src-tauri/tauri.conf.json') }}
+          key: ${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', '.cargo/config.toml', '.github/workflows/ci.yml', '.github/workflows/release.yml') }}
           cache-targets: true
           cache-workspace-crates: false
+      - name: Cache desktop build
+        uses: Swatinem/rust-cache@e9d7b9f1e587218970671bac74e5511ed9506e6a # v2
+        with:
+          # Desktop is an independent workspace. A separate target tree and key
+          # keep desktop-only edits from invalidating the 142-command cache.
+          workspaces: desktop/src-tauri
+          key: desktop-${{ hashFiles('rust-toolchain.toml', 'desktop/src-tauri/Cargo.toml', 'desktop/src-tauri/Cargo.lock', 'desktop/src-tauri/build.rs', 'desktop/src-tauri/tauri.conf.json') }}
+          cache-targets: true
+          cache-workspace-crates: false
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/desktop-target
       - name: Verify workspace and build release binaries
         run: ./scripts/build.ps1 -Task Verify
       - name: Desktop checks
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/desktop-target
         run: |
           cargo fmt --manifest-path desktop/src-tauri/Cargo.toml --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
