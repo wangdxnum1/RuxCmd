@@ -20,7 +20,7 @@
     </div>
     <button class="nav-item active" type="button" data-view="about">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
-      关于 / About
+      关于
     </button>
     <button class="nav-item" type="button" data-view="update">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
@@ -41,15 +41,21 @@
   <main class="main">
 
     <section class="view active" id="view-about">
-      <div class="view-head"><h1>关于 RuxCmd</h1><p>安装状态、发布溯源与完整性自检</p></div>
+      <div class="view-head compact"><h1>关于 RuxCmd</h1><p>安装状态、发布溯源与完整性自检</p></div>
 
-      <div class="hero">
+      <div class="hero compact">
         <div class="logo">R</div>
-        <div>
-          <h2>RuxCmd</h2>
+        <div class="hero-main">
+          <div class="hero-line">
+            <h2>RuxCmd</h2>
+            <span class="pill-holder" id="installPill"><span class="pill info"><span class="dot"></span>探测中…</span></span>
+            <span class="pill-holder" id="signedState"></span>
+            <span class="pill-holder" id="pathStatus"></span>
+          </div>
           <div class="sub">Linux 风格命令集 · Windows 原生语义 · Rust 实现</div>
-          <div class="hero-pills">
-            <span class="pill info" id="installPill"><span class="dot"></span>探测中…</span>
+          <div class="hero-facts">
+            <span><b>可执行文件</b> <i id="binaryCount">—</i></span>
+            <span><b>rux- shim</b> <i id="shimCount">—</i></span>
           </div>
         </div>
         <div class="ver">
@@ -58,51 +64,50 @@
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-title">安装信息 <span class="line"></span></div>
-        <div class="kv">
-          <div class="row"><span class="k">安装方式</span><span class="v" id="installMethod">—</span></div>
-          <div class="row"><span class="k">安装目录</span><span class="v path" id="installDir">—</span></div>
-          <div class="row"><span class="k">用户 PATH</span><span class="v" id="pathStatus">—</span></div>
-          <div class="row"><span class="k">rux- 前缀 shim</span><span class="v" id="shimCount">—</span></div>
-          <div class="row"><span class="k">可执行文件</span><span class="v" id="binaryCount">—</span></div>
-          <div class="row"><span class="k">计数来源</span><span class="v" id="countsSource">—</span></div>
-          <div class="row"><span class="k">目标平台</span><span class="v" id="installTarget">—</span></div>
-          <div class="row"><span class="k">Rust 工具链</span><span class="v" id="rustcVersion">—</span></div>
-          <div class="row"><span class="k">Manager 版本</span><span class="v" id="managerVersion">—</span></div>
-          <div class="row"><span class="k">Manager 构建</span><span class="v" id="managerBuild">—</span></div>
-          <div class="row"><span class="k">签名状态</span><span class="v" id="signedState">—</span></div>
-          <div class="row"><span class="k">安装时间</span><span class="v" id="installedAt">—</span></div>
+      <div class="about-grid">
+        <div class="card">
+          <div class="card-title">安装信息 <span class="line"></span></div>
+          <div class="kv">
+            <div class="row"><span class="k">安装目录</span><span class="v path" id="installDir">—</span></div>
+            <div class="row"><span class="k">安装时间</span><span class="v" id="installedAt">—</span></div>
+            <div class="row"><span class="k">计数来源</span><span class="v" id="countsSource">—</span></div>
+            <div class="row"><span class="k">目标平台</span><span class="v" id="installTarget">—</span></div>
+            <div class="row"><span class="k">Rust 工具链</span><span class="v" id="rustcVersion">—</span></div>
+            <div class="row"><span class="k">Manager 版本 / 构建</span><span class="v" id="managerVersion">—</span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">发布溯源 <span class="line"></span></div>
+          <div class="kv">
+            <div class="row"><span class="k">源码提交 (suite)</span><span class="v" id="sourceCommit">—</span></div>
+            <div class="row"><span class="k">逐文件校验</span><span class="v" id="checksumState">—</span></div>
+            <div class="row"><span class="k">校验详情</span><span class="v detail" id="checksumDetail">未校验</span></div>
+          </div>
+          <div class="sha-block">
+            <div class="sha-label">发布包 ZIP SHA256 <span id="packageShaSource"></span></div>
+            <div class="sha-value" id="packageSha" title="">—</div>
+          </div>
+          <div class="hint compact-hint" id="packageShaHint">本地未记录整包哈希；点「检查更新」后显示已发布 ZIP 的 SHA256。</div>
+          <div class="actions actions-top">
+            <button class="btn" type="button" id="btnVerify">校验安装文件</button>
+            <button class="btn ghost" type="button" id="btnCopySha" hidden>复制哈希</button>
+          </div>
+          <div class="hint compact-hint">sourceCommit / 版本来自 share/manifest.json，描述套件而非 Manager。</div>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-title">发布溯源 <span class="line"></span></div>
-        <div class="kv">
-          <div class="row"><span class="k">源码提交 (suite)</span><span class="v" id="sourceCommit">—</span></div>
-          <div class="row"><span class="k">dirty 标记</span><span class="v" id="dirtyState">—</span></div>
-          <div class="row"><span class="k">逐文件校验 (SHA256SUMS)</span><span class="v" id="checksumState">—</span></div>
-          <div class="row"><span class="k">安装包 SHA256</span><span class="v" id="packageSha">—</span></div>
-        </div>
-        <div class="hint" id="checksumDetail">未校验。点击下方「校验安装文件」按 share/SHA256SUMS 逐文件比对。</div>
-        <div class="hint">sourceCommit 与 dirty 指<strong>套件</strong>源码提交，不是 Manager 自身；数据来源为发布包内 share/manifest.json。</div>
-        <div class="actions actions-top">
-          <button class="btn" type="button" id="btnVerify">校验安装文件</button>
-        </div>
-      </div>
-
-      <div class="card" id="conflictCard" hidden>
+      <div class="card slim" id="conflictCard" hidden>
         <div class="card-title">探测冲突 <span class="line"></span></div>
         <ul class="issue-list" id="conflictList"></ul>
       </div>
 
-      <div class="card" id="warningCard" hidden>
+      <div class="card slim" id="warningCard" hidden>
         <div class="card-title">提示 <span class="line"></span></div>
         <ul class="issue-list" id="warningList"></ul>
       </div>
 
-      <div class="card">
-        <div class="card-title">链接与许可 <span class="line"></span></div>
+      <div class="about-links">
         <div class="actions">
           <button class="btn ghost" type="button" data-url="https://github.com/wangdxnum1/RuxCmd">项目主页 ↗</button>
           <button class="btn ghost" type="button" data-url="https://github.com/wangdxnum1/RuxCmd/tree/main/docs">文档 ↗</button>
@@ -110,12 +115,12 @@
           <button class="btn ghost" type="button" data-url="https://github.com/wangdxnum1/RuxCmd/blob/main/docs/compatibility-zh.md">兼容性表 ↗</button>
           <button class="btn" type="button" id="btnCopy">复制诊断信息</button>
         </div>
-        <div class="hint">MIT License · Copyright (c) 2026 Tim and RuxCmd contributors</div>
+        <div class="hint compact-hint">MIT License · Copyright (c) 2026 Tim and RuxCmd contributors</div>
       </div>
     </section>
 
     <section class="view" id="view-update">
-      <div class="view-head"><h1>检查更新</h1><p>套件版本与 GitHub Releases 的对照；校验通过后交给安装器完成自更新</p></div>
+      <div class="view-head"><h1>检查更新</h1><p>查看是否有新版本；校验通过后可交给安装器完成更新</p></div>
 
       <div id="updateBanner"></div>
 
@@ -124,7 +129,7 @@
         <div class="actions">
           <button class="btn primary" type="button" id="btnCheck">检查更新</button>
           <label class="checkline"><input type="checkbox" id="chkPrerelease"> 包含预发布版本</label>
-          <span class="hint inline-hint" id="cacheHint">未认证 GitHub API 限流 60 次/小时 · 会话内 ETag 缓存 · 最小刷新间隔 10 分钟</span>
+          <span class="hint inline-hint" id="cacheHint">未认证请求每小时最多 60 次 · 结果会在本次运行内复用 · 最小刷新间隔 10 分钟</span>
         </div>
       </div>
 
@@ -165,7 +170,7 @@
     </section>
 
     <section class="view" id="view-settings">
-      <div class="view-head"><h1>设置</h1><p>设置不写入磁盘，仅在本次运行内生效</p></div>
+      <div class="view-head"><h1>设置</h1></div>
 
       <div class="card">
         <div class="card-title">更新偏好 <span class="line"></span></div>
@@ -174,26 +179,15 @@
           <button class="switch" type="button" id="switchPrerelease" aria-pressed="false" aria-label="接收预发布版本"></button>
         </div>
         <div class="setting">
-          <div class="lbl"><b>检查最小间隔</b><span>后端会话内缓存 + ETag/304；两次刷新至少间隔 10 分钟</span></div>
+          <div class="lbl"><b>检查最小间隔</b><span>两次刷新至少间隔 10 分钟；期间的重复检查会直接复用上次结果</span></div>
           <span class="pill info">10 分钟</span>
         </div>
         <div class="setting">
-          <div class="lbl"><b>启动时自动检查</b><span>尚未实现；检查更新仍是显式动作，启动时不联网</span></div>
+          <div class="lbl"><b>启动时自动检查</b><span>尚未实现；检查更新需要手动触发，启动时不会联网</span></div>
           <span class="pill warn">未启用</span>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-title">边界 <span class="line"></span></div>
-        <ul class="issue-list">
-          <li>写操作只有一条：下载、校验并安装更新；便携解压与未安装状态不改写目录，只提供发布页入口。</li>
-          <li>应用内更新只支持脚本安装与 Inno Setup；升级前用 share/SHA256SUMS 预检，本地改动需显式确认。</li>
-          <li>更新助手等 UI 退出后才替换文件；失败由 install.ps1 / Inno 的原生备份回滚。</li>
-          <li>未签名：首次运行可能出现 SmartScreen 提示；About 如实显示签名状态。</li>
-        </ul>
-      </div>
-
-      <div class="hint">设置仅在本次运行有效，重启后恢复默认。</div>
     </section>
 
   </main>

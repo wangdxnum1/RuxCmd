@@ -34,7 +34,6 @@
     suiteVersion: '0.5.11',
     installDir: 'C:\\Users\\<you>\\AppData\\Local\\RuxCmd\\bin',
     sourceCommit: 'a8fb923c6c7725a3829cb1b9f0a572d081a49aaa',
-    dirty: false,
     target: 'x86_64-pc-windows-msvc',
     rustcVersion: '1.99.0',
     binaryCount: 142,
@@ -43,7 +42,8 @@
     checksumStatus: 'notChecked',
     pathOnUserPath: true,
     packageSha256: null,
-    installedAt: null,
+    installedAt: '20261109',
+    installedAtKind: 'date',
     conflicts: [],
     warnings: []
   };
@@ -65,7 +65,7 @@
     draft: false,
     publishedAt: '2026-11-07T15:21:54Z',
     htmlUrl: 'https://github.com/wangdxnum1/RuxCmd/releases/tag/v0.5.11',
-    body: '（预览示例）发布说明将在此显示，真实内容来自 GitHub Releases 的 body 字段。',
+    body: '（预览示例）发布说明将在此显示，真实内容来自发布记录。',
     assets: [
       { name: 'ruxcmd-0.5.11-x86_64-pc-windows-msvc.zip', size: 56136068, digest: 'sha256:e90ab18900000000000000000000000000000000000000000000000042226c7045', state: 'uploaded' },
       { name: 'ruxcmd-0.5.11-x86_64-pc-windows-msvc.zip.sha256', size: 108, digest: 'sha256:94195e19000000000000000000000000000000000000000000000000075df407e', state: 'uploaded' },
@@ -143,19 +143,94 @@
     return commit.slice(0, 12) + '…' + commit.slice(-5);
   }
 
+  // The script installer records a full UTC timestamp; Inno only records a
+  // YYYYMMDD day in its uninstall key. Render each according to its precision
+  // instead of pretending the registry day is a timestamp.
+  function formatInstalledAt(value, kind) {
+    if (!value) return '—';
+    if (kind === 'date' && /^\d{8}$/.test(value)) {
+      return value.slice(0, 4) + '-' + value.slice(4, 6) + '-' + value.slice(6, 8) + '（安装日期）';
+    }
+    if (kind === 'timestamp') {
+      var parsed = new Date(value);
+      if (!isNaN(parsed.getTime())) {
+        var pad = function (n) { return String(n).padStart(2, '0'); };
+        return parsed.getFullYear() + '-' + pad(parsed.getMonth() + 1) + '-' + pad(parsed.getDate())
+          + ' ' + pad(parsed.getHours()) + ':' + pad(parsed.getMinutes()) + '（本地时间）';
+      }
+    }
+    return value;
+  }
+
+  // Find the ZIP hash we can show for "发布包 ZIP SHA256". Sources, in order:
+  //   1. the script installer's local state file (real, verified at install),
+  //   2. the GitHub release ZIP asset digest (after 检查更新),
+  //   3. the sidecar cross-check result (same digest, always present after 检查更新).
+  // Browser-preview digests are illustrative and are never shown as real.
+  function releaseZipSha256(result) {
+    if (!hasBackend || !result) return null;
+    var normalize = function (value) {
+      if (!value) return null;
+      var digest = String(value).replace(/^sha256:/, '');
+      return /^[0-9a-f]{64}$/i.test(digest) ? digest : null;
+    };
+    var assets = result.latest && result.latest.assets;
+    if (assets) {
+      var asset = assets.find(function (item) {
+        return item.name && item.name.endsWith('.zip') && item.digest;
+      });
+      if (asset) {
+        var fromAsset = normalize(asset.digest);
+        if (fromAsset) return fromAsset;
+      }
+    }
+    var checks = result.sidecarChecks || [];
+    for (var i = 0; i < checks.length; i++) {
+      var check = checks[i];
+      if (check.binary && check.binary.endsWith('.zip') && check.matches === true) {
+        var fromCheck = normalize(check.digestSha256 || check.sidecarSha256);
+        if (fromCheck) return fromCheck;
+      }
+    }
+    return null;
+  }
+
+  function renderPackageSha() {
+    var node = el('packageSha');
+    if (!node) return;
+    var local = state.install && state.install.packageSha256;
+    var published = releaseZipSha256(state.release);
+    var hash = local || published;
+    var copyBtn = el('btnCopySha');
+    if (!hash) {
+      node.textContent = '—';
+      node.removeAttribute('title');
+      if (copyBtn) copyBtn.hidden = true;
+      setText('packageShaSource', '');
+      if (!hasBackend) {
+        setText('packageShaHint', '浏览器预览模式：真实运行时显示已发布 ZIP 的 SHA256。');
+      } else {
+        setText('packageShaHint', '本地未记录整包哈希；切到「检查更新」页点一次按钮后，这里会显示该版本的 ZIP SHA256。');
+      }
+      return;
+    }
+    node.textContent = hash;
+    node.title = hash;
+    if (copyBtn) copyBtn.hidden = false;
+    var source = local ? '本地安装状态' : '官方发布记录';
+    setText('packageShaSource', '· ' + source);
+    setText('packageShaHint', '这是发布 ZIP 的整包 SHA256，与逐文件校验（share/SHA256SUMS）不是同一个东西。');
+  }
+
   function renderManager(manager) {
     if (!manager) return;
     setText('sideManager', manager.version);
     setText('sideTarget', manager.target);
-    setText('managerVersion', manager.version);
-    setText('managerBuild', manager.buildTime + ' · tauri ' + manager.tauriVersion);
+    setText('managerVersion', manager.version + ' · ' + manager.buildTime + ' · tauri ' + manager.tauriVersion);
     var signed = el('signedState');
     if (signed) {
       clearNode(signed);
-      var pill = document.createElement('span');
-      pill.className = 'pill ' + (manager.signed ? 'ok' : 'warn');
-      pill.textContent = manager.signed ? '已签名' : '未签名（如实展示）';
-      signed.appendChild(pill);
+      setPillIn(signed, manager.signed ? '已签名' : '未签名', manager.signed ? 'ok' : 'warn');
     }
   }
 
@@ -163,7 +238,6 @@
     if (!info) return;
     setText('sideSuite', info.suiteVersion);
     setText('suiteVersion', info.suiteVersion || '未知');
-    setText('installMethod', methodLabel(info.method));
     setText('installDir', info.installDir);
     setText('shimCount', info.shimCount === null || info.shimCount === undefined ? null : info.shimCount + ' 个');
     setText('binaryCount', info.binaryCount === null || info.binaryCount === undefined ? null : info.binaryCount + ' 个');
@@ -171,43 +245,26 @@
     setText('installTarget', info.target);
     setText('rustcVersion', info.rustcVersion);
     setText('sourceCommit', shortenCommit(info.sourceCommit));
-    setText('installedAt', info.installedAt);
-    setText('packageSha', info.packageSha256 ? shortenCommit(info.packageSha256) : null);
+    setText('installedAt', formatInstalledAt(info.installedAt, info.installedAtKind));
 
     var installPill = el('installPill');
     if (installPill) {
       var label = info.method === 'notInstalled'
         ? '未安装'
         : (info.method === 'unknown' ? '安装状态未知' : '已安装');
-      clearNode(installPill);
-      var pill = document.createElement('span');
-      pill.className = 'pill ' + (info.method === 'notInstalled' || info.method === 'unknown' ? 'warn' : 'ok');
-      var dot = document.createElement('span');
-      dot.className = 'dot';
-      pill.appendChild(dot);
-      pill.appendChild(document.createTextNode(' ' + label));
-      installPill.appendChild(pill);
+      var variant = info.method === 'notInstalled' || info.method === 'unknown' ? 'warn' : 'ok';
+      setPillIn(installPill, label, variant);
     }
 
     var pathNode = el('pathStatus');
     if (pathNode) {
       clearNode(pathNode);
       if (info.pathOnUserPath === true) {
-        setPillIn(pathNode, '已加入', 'ok');
+        setPillIn(pathNode, 'PATH 已加入', 'ok');
       } else if (info.pathOnUserPath === false) {
-        setPillIn(pathNode, '未加入', 'warn');
+        setPillIn(pathNode, 'PATH 未加入', 'warn');
       } else {
-        pathNode.textContent = '未知';
-      }
-    }
-
-    var dirtyNode = el('dirtyState');
-    if (dirtyNode) {
-      clearNode(dirtyNode);
-      if (info.dirty === true || info.dirty === false) {
-        setPillIn(dirtyNode, String(info.dirty), info.dirty ? 'warn' : 'ok');
-      } else {
-        dirtyNode.textContent = '—';
+        pathNode.textContent = 'PATH 未知';
       }
     }
 
@@ -217,6 +274,7 @@
       checksumNode.textContent = '未校验';
     }
 
+    renderPackageSha();
     renderIssues('conflictCard', 'conflictList', info.conflicts);
     renderIssues('warningCard', 'warningList', info.warnings);
   }
@@ -477,8 +535,8 @@
     setText(
       'cacheHint',
       result.fromCache
-        ? '本次结果来自会话缓存（' + result.checkedAt + '），' + result.nextRefreshSeconds + ' 秒后可再次请求。'
-        : '已请求 GitHub API（' + result.checkedAt + '）。'
+        ? '本次结果来自 ' + result.checkedAt + ' 的检查，' + result.nextRefreshSeconds + ' 秒后可再次刷新。'
+        : '已更新于 ' + result.checkedAt + '。'
     );
   }
 
@@ -500,7 +558,7 @@
         return check.binary + ' 与 ' + check.sidecar + ' 一致 (' + digestOf(check.digestSha256) + ')';
       }
       if (check.matches === false) {
-        return check.binary + ' 与 ' + check.sidecar + ' 不一致（GitHub API '
+        return check.binary + ' 与 ' + check.sidecar + ' 不一致（官方记录 '
           + digestOf(check.digestSha256) + ' ↔ sidecar ' + digestOf(check.sidecarSha256) + '）';
       }
       return check.binary + ' 未校验：' + (check.error || '原因未知');
@@ -514,7 +572,7 @@
     if (!latest) {
       clearUpdateDetails();
       setBadge(false);
-      renderBanner('err', '没有可用的发布信息' + previewTag, 'GitHub 返回的内容缺少发布对象。');
+      renderBanner('err', '没有可用的发布信息' + previewTag, '返回的内容缺少发布对象。');
       return;
     }
 
@@ -570,10 +628,13 @@
       );
     }
 
+    state.release = result;
     renderAssets(result);
     renderNotes(latest);
     renderCacheHint(result);
     renderInstallCard(result);
+    // 「关于」页在拿到发布信息后显示已发布 ZIP 的 digest。
+    renderPackageSha();
   }
 
   function renderUpdateError(error) {
@@ -582,6 +643,7 @@
     clearUpdateDetails();
     setBadge(false);
     hideInstallCard();
+    renderPackageSha();
 
     if (kind === 'offline') {
       renderBanner('warn', '无法检查更新（离线）' + previewTag, message + '。离线时无法判断版本新旧。');
@@ -589,11 +651,11 @@
       var retry = error && error.retryAfterSeconds
         ? '约 ' + Math.ceil(error.retryAfterSeconds / 60) + ' 分钟后可重试。'
         : '请稍后重试。';
-      renderBanner('warn', '无法检查更新（GitHub 限流）' + previewTag, message + ' ' + retry);
+      renderBanner('warn', '无法检查更新（请求过于频繁）' + previewTag, message + ' ' + retry);
     } else if (kind === 'notFound') {
       renderBanner('warn', '无法检查更新' + previewTag, message);
     } else if (kind === 'invalidResponse') {
-      renderBanner('err', 'GitHub 响应异常' + previewTag, message);
+      renderBanner('err', '服务返回异常' + previewTag, message);
     } else {
       renderBanner('err', '检查更新失败' + previewTag, message);
     }
@@ -642,7 +704,7 @@
       button.disabled = true;
       button.textContent = '检查中…';
     }
-    renderBanner('info', '正在检查 GitHub Releases…' + previewTag, '不会在启动时自动联网；本次为你显式触发。');
+    renderBanner('info', '正在检查更新…' + previewTag, '正在获取最新版本信息，请稍候。');
 
     try {
       var result = hasBackend
@@ -1040,6 +1102,24 @@
     el('btnInstall').addEventListener('click', startInstall);
     el('btnCancelUpdate').addEventListener('click', cancelInstall);
     el('btnConfirmOverwrite').addEventListener('click', confirmOverwrite);
+    el('btnCopySha').addEventListener('click', function () {
+      var hash = el('packageSha').textContent.trim();
+      if (!hash || hash === '—') return;
+      var copied = false;
+      try {
+        var area = document.createElement('textarea');
+        area.value = hash;
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        copied = document.execCommand('copy');
+        document.body.removeChild(area);
+      } catch (error) {
+        copied = false;
+      }
+      toast(copied ? 'ZIP SHA256 已复制' : '复制失败，可手动选中哈希（已设为可选中）');
+    });
   }
 
   async function init() {

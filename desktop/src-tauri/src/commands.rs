@@ -185,8 +185,9 @@ fn diagnostics_text() -> String {
     );
     let _ = writeln!(
         text,
-        "installed at: {}",
-        install.installed_at.as_deref().unwrap_or("unknown")
+        "installed at: {} ({:?})",
+        install.installed_at.as_deref().unwrap_or("unknown"),
+        install.installed_at_kind
     );
     if install.conflicts.is_empty() {
         let _ = writeln!(text, "conflicts: none");

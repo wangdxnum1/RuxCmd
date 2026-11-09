@@ -126,7 +126,7 @@ fn prepare_impl(
     let latest = check
         .latest
         .as_ref()
-        .ok_or_else(|| UpdateCheckError::invalid_response("GitHub 返回的内容缺少发布对象"))?;
+        .ok_or_else(|| UpdateCheckError::invalid_response("返回的内容缺少发布对象"))?;
 
     let requested = requested.trim().trim_start_matches(&['v', 'V'][..]);
     if requested != latest.version {
@@ -166,7 +166,7 @@ fn prepare_impl(
         let reason = sidecar
             .error
             .clone()
-            .unwrap_or_else(|| "GitHub API digest 与 .sha256 sidecar 不一致".to_string());
+            .unwrap_or_else(|| "官方记录与 .sha256 sidecar 不一致".to_string());
         return Err(UpdateCheckError::invalid_response(format!(
             "{artifact} 未通过三方哈希校验：{reason}"
         )));
@@ -228,7 +228,7 @@ fn prepare_impl(
     emit_log(
         app,
         &id,
-        format!("SHA256 校验通过：{downloaded}（与 sidecar 及 GitHub digest 一致）"),
+        format!("SHA256 校验通过：{downloaded}（与 sidecar 及官方记录一致）"),
     );
 
     let prepared = PreparedInternal {

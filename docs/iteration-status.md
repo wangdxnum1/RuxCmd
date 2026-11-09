@@ -14,9 +14,9 @@
 
 | 项目 | 值 |
 | --- | --- |
-| 套件版本 | **0.5.12**（[Cargo.toml](../Cargo.toml) `workspace.metadata.ruxcmd.version`） |
-| 最新发布 | **v0.5.11** 已成功发布（Release run `42384943635`）；**v0.5.12** 为首个随套件分发 RuxCmd Desktop（UI）的版本，走 GitHub Actions Release workflow 发布四资产 |
-| HEAD | 本次发布提交（tag `v0.5.12` 指向它）；此前基线为 `a8fb923c6c7725a3829cb1b9f0a572d081a49aaa`（tag `v0.5.11`） |
+| 套件版本 | **0.5.13**（[Cargo.toml](../Cargo.toml) `workspace.metadata.ruxcmd.version`） |
+| 最新发布 | **v0.5.12** 已成功发布；**v0.5.13** 为桌面 UI 体验打磨版本（无 CLI 变更），走 GitHub Actions Release workflow 发布四资产 |
+| HEAD | 本次发布提交（tag `v0.5.13` 指向它）；此前基线为 `031653b58affffe8ff81688f13c6dfe82a35d326` |
 | 命令 / 包 | 145 个 crate → 142 个独立可执行文件 |
 | 质量 | 约 1740 项 Rust 测试；两个 push CI（42383742043 / 42383815911）与 Release 全量 Verify 全绿（fmt / clippy -D warnings / 测试 / release 编译 / compat-check / check-manifests / 冒烟 / 行为检查 / 脚本测试 / difftest） |
 | 发布产物 | ZIP SHA256 `e90ab189…42226c7045`、setup EXE SHA256 `a7b30d64…1d7965eeb17`；`.zip.sha256` sidecar 与 GitHub asset digest 已独立比对一致，清单哈希同步至 `e90ab189…` |

@@ -13,10 +13,12 @@
         "title": "RuxCmd Desktop",
         "width": 960,
         "height": 700,
-        "minWidth": 760,
-        "minHeight": 540,
+        "minWidth": 960,
+        "minHeight": 700,
         "center": true,
-        "resizable": true
+        "resizable": false,
+        "maximizable": false,
+        "fullscreen": false
       }
     ],
     "security": {

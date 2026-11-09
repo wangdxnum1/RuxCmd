@@ -2728,7 +2728,7 @@ checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
 name = "ruxcmd-desktop"
-version = "0.5.12"
+version = "0.5.13"
 dependencies = [
  "semver",
  "serde",

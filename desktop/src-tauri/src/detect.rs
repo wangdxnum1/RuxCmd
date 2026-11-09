@@ -5,7 +5,7 @@ use winreg::HKEY;
 use winreg::RegKey;
 use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ};
 
-use crate::model::{ChecksumStatus, InstallInfo, InstallMethod};
+use crate::model::{ChecksumStatus, InstallInfo, InstallMethod, InstalledAtKind};
 
 const UNINSTALL_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\{06BD23F3-4290-4F15-AEC6-55FD9DC91B9F}_is1";
 const USER_ENV_KEY: &str = "Environment";
@@ -48,6 +48,8 @@ struct Candidate {
 struct InnoRecord {
     version: Option<String>,
     dir: Option<PathBuf>,
+    /// Day-only `YYYYMMDD` from the uninstall key's `InstallDate` value.
+    install_date: Option<String>,
 }
 
 /// Read-only installation probe. Never mutates the file system or the registry.
@@ -167,6 +169,21 @@ pub fn detect_installation() -> InstallInfo {
 
     let (binary_count, shim_count, counts_source) = counts(state, manifest, install_dir.as_deref());
 
+    // The script installer records a full UTC timestamp; Inno only records the
+    // install day in the uninstall key. Fall back to that day for Inno installs
+    // so the About view is not left with an empty "安装时间" row.
+    let (installed_at, installed_at_kind) = match state.and_then(|state| state.installed_at.clone())
+    {
+        Some(timestamp) => (Some(timestamp), InstalledAtKind::Timestamp),
+        None => match method {
+            InstallMethod::Inno => (
+                inno.as_ref().and_then(|record| record.install_date.clone()),
+                InstalledAtKind::Date,
+            ),
+            _ => (None, InstalledAtKind::Unknown),
+        },
+    };
+
     let path_on_user_path = match install_dir.as_deref() {
         Some(dir) => user_path_contains(dir),
         None => default_install_dir()
@@ -199,7 +216,8 @@ pub fn detect_installation() -> InstallInfo {
         checksum_status: ChecksumStatus::NotChecked,
         path_on_user_path,
         package_sha256: state.and_then(|state| state.sha256.clone()),
-        installed_at: state.and_then(|state| state.installed_at.clone()),
+        installed_at,
+        installed_at_kind,
         conflicts,
         warnings,
     }
@@ -215,10 +233,40 @@ fn read_inno(root: HKEY) -> Option<InnoRecord> {
         .ok()
         .filter(|value| !value.trim().is_empty())
         .map(|value| trimmed_dir(&value));
+    // Inno records the install day (not a time). Accept both the string form
+    // used by Inno 7 and the DWORD form older installers may leave behind.
+    let install_date = match key.get_value::<String, _>("InstallDate") {
+        Ok(value) => normalize_install_date(&value),
+        Err(_) => key
+            .get_value::<u32, _>("InstallDate")
+            .ok()
+            .map(|value| value.to_string())
+            .and_then(|value| normalize_install_date(&value)),
+    };
     if version.is_none() && dir.is_none() {
         return None;
     }
-    Some(InnoRecord { version, dir })
+    Some(InnoRecord {
+        version,
+        dir,
+        install_date,
+    })
+}
+
+/// Keep only a well-formed `YYYYMMDD` day, so the UI never renders a malformed
+/// registry value as if it were a date.
+fn normalize_install_date(value: &str) -> Option<String> {
+    let text = value.trim();
+    if text.len() != 8 || !text.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    let year: u32 = text[0..4].parse().ok()?;
+    let month: u32 = text[4..6].parse().ok()?;
+    let day: u32 = text[6..8].parse().ok()?;
+    if !(2000..=2100).contains(&year) || !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+        return None;
+    }
+    Some(text.to_string())
 }
 
 fn add_candidate(candidates: &mut Vec<Candidate>, dir: PathBuf) {
@@ -412,7 +460,7 @@ fn has_executables(dir: &Path) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{expand_percent, normalize_entry};
+    use super::{expand_percent, normalize_entry, normalize_install_date};
 
     #[test]
     fn normalizes_path_entries() {
@@ -426,5 +474,33 @@ mod tests {
     #[test]
     fn keeps_unknown_percent_variables() {
         assert_eq!(expand_percent("%RUXCMD_TEST_UNSET%"), "%RUXCMD_TEST_UNSET%");
+    }
+
+    #[test]
+    fn accepts_only_well_formed_install_dates() {
+        assert_eq!(
+            normalize_install_date("20261109"),
+            Some("20261109".to_string())
+        );
+        assert_eq!(
+            normalize_install_date(" 20261109 "),
+            Some("20261109".to_string())
+        );
+        for bad in [
+            "",
+            "2026-11-09",
+            "2026119",
+            "202611091",
+            "2026110x",
+            "20261309",
+            "20261132",
+            "19991231",
+        ] {
+            assert_eq!(
+                normalize_install_date(bad),
+                None,
+                "unexpectedly accepted {bad:?}"
+            );
+        }
     }
 }

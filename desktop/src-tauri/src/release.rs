@@ -160,7 +160,7 @@ fn run_check(
                 Fetch::Body { body, etag } => (body, etag),
                 Fetch::NotModified => {
                     return Err(UpdateCheckError::invalid_response(
-                        "GitHub 返回 304，但本地没有缓存响应",
+                        "服务返回 304，但本地没有缓存响应",
                     ));
                 }
             },
@@ -238,12 +238,8 @@ fn send(
         Ok(response) => response,
         Err(ureq::Error::Status(code, response)) => return Err(classify_status(code, &response)),
         Err(ureq::Error::Transport(transport)) => {
-            let host = url::Url::parse(url)
-                .ok()
-                .and_then(|parsed| parsed.host_str().map(str::to_string))
-                .unwrap_or_else(|| "GitHub API".to_string());
             return Err(UpdateCheckError::offline(format!(
-                "无法连接 {host}：{transport}"
+                "无法连接更新服务器：{transport}"
             )));
         }
     };
@@ -456,16 +452,16 @@ fn classify_status(code: u16, response: &ureq::Response) -> UpdateCheckError {
                 .and_then(|value| value.parse::<u64>().ok());
             let retry_after = reset.map(|reset| reset.saturating_sub(util::unix_now_seconds()));
             return UpdateCheckError::rate_limited(
-                "GitHub API 限流（未认证 60 次/小时），此时无法判断版本新旧",
+                "请求过于频繁（未认证每小时上限 60 次），此时无法判断版本新旧",
                 retry_after,
             );
         }
     }
     if code == 404 {
-        return UpdateCheckError::not_found("GitHub 上没有可用的发布记录（HTTP 404）");
+        return UpdateCheckError::not_found("没有可用的发布记录（HTTP 404）");
     }
     UpdateCheckError::http_error(format!(
-        "GitHub API 返回 HTTP {code}（{}）",
+        "服务返回 HTTP {code}（{}）",
         response.status_text()
     ))
 }
@@ -481,7 +477,7 @@ fn parse_release(body: &str, include_prerelease: bool) -> Result<ReleaseInfo, Up
             .filter_map(|release| version_of(&release.tag_name).map(|version| (version, release)))
             .max_by(|left, right| left.0.cmp(&right.0))
             .map(|(_, release)| release)
-            .ok_or_else(|| UpdateCheckError::not_found("GitHub 上暂无可用的发布版本"))?;
+            .ok_or_else(|| UpdateCheckError::not_found("暂无可用的发布版本"))?;
         return Ok(normalize_release(best));
     }
 
@@ -490,7 +486,7 @@ fn parse_release(body: &str, include_prerelease: bool) -> Result<ReleaseInfo, Up
     })?;
     if release.draft {
         return Err(UpdateCheckError::invalid_response(
-            "GitHub 返回了草稿发布，拒绝使用",
+            "返回了草稿发布，拒绝使用",
         ));
     }
     if version_of(&release.tag_name).is_none() {
@@ -577,7 +573,7 @@ fn build_sidecar_checks(release: &ReleaseInfo, allow_insecure_http: bool) -> Vec
             continue;
         }
         let Some(digest) = digest_sha256 else {
-            check.error = Some(format!("GitHub API 未提供 digest：{binary}"));
+            check.error = Some(format!("服务未提供 digest：{binary}"));
             checks.push(check);
             continue;
         };

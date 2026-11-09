@@ -41,10 +41,29 @@ pub struct InstallInfo {
     pub counts_source: Option<String>,
     pub checksum_status: ChecksumStatus,
     pub path_on_user_path: Option<bool>,
+    /// SHA256 of the release ZIP, as recorded by the script installer's state
+    /// file. Inno installs do not record the package hash, so this stays None
+    /// there; the UI shows the published release digest instead.
     pub package_sha256: Option<String>,
+    /// ISO-8601 UTC timestamp from the script state file, or `YYYYMMDD` from
+    /// the Inno uninstall key. `installed_at_kind` tells the UI which it is.
     pub installed_at: Option<String>,
+    pub installed_at_kind: InstalledAtKind,
     pub conflicts: Vec<String>,
     pub warnings: Vec<String>,
+}
+
+/// Precision of `InstallInfo::installed_at`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum InstalledAtKind {
+    /// No installation date available.
+    #[default]
+    Unknown,
+    /// Full ISO-8601 UTC timestamp (script installer state file).
+    Timestamp,
+    /// Day-only `YYYYMMDD` value (Inno `InstallDate` registry value).
+    Date,
 }
 
 /// Information about the Manager itself. The suite version lives in `InstallInfo`.
