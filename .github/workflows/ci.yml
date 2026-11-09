@@ -16,8 +16,6 @@ jobs:
   windows:
     runs-on: windows-2025
     timeout-minutes: 45
-    env:
-      CARGO_TARGET_DIR: ${{ github.workspace }}/target
     defaults:
       run:
         shell: pwsh

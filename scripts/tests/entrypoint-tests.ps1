@@ -27,6 +27,11 @@ $fixture = Join-Path $fixtureParent "entrypoint fixture $([guid]::NewGuid().ToSt
 [IO.Directory]::CreateDirectory((Join-Path $fixture 'scripts')) | Out-Null
 [IO.Directory]::CreateDirectory((Join-Path $fixture 'src')) | Out-Null
 try {
+    # The fixture is a self-contained workspace. An inherited CARGO_TARGET_DIR
+    # would place its build output outside the fixture, so drop it for the
+    # whole fixture run and restore the caller's value afterwards.
+    $previousCargoTargetDir = [Environment]::GetEnvironmentVariable('CARGO_TARGET_DIR', 'Process')
+    Remove-Item Env:CARGO_TARGET_DIR -ErrorAction SilentlyContinue
     foreach ($scriptName in @('build.ps1', 'release.ps1', 'common.ps1', 'release-helpers.ps1', 'process-job.ps1')) {
         Copy-Item -LiteralPath (Join-Path $script:RepositoryRoot "scripts/$scriptName") -Destination (Join-Path $fixture 'scripts')
     }
@@ -241,4 +246,11 @@ throw 'Debug package flags confirmed; controlled failure.'
         Assert-EntryProcess $result 1 'Debug package flags confirmed; controlled failure'
     }
     Write-Host "Entrypoint tests passed: $script:Passed cases."
-} finally { Remove-OwnedDirectory $fixture $fixtureParent }
+} finally {
+    if ([string]::IsNullOrEmpty($previousCargoTargetDir)) {
+        Remove-Item Env:CARGO_TARGET_DIR -ErrorAction SilentlyContinue
+    } else {
+        $env:CARGO_TARGET_DIR = $previousCargoTargetDir
+    }
+    Remove-OwnedDirectory $fixture $fixtureParent
+}
