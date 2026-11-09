@@ -10,3 +10,5 @@ target/
 /dist/
 /.infrastructure-work/
 .codegraph/
+# Trae IDE HTML share-package cache (tool-generated, not project source)
+/.trae-html-share-packages/

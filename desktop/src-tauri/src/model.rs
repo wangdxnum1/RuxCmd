@@ -329,3 +329,42 @@ pub struct UpdateFinished {
     /// Backup directory reported to the user (script installs only).
     pub rollback: Option<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::ReleaseInfo;
+
+    /// The Tauri command layer serializes with `rename_all = "camelCase"`.
+    /// `desktop/ui/app.js` reads `latest.htmlUrl` when wiring the release-page
+    /// button; a drift back to `html_url` would silently set its `data-url`
+    /// attribute to the string "undefined" and break the button (the browser
+    /// preview never calls open_external, so no JS test would catch it).
+    /// This pins both halves of that contract from the Rust side.
+    #[test]
+    fn release_info_serializes_html_url_as_camel_case() {
+        let info = ReleaseInfo {
+            tag: "v0.5.12".to_string(),
+            version: "0.5.12".to_string(),
+            name: None,
+            prerelease: false,
+            draft: false,
+            published_at: None,
+            html_url: "https://github.com/wangdxnum1/RuxCmd/releases/tag/v0.5.12".to_string(),
+            body: None,
+            assets: Vec::new(),
+        };
+        let json = serde_json::to_value(&info).expect("serialize ReleaseInfo");
+        assert!(
+            json.get("htmlUrl").is_some(),
+            "ReleaseInfo must expose htmlUrl for app.js: {json}"
+        );
+        assert!(
+            json.get("html_url").is_none(),
+            "ReleaseInfo must not expose snake_case html_url: {json}"
+        );
+        assert_eq!(
+            json["htmlUrl"],
+            "https://github.com/wangdxnum1/RuxCmd/releases/tag/v0.5.12"
+        );
+    }
+}

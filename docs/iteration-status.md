@@ -10,13 +10,13 @@
 - 逐轮执行记录：[旧台账](../.superpowers/sdd/progress.md)（Round 26–34 覆盖 0.5.2–0.5.10）。
 - 发布基线稳定化的原始设计与计划：[设计](superpowers/specs/2026-11-07-release-baseline-design.md)、[实施计划](superpowers/plans/2026-11-07-release-baseline.md)。
 
-## 当前状态（2026-11-07）
+## 当前状态（2026-11-09）
 
 | 项目 | 值 |
 | --- | --- |
-| 套件版本 | **0.5.11**（[Cargo.toml](../Cargo.toml) `workspace.metadata.ruxcmd.version`） |
-| 最新发布 | **v0.5.11** 已成功发布（Release run `42384943635`），文档与进度闭环收口版本，四资产（ZIP、setup EXE 及两个 `.sha256`）；发布说明由 CHANGELOG 对应节自动生成 |
-| HEAD | `a8fb923c6c7725a3829cb1b9f0a572d081a49aaa` = `main` = `origin/main` = tag `v0.5.11`（2026-11-07 22:52）；发布后另有清单哈希同步提交 |
+| 套件版本 | **0.5.12**（[Cargo.toml](../Cargo.toml) `workspace.metadata.ruxcmd.version`） |
+| 最新发布 | **v0.5.11** 已成功发布（Release run `42384943635`）；**v0.5.12** 为首个随套件分发 RuxCmd Desktop（UI）的版本，走 GitHub Actions Release workflow 发布四资产 |
+| HEAD | 本次发布提交（tag `v0.5.12` 指向它）；此前基线为 `a8fb923c6c7725a3829cb1b9f0a572d081a49aaa`（tag `v0.5.11`） |
 | 命令 / 包 | 145 个 crate → 142 个独立可执行文件 |
 | 质量 | 约 1740 项 Rust 测试；两个 push CI（42383742043 / 42383815911）与 Release 全量 Verify 全绿（fmt / clippy -D warnings / 测试 / release 编译 / compat-check / check-manifests / 冒烟 / 行为检查 / 脚本测试 / difftest） |
 | 发布产物 | ZIP SHA256 `e90ab189…42226c7045`、setup EXE SHA256 `a7b30d64…1d7965eeb17`；`.zip.sha256` sidecar 与 GitHub asset digest 已独立比对一致，清单哈希同步至 `e90ab189…` |

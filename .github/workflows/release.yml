@@ -43,6 +43,10 @@ jobs:
       - name: Cache desktop build
         uses: Swatinem/rust-cache@e9d7b9f1e587218970671bac74e5511ed9506e6a # v2
         with:
+          # Match CI: the desktop crate is an independent workspace. Without
+          # this, cleanup defaults to the root workspace and its target tree,
+          # overlapping the 142-command cache above.
+          workspaces: desktop/src-tauri
           key: desktop-${{ hashFiles('rust-toolchain.toml', 'desktop/src-tauri/Cargo.toml', 'desktop/src-tauri/Cargo.lock', 'desktop/src-tauri/build.rs', 'desktop/src-tauri/tauri.conf.json') }}
           cache-targets: true
           cache-workspace-crates: false

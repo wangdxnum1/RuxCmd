@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.12 — 带 UI 的安装包与发布链路闭环(2026-11-09)
+
+首个随套件分发 RuxCmd Desktop（UI）的正式版本；无 CLI 行为变更。
+
+- 打包：`package.ps1` 将 `ruxcmd-desktop.exe` 放入 ZIP 的 `bin/` 并写入 manifest 的 `desktop` 字段；`RuxCmd.iss` 新增 `desktop` 组件（`full` 安装类型默认勾选），安装/卸载/升级时一并处理 UI 可执行文件；发布 ZIP 同时附带 `install.ps1`、`common.ps1`、`process-job.ps1`，供应用内升级调用。
+- 桌面 UI：新增独立 Tauri 2 工作区 `desktop/src-tauri`（只读探测、安装完整性校验、GitHub Releases 检查与三方 SHA256 交叉校验、诊断信息）；实现 P2 自更新写路径 `prepare_update` / `apply_update` / `cancel_update` 及 `update-stage` / `update-progress` / `update-log` / `update-finished` 事件，helper 等 UI 退出后再执行安装，覆盖脚本安装与 Inno 安装两种方式。
+- CI：修复 job 级 `CARGO_TARGET_DIR` 泄漏到 `entrypoint-tests.ps1` 夹具子进程导致 Debug/Release 断言失败的问题——移除 job 级变量，并在夹具内局部保存/移除/恢复该变量；`Desktop checks` 独立缓存键与目标目录，fmt / clippy / test 纳入全量 CI。
+- 修复：UI 读取 `latest.html_url` 与后端 `serde(rename_all = "camelCase")` 序列化出的 `htmlUrl` 不一致，导致「在浏览器中查看发布页」按钮携带 `"undefined"` 而失效；新增序列化字段名契约测试防止回归。
+- 收尾：`release.yml` 的桌面缓存步骤补齐 `workspaces: desktop/src-tauri`，与 CI 对齐。
+
 ## 0.5.11 — 文档与进度闭环(2026-11-07)
 
 纯文档与发布状态收口，无 CLI 行为变更。

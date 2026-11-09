@@ -454,7 +454,10 @@
     );
 
     var releaseButton = el('btnReleasePage');
-    if (releaseButton) releaseButton.setAttribute('data-url', latest.html_url);
+    // ReleaseInfo is serialized with serde(rename_all = "camelCase"), so the
+    // GitHub html_url field arrives as htmlUrl. Reading html_url here sets the
+    // attribute to the string "undefined" and breaks the release-page button.
+    if (releaseButton) releaseButton.setAttribute('data-url', latest.htmlUrl || '');
     renderSidecarChecks(result);
   }
 
