@@ -1,6 +1,7 @@
 use std::io::{Read, Write};
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use semver::Version;
@@ -28,6 +29,20 @@ const ALLOWED_HOSTS: [&str; 4] = [
 /// Minimum interval between two requests to the same GitHub endpoint. Keeps the
 /// Manager well inside the unauthenticated 60 requests/hour budget.
 pub const MIN_REFRESH_SECONDS: u64 = 600;
+
+/// Deadline for establishing the TCP/TLS connection.
+const CONNECT_TIMEOUT_SECONDS: u64 = 20;
+/// How long a single socket read may block before the transfer is treated as
+/// stalled. This is an idle bound, not a total budget, so large downloads that
+/// keep making progress are never cut off.
+const IDLE_READ_TIMEOUT_SECONDS: u64 = 30;
+/// Total attempts for one artifact download before giving up. Each retry starts
+/// over from byte 0; the partial file is discarded on failure.
+const DOWNLOAD_ATTEMPTS: u32 = 3;
+
+/// Set in the progress counter when the watchdog declared the transfer stalled
+/// (kept clear of the low bits used for progress ticks).
+const STALLED_FLAG: u64 = 1 << 62;
 
 #[derive(Debug, Clone)]
 pub struct CacheEntry {
@@ -193,6 +208,7 @@ fn fetch(
         allow_insecure_http,
         0,
         "application/vnd.github+json",
+        None,
     )?;
     if response.status() == 304 {
         return Ok(Fetch::NotModified);
@@ -206,17 +222,27 @@ fn fetch(
 
 /// Minimal one-shot GET with manual redirect handling. Returns the final
 /// non-3xx response; 304 is passed through so `fetch` can reuse the cache.
+/// `range_from` requests the remainder of a partially downloaded artifact.
 fn send(
     url: &str,
     etag: Option<&str>,
     allow_insecure_http: bool,
     hops: u8,
     accept: &str,
+    range_from: Option<u64>,
 ) -> Result<ureq::Response, UpdateCheckError> {
     ensure_allowed_url(url, allow_insecure_http)?;
 
+    // `timeout()` in ureq is an overall deadline that also covers reading the
+    // response body, so a large ZIP could never finish on a slow link and the
+    // read failed mid-stream ("peer closed connection without sending TLS
+    // close_notify"). Use a per-read idle timeout instead: the artifact may take
+    // as long as it needs, but a stalled connection still fails in CONNECT/idle
+    // bounds rather than hanging forever.
     let mut builder = ureq::AgentBuilder::new()
-        .timeout(Duration::from_secs(20))
+        .timeout_connect(Duration::from_secs(CONNECT_TIMEOUT_SECONDS))
+        .timeout_read(Duration::from_secs(IDLE_READ_TIMEOUT_SECONDS))
+        .timeout_write(Duration::from_secs(IDLE_READ_TIMEOUT_SECONDS))
         .redirects(0);
     if let Some(proxy) = system_proxy(allow_insecure_http) {
         builder = builder.proxy(proxy);
@@ -232,6 +258,9 @@ fn send(
         .set("X-GitHub-Api-Version", "2022-11-28");
     if let Some(etag) = etag {
         request = request.set("If-None-Match", etag);
+    }
+    if let Some(from) = range_from {
+        request = request.set("Range", &format!("bytes={from}-"));
     }
 
     let response = match request.call() {
@@ -257,7 +286,14 @@ fn send(
             .map_err(|error| {
                 UpdateCheckError::invalid_response(format!("重定向地址无法解析：{error}"))
             })?;
-        return send(next.as_str(), None, allow_insecure_http, hops + 1, accept);
+        return send(
+            next.as_str(),
+            None,
+            allow_insecure_http,
+            hops + 1,
+            accept,
+            range_from,
+        );
     }
     Ok(response)
 }
@@ -283,89 +319,235 @@ fn download_at(
     cancel: &AtomicBool,
     mut progress: impl FnMut(u64, u64),
 ) -> Result<String, UpdateCheckError> {
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent).map_err(|error| {
+            UpdateCheckError::internal(format!("无法创建下载目录 {}：{error}", parent.display()))
+        })?;
+    }
+
+    // The `.part` file survives failed attempts so a retry resumes where the
+    // previous one stopped (GitHub supports `Range` + `Accept-Ranges: bytes`,
+    // verified against the real release asset). A slow or flaky link therefore
+    // makes steady progress instead of restarting from byte 0 every time.
+    let partial = dest.with_extension("part");
+    let mut last_error = None;
+
+    for attempt in 1..=DOWNLOAD_ATTEMPTS {
+        if cancel.load(Ordering::Relaxed) {
+            return Err(remove_partial(
+                &partial,
+                UpdateCheckError::cancelled("已取消下载"),
+            ));
+        }
+        let already = std::fs::metadata(&partial)
+            .map(|meta| meta.len())
+            .unwrap_or(0);
+        match download_chunk(
+            url,
+            allow_insecure_http,
+            &partial,
+            already,
+            cancel,
+            &mut progress,
+        ) {
+            Ok(()) => {}
+            Err(error) => {
+                let retryable = matches!(error.kind.as_str(), "offline" | "httpError");
+                if !retryable || error.cancelled || attempt == DOWNLOAD_ATTEMPTS {
+                    return Err(remove_partial(&partial, error));
+                }
+                last_error = Some(error);
+                std::thread::sleep(Duration::from_secs(u64::from(2 * attempt)));
+                continue;
+            }
+        }
+
+        // The transfer finished; verify the assembled file as a whole. A stale
+        // or corrupt `.part` can only surface here, so a checksum mismatch on a
+        // resumed download restarts once from scratch before giving up.
+        let hash = match hash_file(&partial) {
+            Ok(hash) => hash,
+            Err(error) => return Err(remove_partial(&partial, error)),
+        };
+        if hash == expected_sha256.trim().to_ascii_lowercase() {
+            return finish_download(&partial, dest, hash);
+        }
+        if attempt == DOWNLOAD_ATTEMPTS {
+            return Err(remove_partial(
+                &partial,
+                UpdateCheckError::invalid_response(format!(
+                    "下载内容 SHA256 校验失败：期望 {expected_sha256}，实际 {hash}"
+                )),
+            ));
+        }
+        // Drop the bad partial and try once more from the beginning.
+        let _ = std::fs::remove_file(&partial);
+        last_error = Some(UpdateCheckError::invalid_response(
+            "下载内容校验失败，已重新下载".to_string(),
+        ));
+    }
+
+    Err(last_error.unwrap_or_else(|| UpdateCheckError::internal("下载失败，未获得结果")))
+}
+
+/// Appends the remainder of the artifact to `partial`, starting at `already`.
+/// Returns Ok(()) once the server signalled the end of the body, leaving final
+/// verification to the caller.
+fn download_chunk(
+    url: &str,
+    allow_insecure_http: bool,
+    partial: &Path,
+    already: u64,
+    cancel: &AtomicBool,
+    progress: &mut dyn FnMut(u64, u64),
+) -> Result<(), UpdateCheckError> {
     let response = send(
         url,
         None,
         allow_insecure_http,
         0,
         "application/octet-stream",
+        (already > 0).then_some(already),
     )?;
-    if response.status() != 200 {
-        return Err(UpdateCheckError::invalid_response(format!(
-            "下载地址返回 HTTP {}，期望 200",
-            response.status()
-        )));
-    }
+    let status = response.status();
     let total = response
         .header("content-length")
         .and_then(|value| value.parse::<u64>().ok())
-        .unwrap_or(0);
+        .map(|length| length.saturating_add(if status == 206 { already } else { 0 }));
 
-    if let Some(parent) = dest.parent() {
-        std::fs::create_dir_all(parent).map_err(|error| {
-            UpdateCheckError::internal(format!("无法创建下载目录 {}：{error}", parent.display()))
-        })?;
-    }
-    let partial = dest.with_extension("part");
-    let fail = |error: UpdateCheckError| {
-        let _ = std::fs::remove_file(&partial);
-        error
+    // 200 means the server ignored Range and is sending the whole file again, so
+    // the existing partial must not be appended to. 206 is the expected resume.
+    let (mut file, mut received) = match status {
+        206 if already > 0 => (
+            std::fs::OpenOptions::new()
+                .append(true)
+                .open(partial)
+                .map_err(|error| {
+                    UpdateCheckError::internal(format!("无法续写 {}：{error}", partial.display()))
+                })?,
+            already,
+        ),
+        200 => (
+            std::fs::File::create(partial).map_err(|error| {
+                UpdateCheckError::internal(format!("无法写入 {}：{error}", partial.display()))
+            })?,
+            // A 200 restarts the body; report progress from zero plus what we
+            // have already discarded so the bar does not jump backwards.
+            0,
+        ),
+        other => {
+            return Err(UpdateCheckError::invalid_response(format!(
+                "下载地址返回 HTTP {other}，期望 200 或 206"
+            )));
+        }
     };
-    let mut file = std::fs::File::create(&partial).map_err(|error| {
-        UpdateCheckError::internal(format!("无法写入 {}：{error}", partial.display()))
-    })?;
 
-    let mut hasher = Sha256::new();
-    let mut received = 0u64;
     let mut buffer = [0u8; 64 * 1024];
     let mut reader = response.into_reader();
-    loop {
+
+    // ureq's `timeout_read` only bounds the response headers; a body that stops
+    // arriving without closing the socket would block here forever (this was a
+    // real hang against a stalled peer). Track progress and let a watchdog flag
+    // the transfer as stalled after IDLE_READ_TIMEOUT_SECONDS without a byte.
+    let progress_clock = Arc::new(AtomicU64::new(0));
+    let watchdog_stop = Arc::new(AtomicBool::new(false));
+    let watchdog = {
+        let clock = Arc::clone(&progress_clock);
+        let stop = Arc::clone(&watchdog_stop);
+        std::thread::spawn(move || {
+            let mut last_seen = clock.load(Ordering::Relaxed);
+            let mut idle_since = std::time::Instant::now();
+            while !stop.load(Ordering::Relaxed) {
+                std::thread::sleep(Duration::from_millis(500));
+                let current = clock.load(Ordering::Relaxed);
+                if current != last_seen {
+                    last_seen = current;
+                    idle_since = std::time::Instant::now();
+                } else if idle_since.elapsed() >= Duration::from_secs(IDLE_READ_TIMEOUT_SECONDS) {
+                    // 2 signals a stall; 1 remains the user cancel.
+                    clock.fetch_or(STALLED_FLAG, Ordering::Relaxed);
+                    return;
+                }
+            }
+        })
+    };
+
+    let outcome = loop {
         if cancel.load(Ordering::Relaxed) {
-            drop(file);
-            return Err(fail(UpdateCheckError::cancelled("已取消下载")));
+            break Err(UpdateCheckError::cancelled("已取消下载"));
+        }
+        if progress_clock.load(Ordering::Relaxed) & STALLED_FLAG != 0 {
+            break Err(UpdateCheckError::offline(format!(
+                "下载停滞超过 {IDLE_READ_TIMEOUT_SECONDS} 秒，已中断，请重试"
+            )));
         }
         match reader.read(&mut buffer) {
-            Ok(0) => break,
+            Ok(0) => break Ok(()),
             Ok(read) => {
                 if let Err(error) = file.write_all(&buffer[..read]) {
-                    drop(file);
-                    return Err(fail(UpdateCheckError::internal(format!(
+                    break Err(UpdateCheckError::internal(format!(
                         "写入下载文件失败：{error}"
-                    ))));
+                    )));
                 }
-                hasher.update(&buffer[..read]);
                 received += read as u64;
-                progress(received, total);
+                // Publish progress for the watchdog and the UI.
+                progress_clock.fetch_add(1, Ordering::Relaxed);
+                progress(received, total.unwrap_or(received));
             }
             Err(error) => {
-                drop(file);
-                return Err(fail(UpdateCheckError::offline(format!(
-                    "读取下载数据失败：{error}"
-                ))));
+                break Err(UpdateCheckError::offline(format!(
+                    "下载数据中断（可能是网络或代理中断），请重试：{error}"
+                )));
             }
         }
-    }
+    };
 
+    watchdog_stop.store(true, Ordering::Relaxed);
+    let _ = watchdog.join();
+    outcome?;
     if let Err(error) = file.flush() {
         drop(file);
-        return Err(fail(UpdateCheckError::internal(format!(
+        return Err(UpdateCheckError::internal(format!(
             "写入下载文件失败：{error}"
-        ))));
+        )));
     }
     drop(file);
+    Ok(())
+}
 
-    let actual = format!("{:x}", hasher.finalize());
-    if actual != expected_sha256.trim().to_ascii_lowercase() {
-        return Err(fail(UpdateCheckError::invalid_response(format!(
-            "下载内容 SHA256 校验失败：期望 {expected_sha256}，实际 {actual}"
-        ))));
+fn remove_partial(partial: &Path, error: UpdateCheckError) -> UpdateCheckError {
+    let _ = std::fs::remove_file(partial);
+    error
+}
+
+fn hash_file(path: &Path) -> Result<String, UpdateCheckError> {
+    use std::io::Read as _;
+
+    let mut file = std::fs::File::open(path).map_err(|error| {
+        UpdateCheckError::internal(format!("无法读取 {}：{error}", path.display()))
+    })?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0u8; 64 * 1024];
+    loop {
+        let read = file.read(&mut buffer).map_err(|error| {
+            UpdateCheckError::internal(format!("读取 {} 失败：{error}", path.display()))
+        })?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
     }
-    if let Err(error) = std::fs::rename(&partial, dest) {
-        return Err(fail(UpdateCheckError::internal(format!(
-            "无法重命名下载文件：{error}"
-        ))));
-    }
-    Ok(actual)
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+fn finish_download(partial: &Path, dest: &Path, hash: String) -> Result<String, UpdateCheckError> {
+    std::fs::rename(partial, dest).map_err(|error| {
+        remove_partial(
+            partial,
+            UpdateCheckError::internal(format!("无法重命名下载文件：{error}")),
+        )
+    })?;
+    Ok(hash)
 }
 
 /// Honors an explicit proxy (env vars first, then the Windows system proxy)
@@ -664,16 +846,18 @@ fn build_check(
 mod tests {
     use std::io::{Read, Write};
     use std::net::TcpListener;
+    use std::sync::atomic::AtomicBool;
     use std::sync::{Arc, Mutex};
     use std::thread::JoinHandle;
 
     use serde_json::json;
 
     use super::{
-        MIN_REFRESH_SECONDS, ReleaseCache, check_at, ensure_allowed_url, normalize_proxy_url,
-        parse_sidecar_hash,
+        MIN_REFRESH_SECONDS, ReleaseCache, check_at, download_at, ensure_allowed_url,
+        normalize_proxy_url, parse_sidecar_hash,
     };
     use crate::model::UpdateStatus;
+    use sha2::{Digest, Sha256};
 
     const VERSION: &str = "0.5.11";
     const ZIP: &str = "ruxcmd-0.5.11-x86_64-pc-windows-msvc.zip";
@@ -809,6 +993,106 @@ mod tests {
                 .map(|entry| entry.path.clone())
                 .collect()
         }
+    }
+
+    #[test]
+    fn interrupted_download_resumes_from_the_partial_file() {
+        // GitHub serves release assets with `Accept-Ranges: bytes`. When the
+        // first response is cut short, the retry must continue from the bytes
+        // already on disk (`Range: bytes=N-`) instead of starting over, and the
+        // assembled file must still hash to the expected value.
+        const BODY: &str = "0123456789abcdefghij";
+        let expected = {
+            let mut hasher = Sha256::new();
+            hasher.update(BODY.as_bytes());
+            format!("{:x}", hasher.finalize())
+        };
+
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind resuming server");
+        let base = format!("http://{}", listener.local_addr().expect("address"));
+        let seen = Arc::new(Mutex::new(Vec::<String>::new()));
+        let log = Arc::clone(&seen);
+        let server = std::thread::spawn(move || {
+            let mut attempt = 0usize;
+            loop {
+                let Ok((mut stream, _)) = listener.accept() else {
+                    return;
+                };
+                let mut buffer = [0u8; 4096];
+                let read = stream.read(&mut buffer).unwrap_or(0);
+                let request = String::from_utf8_lossy(&buffer[..read]).to_string();
+                log.lock().unwrap().push(request.clone());
+
+                let start = request
+                    .lines()
+                    .find_map(|line| {
+                        line.strip_prefix("Range: bytes=")
+                            .and_then(|rest| rest.trim_end_matches('-').parse::<usize>().ok())
+                    })
+                    .unwrap_or(0);
+
+                if attempt == 0 {
+                    // First response claims the whole body but delivers only the
+                    // first 10 bytes, then closes: an interrupted transfer.
+                    let head = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        BODY.len()
+                    );
+                    let _ = stream.write_all(head.as_bytes());
+                    let _ = stream.write_all(&BODY.as_bytes()[..10]);
+                } else {
+                    // Later responses honour Range and return the remainder.
+                    let rest = &BODY.as_bytes()[start..];
+                    let head = format!(
+                        "HTTP/1.1 206 Partial Content\r\nContent-Length: {}\r\nContent-Range: bytes {}-{}/{}\r\nConnection: close\r\n\r\n",
+                        rest.len(),
+                        start,
+                        BODY.len() - 1,
+                        BODY.len()
+                    );
+                    let _ = stream.write_all(head.as_bytes());
+                    let _ = stream.write_all(rest);
+                }
+                let _ = stream.flush();
+                let _ = stream.shutdown(std::net::Shutdown::Both);
+                attempt += 1;
+            }
+        });
+
+        // Write inside the crate's own target dir: the harness sandbox allows
+        // the workspace but not always the shared system temp directory.
+        let workdir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("target");
+        std::fs::create_dir_all(&workdir).ok();
+        let dest = workdir.join(format!("ruxcmd-resume-{}.bin", std::process::id()));
+        let partial = dest.with_extension("part");
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&partial);
+
+        let cancel = AtomicBool::new(false);
+        let result = download_at(&base, true, &expected, &dest, &cancel, |_, _| {});
+
+        let hash = result.expect("resumed download should succeed");
+        assert_eq!(hash, expected);
+        assert_eq!(
+            std::fs::read_to_string(&dest).expect("read downloaded file"),
+            BODY
+        );
+
+        let requests = seen.lock().unwrap().clone();
+        assert!(
+            requests.len() >= 2,
+            "expected a retry, saw {} request(s)",
+            requests.len()
+        );
+        assert!(
+            requests[1].contains("Range: bytes=10-"),
+            "retry must resume at byte 10, got:\n{}",
+            requests[1]
+        );
+
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&partial);
+        drop(server);
     }
 
     fn status_text(code: u16) -> &'static str {

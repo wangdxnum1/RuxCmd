@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.14 — 升级链路稳定性与安装结构整理(2026-11-10)
+
+CLI 命令无变更；本版集中修复实测中暴露的升级问题并整理安装目录。
+
+- **下载修复**：`ureq` 的整体超时（含读取响应体）导致 60 MB 包在 20 秒内下不完即被掐断，表现为 `peer closed connection without sending TLS close_notify`。改为连接超时 + 空闲读超时，下载不再受总时长限制。
+- **断点续传**：GitHub 资产支持 `Range`/`206`，下载中断后重试从已有字节继续，不再从头重下；并增加自动重试、停滞检测与传输中断识别。
+- **升级过程可见**：Inno 由 `/VERYSILENT`（完全无界面）改为 `/SILENT`（显示安装进度窗口）；交接提示停留 4 秒并说明后续动作，不再是点一下就黑屏几十秒。
+- **交互精简**：移除「下载并安装」前的 WebView 原生确认弹窗，点击后直接开始。
+- **安装结构**：`ruxcmd-desktop.exe` 从 `bin\`（PATH 目录）移到安装根目录 `%LOCALAPPDATA%\RuxCmd\`；`bin\` 只保留命令与 shim。Inno 升级时自动清理旧位置残留，UI 的完整性校验与重启路径同步适配，并兼容旧布局。
+- **暂存目录**：更新下载暂存从 `%LOCALAPPDATA%\RuxCmd\Desktop\updates`（污染安装目录）移到系统临时目录 `%TEMP%\RuxCmd\Desktop\updates`。
+- **自动清理**：升级成功后 helper 删除本次下载的 `<id>` 目录（含 setup.exe 与日志）；失败时保留日志供排查。每次升级不再留下约 19 MB 残留。
+- **文案**：界面不再暴露服务商与实现细节（GitHub Releases、API 限流、ETag/304、下载路径等）。
+
 ## 0.5.13 — 桌面 UI 体验打磨(2026-11-09)
 
 仅调整 RuxCmd Desktop 界面与窗口行为，CLI 命令无变更。

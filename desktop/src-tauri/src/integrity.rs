@@ -95,8 +95,10 @@ fn parse_sums(text: &str) -> Result<Vec<(String, String)>, String> {
     Ok(entries)
 }
 
-/// Map a package-relative path to its installed location: `bin/x.exe` is
-/// flattened into the install directory; everything else lives under `share/`.
+/// Map a package-relative path to its installed location. `bin/x.exe` is
+/// flattened into the install directory; the desktop UI (`ruxcmd-desktop.exe`)
+/// lives one level above it, next to the `bin` folder. Everything else lives
+/// under `share/`.
 fn installed_path(dir: &Path, relative: &str) -> Option<PathBuf> {
     let relative = relative.replace('\\', "/");
     let relative_path = Path::new(&relative);
@@ -109,6 +111,21 @@ fn installed_path(dir: &Path, relative: &str) -> Option<PathBuf> {
         }
     }
     let mut path = dir.to_path_buf();
+    if relative == "ruxcmd-desktop.exe" {
+        // New layout: the UI sits beside `bin`, not inside it. Older releases
+        // shipped it in `bin/`; prefer the new location but accept the old one.
+        let beside_bin = dir.parent().map(|parent| parent.join(&relative));
+        if let Some(candidate) = &beside_bin
+            && candidate.is_file()
+        {
+            return Some(candidate.clone());
+        }
+        let legacy = dir.join(&relative);
+        if legacy.is_file() {
+            return Some(legacy);
+        }
+        return beside_bin;
+    }
     match relative.strip_prefix("bin/") {
         Some(name) => path.push(name),
         None => {
@@ -149,6 +166,11 @@ mod tests {
         assert_eq!(
             installed_path(root, "README.md").unwrap(),
             root.join("share").join("README.md")
+        );
+        // The UI lives beside `bin`, not inside the PATH directory.
+        assert_eq!(
+            installed_path(root, "ruxcmd-desktop.exe").unwrap(),
+            root.parent().unwrap().join("ruxcmd-desktop.exe")
         );
     }
 

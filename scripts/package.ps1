@@ -64,7 +64,9 @@ try {
     if (-not $desktopSource -or -not (Test-Path -LiteralPath $desktopSource -PathType Leaf)) {
         throw 'Desktop build did not produce ruxcmd-desktop.exe.'
     }
-    $desktopRelative = 'bin/ruxcmd-desktop.exe'
+    # The desktop UI ships at the ZIP root, not under bin/: `bin` is the directory
+    # added to PATH, and the UI is not a command.
+    $desktopRelative = 'ruxcmd-desktop.exe'
     $desktopDestination = Join-Path $stage $desktopRelative
     Copy-Item -LiteralPath $desktopSource -Destination $desktopDestination
     $desktopVersionInfo = Assert-DesktopVersionInfo $desktopDestination $workspace

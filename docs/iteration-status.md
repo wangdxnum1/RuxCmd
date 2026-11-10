@@ -10,13 +10,13 @@
 - 逐轮执行记录：[旧台账](../.superpowers/sdd/progress.md)（Round 26–34 覆盖 0.5.2–0.5.10）。
 - 发布基线稳定化的原始设计与计划：[设计](superpowers/specs/2026-11-07-release-baseline-design.md)、[实施计划](superpowers/plans/2026-11-07-release-baseline.md)。
 
-## 当前状态（2026-11-09）
+## 当前状态（2026-11-10）
 
 | 项目 | 值 |
 | --- | --- |
-| 套件版本 | **0.5.13**（[Cargo.toml](../Cargo.toml) `workspace.metadata.ruxcmd.version`） |
-| 最新发布 | **v0.5.12** 已成功发布；**v0.5.13** 为桌面 UI 体验打磨版本（无 CLI 变更），走 GitHub Actions Release workflow 发布四资产 |
-| HEAD | 本次发布提交（tag `v0.5.13` 指向它）；此前基线为 `031653b58affffe8ff81688f13c6dfe82a35d326` |
+| 套件版本 | **0.5.14**（[Cargo.toml](../Cargo.toml) `workspace.metadata.ruxcmd.version`） |
+| 最新发布 | **v0.5.13** 已成功发布；**v0.5.14** 为升级链路稳定性与安装结构整理版本（无 CLI 变更），走 GitHub Actions Release workflow 发布四资产 |
+| HEAD | 本次发布提交（tag `v0.5.14` 指向它）；此前基线为 `c4a0e7d`（v0.5.13 清单哈希同步提交） |
 | 命令 / 包 | 145 个 crate → 142 个独立可执行文件 |
 | 质量 | 约 1740 项 Rust 测试；两个 push CI（42383742043 / 42383815911）与 Release 全量 Verify 全绿（fmt / clippy -D warnings / 测试 / release 编译 / compat-check / check-manifests / 冒烟 / 行为检查 / 脚本测试 / difftest） |
 | 发布产物 | ZIP SHA256 `e90ab189…42226c7045`、setup EXE SHA256 `a7b30d64…1d7965eeb17`；`.zip.sha256` sidecar 与 GitHub asset digest 已独立比对一致，清单哈希同步至 `e90ab189…` |

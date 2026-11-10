@@ -442,6 +442,18 @@ fn install_target(prepared: &PreparedInternal) -> InstallInfo {
     }
 }
 
+/// Path the helper should relaunch after a successful upgrade. The Inno
+/// installer places the UI one level above the PATH directory (`...\RuxCmd\`);
+/// the script installer keeps it inside the PATH directory (`...\RuxCmd\bin`).
+fn desktop_exe_path(install_dir: &Path, method: InstallMethod) -> PathBuf {
+    if method == InstallMethod::Inno
+        && let Some(parent) = install_dir.parent()
+    {
+        return parent.join("ruxcmd-desktop.exe");
+    }
+    install_dir.join("ruxcmd-desktop.exe")
+}
+
 fn rollback_path(prepared: &PreparedInternal) -> Option<String> {
     if prepared.method != InstallMethod::Script {
         return None;
@@ -502,12 +514,16 @@ fn update_root() -> Result<PathBuf, UpdateCheckError> {
             return Ok(path);
         }
     }
-    let local = std::env::var_os("LOCALAPPDATA")
-        .ok_or_else(|| UpdateCheckError::internal("无法解析 %LOCALAPPDATA%，不能确定下载目录"))?;
-    Ok(PathBuf::from(local)
-        .join("RuxCmd")
-        .join("Desktop")
-        .join("updates"))
+    Ok(default_update_root(std::env::temp_dir()))
+}
+
+/// Staging files are transient: keep them in the user's temp directory so an
+/// upgrade never leaves downloaded installers or helper logs inside the
+/// installation tree. The old location
+/// (`%LOCALAPPDATA%\RuxCmd\Desktop\updates`) polluted the install directory
+/// with up to 20 MB per attempt.
+fn default_update_root(temp: PathBuf) -> PathBuf {
+    temp.join("RuxCmd").join("Desktop").join("updates")
 }
 
 /// Escapes a value for a PowerShell single-quoted string.
@@ -604,7 +620,10 @@ fn helper_script(prepared: &PreparedInternal, ui_pid: Option<u32>) -> String {
                 "if (-not (Test-Path -LiteralPath $Setup -PathType Leaf)) { Write-Log \"setup.exe not found: $Setup\"; exit 3 }"
                     .to_string(),
             );
-            lines.push("$Arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS')".to_string());
+            // `/SILENT` (not `/VERYSILENT`) keeps Inno's install progress window
+            // visible, so the user can see that the upgrade is actually running
+            // instead of staring at nothing after the desktop UI closes.
+            lines.push("$Arguments = @('/SILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS')".to_string());
             lines.push(format!(
                 "$Arguments += {}",
                 ps_literal(&format!("/LOG=\"{}\"", setup_log.display()))
@@ -625,27 +644,47 @@ fn helper_script(prepared: &PreparedInternal, ui_pid: Option<u32>) -> String {
     }
 
     // G13 B: the UI was running (it started this helper) and the install has
-    // just succeeded, so relaunch it.
+    // just succeeded, so relaunch it. During a layout migration the old build
+    // writes its helper before the new installer moves the UI one level above
+    // the PATH directory, so probe both locations at restart time.
     lines.push("if ($UiPid -gt 0) {".to_string());
     lines.push(format!(
-        "    $Desktop = {}",
-        ps_literal(
-            &prepared
-                .install_dir
-                .join("ruxcmd-desktop.exe")
-                .to_string_lossy()
-        )
+        "    $DesktopCandidates = @({})",
+        [
+            desktop_exe_path(&prepared.install_dir, prepared.method),
+            prepared.install_dir.join("ruxcmd-desktop.exe"),
+        ]
+        .iter()
+        .map(|path| ps_literal(&path.to_string_lossy()))
+        .collect::<Vec<_>>()
+        .join(", ")
     ));
-    lines.push("    if (Test-Path -LiteralPath $Desktop -PathType Leaf) {".to_string());
-    lines.push("        Write-Log 'Restarting RuxCmd Desktop'".to_string());
+    lines.push("    $Desktop = $DesktopCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1".to_string());
+    lines.push("    if ($Desktop) {".to_string());
+    lines.push("        Write-Log \"Restarting RuxCmd Desktop: $Desktop\"".to_string());
     lines.push("        Start-Process -FilePath $Desktop".to_string());
     lines.push("    } else {".to_string());
-    lines.push(
-        "        Write-Log \"ruxcmd-desktop.exe not found after the update: $Desktop\"".to_string(),
-    );
+    lines.push("        Write-Log \"ruxcmd-desktop.exe not found after the update\"".to_string());
     lines.push("    }".to_string());
     lines.push("}".to_string());
     lines.push("Write-Log 'Update helper finished.'".to_string());
+    // Clean up only this attempt's staging directory on success. A failed run
+    // exits earlier (before here), so its logs stay available for diagnosis.
+    // PowerShell can remove its own script directory because the script is
+    // already loaded into memory. Do not write to $LogPath afterwards: the
+    // file is inside the directory being removed.
+    lines.push("$Staging = $PSScriptRoot".to_string());
+    lines.push("$CleanupError = $null".to_string());
+    lines.push("try {".to_string());
+    lines.push(
+        "    Remove-Item -LiteralPath $Staging -Recurse -Force -ErrorAction Stop".to_string(),
+    );
+    lines.push("} catch {".to_string());
+    lines.push("    $CleanupError = $_".to_string());
+    lines.push("}".to_string());
+    lines.push("if ($CleanupError) {".to_string());
+    lines.push("    Add-Content -LiteralPath (Join-Path $env:TEMP 'ruxcmd-update-cleanup.log') -Value (\"[\" + (Get-Date -Format o) + \"] \" + $Staging + \" : \" + $CleanupError)".to_string());
+    lines.push("}".to_string());
     lines.push("exit 0".to_string());
     lines.join("\r\n") + "\r\n"
 }
@@ -696,8 +735,8 @@ fn emit_log(app: &AppHandle, id: &str, line: impl Into<String>) {
 #[cfg(test)]
 mod tests {
     use super::{
-        PreparedInternal, artifact_name, helper_script, kind_for, new_update_id, ps_literal,
-        rollback_path,
+        PreparedInternal, artifact_name, default_update_root, desktop_exe_path, helper_script,
+        kind_for, new_update_id, ps_literal, rollback_path,
     };
     use crate::model::{InstallInfo, InstallMethod, PreparedUpdate, UpdateKind};
     use sha2::{Digest, Sha256};
@@ -777,6 +816,37 @@ mod tests {
     }
 
     #[test]
+    fn helper_cleans_up_its_staging_dir_only_on_success() {
+        let prepared = prepared(UpdateKind::Inno, r"C:\Apps\RuxCmd\bin", Some("0.5.11"));
+        let script = helper_script(&prepared, Some(4242));
+
+        let finished = script
+            .find("Write-Log 'Update helper finished.'")
+            .expect("finished marker");
+        let cleanup = script
+            .find("Remove-Item -LiteralPath $Staging -Recurse -Force")
+            .expect("cleanup");
+        let exit_ok = script.rfind("exit 0").expect("success exit");
+        assert!(
+            finished < cleanup && cleanup < exit_ok,
+            "cleanup must run only after success and before exit 0"
+        );
+        assert!(
+            script.contains("$Staging = $PSScriptRoot"),
+            "must scope cleanup to this attempt"
+        );
+        assert!(
+            script.contains("ruxcmd-update-cleanup.log"),
+            "cleanup failure must be recorded outside the removed directory"
+        );
+        // Failure exits happen before the cleanup block, so logs survive.
+        for marker in ["exit 3", "exit 4"] {
+            let at = script.find(marker).expect(marker);
+            assert!(at < cleanup, "{marker} must precede cleanup");
+        }
+    }
+
+    #[test]
     fn escapes_powershell_literals() {
         assert_eq!(ps_literal(r"C:\RuxCmd\bin"), r"'C:\RuxCmd\bin'");
         assert_eq!(
@@ -800,16 +870,54 @@ mod tests {
     }
 
     #[test]
-    fn inno_helper_runs_the_silent_setup() {
+    fn update_staging_lives_in_temp_not_the_install_tree() {
+        let temp = std::path::Path::new(r"C:\Users\Tim\AppData\Local\Temp");
+        assert_eq!(
+            default_update_root(temp.to_path_buf()),
+            temp.join("RuxCmd").join("Desktop").join("updates")
+        );
+        // The path is built from the temp root, never from LOCALAPPDATA/RuxCmd.
+        assert_eq!(
+            default_update_root(std::path::PathBuf::from(r"C:\Temp")),
+            std::path::Path::new(r"C:\Temp\RuxCmd\Desktop\updates")
+        );
+    }
+
+    #[test]
+    fn restart_path_follows_the_installer_layout() {
+        // Inno puts the UI beside bin, the script installer keeps it inside bin.
+        let dir = std::path::Path::new(r"C:\Apps\RuxCmd\bin");
+        assert_eq!(
+            desktop_exe_path(dir, InstallMethod::Inno),
+            std::path::Path::new(r"C:\Apps\RuxCmd\ruxcmd-desktop.exe")
+        );
+        assert_eq!(
+            desktop_exe_path(dir, InstallMethod::Script),
+            std::path::Path::new(r"C:\Apps\RuxCmd\bin\ruxcmd-desktop.exe")
+        );
+    }
+
+    #[test]
+    fn inno_helper_shows_progress_while_installing() {
         let prepared = prepared(UpdateKind::Inno, r"C:\Apps\RuxCmd\bin", Some("0.5.11"));
         let script = helper_script(&prepared, None);
         assert!(script.contains("$UiPid = 0"));
         assert!(script.contains(r"ruxcmd-0.6.0-x86_64-pc-windows-msvc-setup.exe"));
-        assert!(script.contains("/VERYSILENT"));
+        // `/SILENT` keeps Inno's progress window visible so the upgrade is not
+        // invisible; `/VERYSILENT` would hide it entirely.
+        assert!(script.contains("/SILENT"));
+        assert!(
+            !script.contains("/VERYSILENT"),
+            "the installer must stay visible during the upgrade"
+        );
         assert!(script.contains("/SUPPRESSMSGBOXES"));
         assert!(script.contains("/LOG="));
         assert!(script.contains("Start-Process"));
         assert!(!script.contains("install.ps1"));
+        assert!(
+            script.contains(r"C:\Apps\RuxCmd\ruxcmd-desktop.exe"),
+            "Inno relaunch must target the UI beside bin"
+        );
         assert!(
             script.contains("if ($UiPid -gt 0) {"),
             "restart stays conditional"

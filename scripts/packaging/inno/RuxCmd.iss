@@ -58,14 +58,20 @@ Name: "desktop"; Description: "RuxCmd Desktop (UI)"; Types: full
 ; directory is installer-owned documentation; reinstall it cleanly.
 Type: files; Name: "{app}\rux-*.cmd"
 Type: filesandordirs; Name: "{app}\share"
+; The desktop UI lives one level above {app} (the PATH directory), so clean
+; up the copy older versions left inside bin\ as well.
 Type: files; Name: "{app}\ruxcmd-desktop.exe"
+Type: files; Name: "{app}\..\ruxcmd-desktop.exe"
 
 [UninstallDelete]
 ; Stale shims from versions installed before the current one are not in the
 ; current install log, so remove them explicitly. The uninstaller also
 ; removes every file it recorded.
 Type: files; Name: "{app}\rux-*.cmd"
+; The desktop UI lives one level above {app} (the PATH directory), so clean
+; up the copy older versions left inside bin\ as well.
 Type: files; Name: "{app}\ruxcmd-desktop.exe"
+Type: files; Name: "{app}\..\ruxcmd-desktop.exe"
 Type: filesandordirs; Name: "{app}\share"
 Type: dirifempty; Name: "{app}"
 

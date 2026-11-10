@@ -145,13 +145,13 @@ try {
 
     $desktop = $manifest.desktop
     if (-not $desktop) { throw 'Release ZIP manifest has no desktop entry.' }
-    if ([string]$desktop.file -cne 'bin/ruxcmd-desktop.exe') {
-        throw "Release ZIP desktop file is '$($desktop.file)', expected 'bin/ruxcmd-desktop.exe'."
+    if ([string]$desktop.file -cne 'ruxcmd-desktop.exe') {
+        throw "Release ZIP desktop file is '$($desktop.file)', expected 'ruxcmd-desktop.exe'."
     }
     if (@($manifest.files | Where-Object { [string]$_.path -ceq [string]$desktop.file }).Count -ne 1) {
         throw 'Release ZIP desktop file is not listed exactly once in manifest.files.'
     }
-    Assert-DesktopVersionInfo (Join-Path $content 'bin\ruxcmd-desktop.exe') $workspace | Out-Null
+    Assert-DesktopVersionInfo (Join-Path $content 'ruxcmd-desktop.exe') $workspace | Out-Null
 
     # Regenerate the same shims install.ps1 writes, using the shared policy.
     $shims = @()
@@ -181,13 +181,19 @@ try {
         $source = Join-Path $content ([string]$binary.file).Replace('/', '\')
         $fileLines.Add("Source: `"$source`"; DestDir: `"{app}`"; Flags: ignoreversion")
     }
-    $desktopSource = Join-Path $content 'bin\ruxcmd-desktop.exe'
-    $fileLines.Add("Source: `"$desktopSource`"; DestDir: `"{app}`"; Components: desktop; Flags: ignoreversion")
+    $desktopSource = Join-Path $content 'ruxcmd-desktop.exe'
+    # The UI is not a command: install it one level above {app} (the PATH
+    # directory), next to the bin folder.
+    $fileLines.Add("Source: `"$desktopSource`"; DestDir: `"{app}\..`"; Components: desktop; Flags: ignoreversion")
     foreach ($shim in $shims) {
         $source = Join-Path $content $shim
         $fileLines.Add("Source: `"$source`"; DestDir: `"{app}`"; Flags: ignoreversion")
     }
-    $docs = @($manifest.files | Where-Object { $_.path -notlike 'bin/*' })
+    # Everything outside bin/ is documentation, except the desktop UI which is
+    # installed to {app} rather than {app}\share.
+    $docs = @($manifest.files | Where-Object {
+        $_.path -notlike 'bin/*' -and [string]$_.path -cne [string]$desktop.file
+    })
     foreach ($doc in $docs) {
         $source = Join-Path $content ([string]$doc.path).Replace('/', '\')
         $fileLines.Add("Source: `"$source`"; DestDir: `"{app}\share`"; Flags: ignoreversion")

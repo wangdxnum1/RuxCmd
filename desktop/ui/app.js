@@ -20,6 +20,10 @@
     handedOff: false
   };
 
+  // Keep the window open briefly after the handoff so the user can read what is
+  // about to happen; closing immediately made the upgrade look like a no-op.
+  var HANDOFF_CLOSE_DELAY_MS = 4000;
+
   var PREVIEW_MANAGER = {
     version: '0.5.11',
     target: 'x86_64-pc-windows-msvc',
@@ -808,7 +812,7 @@
       setText(
         'installHint',
         '将下载 ' + artifactNameFor(latest.version, method)
-          + ' 到 %LOCALAPPDATA%\\RuxCmd\\Desktop\\updates，校验 SHA256 后交给更新助手在 UI 退出后安装。'
+          + '（v' + latest.version + '），校验通过后在退出本窗口后完成安装。'
       );
       el('btnInstall').disabled = false;
     }
@@ -839,11 +843,12 @@
     if (payload.outcome === 'handedOff') {
       state.handedOff = true;
       setInstallStage('handoff');
+      setInstallBar(100);
       setText(
         'installHint',
-        '更新助手已启动，将在此窗口退出后完成安装 v' + (payload.version || '')
+        '正在安装 v' + (payload.version || '')
           + (payload.rollback ? '；回滚备份：' + payload.rollback : '')
-          + '。安装成功后会自动重新启动。'
+          + '。本窗口即将关闭，随后显示安装程序进度；装完自动重新启动。'
       );
     }
   }
@@ -889,19 +894,24 @@
       renderInstallChanges([]);
       el('btnConfirmOverwrite').hidden = true;
       el('btnInstall').disabled = true;
+      el('btnCancelUpdate').hidden = true;
       setInstallStage('handoff');
+      setInstallBar(100);
       setText(
         'installHint',
-        '更新助手已启动，将在本窗口退出后安装 v' + outcome.version + '；安装成功后自动重新启动。'
+        '正在安装 v' + outcome.version + '：本窗口即将关闭，随后会显示安装程序进度；'
+          + '安装完成后自动重新启动。'
       );
-      appendInstallLog('已交给更新助手（' + outcome.kind + '）；窗口即将关闭。');
-      toast('正在关闭以完成更新…');
+      appendInstallLog('已交给更新助手（' + outcome.kind + '）；窗口即将关闭，安装期间请勿关闭安装程序窗口。');
+      toast('正在安装 v' + outcome.version + '，窗口即将关闭…');
+      // Give the user time to read the handoff state before the window goes
+      // away; quitting instantly made the upgrade look like nothing happened.
       var id = state.prepared.id;
       setTimeout(function () {
         backend.invoke('quit_for_update', { id: id }).catch(function (error) {
           toast('无法自动关闭：' + errorText(error) + '；请手动退出后重试。');
         });
-      }, 1500);
+      }, HANDOFF_CLOSE_DELAY_MS);
     } catch (error) {
       if (error && error.needsConfirmation) {
         setInstallStage('ready');
@@ -926,14 +936,11 @@
       return;
     }
 
+    // Clicking 「下载并安装更新」 is the confirmation; the native webview
+    // confirm() dialog looks out of place (it shows a tauri.localhost title
+    // bar and cannot be styled), so the action starts immediately and the
+    // progress is reported in the card instead.
     var version = result.latest.version;
-    var method = state.install && state.install.method;
-    if (!window.confirm(
-      '将下载 ' + artifactNameFor(version, method) + '（v' + version + '），'
-        + '校验 SHA256 后交给安装器。是否继续？'
-    )) {
-      return;
-    }
 
     state.installing = true;
     state.prepared = null;
