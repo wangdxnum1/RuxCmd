@@ -234,22 +234,7 @@ fn parse_scale(spec: &str) -> Option<u64> {
         None => (spec, String::new()),
     };
     let num: u64 = num_part.parse().ok()?;
-    let multiplier: u64 = match suffix.as_str() {
-        "" => 1,
-        "K" => 1024,
-        "M" => 1024 * 1024,
-        "G" => 1024 * 1024 * 1024,
-        "T" => 1024u64 * 1024 * 1024 * 1024,
-        "P" => 1024u64 * 1024 * 1024 * 1024 * 1024,
-        "E" => 1024u64 * 1024 * 1024 * 1024 * 1024 * 1024,
-        "KB" => 1000,
-        "MB" => 1000 * 1000,
-        "GB" => 1000 * 1000 * 1000,
-        "TB" => 1000u64 * 1000 * 1000 * 1000,
-        "PB" => 1000u64 * 1000 * 1000 * 1000 * 1000,
-        "EB" => 1000u64 * 1000 * 1000 * 1000 * 1000 * 1000,
-        _ => return None,
-    };
+    let multiplier = ruxcmd_core::sizeword::multiplier_common(&suffix)?;
     num.checked_mul(multiplier)
 }
 

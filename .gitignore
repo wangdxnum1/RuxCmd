@@ -12,3 +12,4 @@ target/
 .codegraph/
 # Trae IDE HTML share-package cache (tool-generated, not project source)
 /.trae-html-share-packages/
+.test-tmp/

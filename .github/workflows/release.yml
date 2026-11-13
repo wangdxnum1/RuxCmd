@@ -119,3 +119,19 @@ jobs:
             gh release create $env:RELEASE_TAG @paths --repo $env:GITHUB_REPOSITORY --title "RuxCmd $($env:RELEASE_TAG)" --generate-notes @extra
           }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Sync manifest hashes after publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $sha = ((Get-Content dist/*.zip.sha256 -TotalCount 1) -split '\s+')[0].Trim()
+          if ($sha -notmatch '^[0-9a-fA-F]{64}$') { throw "Invalid SHA256: '$sha'" }
+          pwsh -NoProfile -File scripts/sync-manifest-hash.ps1 -ZipSha256 $sha
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git config user.name 'ruxcmd-release-bot'
+          git config user.email 'noreply@github.com'
+          git add scripts/packaging/
+          if (git diff --cached --quiet) { Write-Host 'Manifests unchanged; nothing to commit.' } else {
+            git commit -m "chore(packaging): point scoop/winget manifests at $env:RELEASE_TAG artifacts"
+            git push origin main
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }

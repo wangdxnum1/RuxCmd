@@ -65,6 +65,12 @@ try {
         Invoke-CargoStep 'Clippy' (@('clippy') + $scope + @('--all-targets') + $targetOptions + $options + @('--', '-D', 'warnings'))
     }
     if ($Task -in @('Test', 'Verify')) {
+        # Test tempdirs use a repo-local directory to avoid intermittent
+        # PermissionDenied from AV scanners racing on %TEMP%.
+        $testTmp = Join-Path $script:RepositoryRoot 'target' 'test-tmp'
+        [IO.Directory]::CreateDirectory($testTmp) | Out-Null
+        $env:TEMP = $testTmp
+        $env:TMP = $testTmp
         Invoke-CargoStep 'Tests' (@('test') + $scope + @('--all-targets') + $targetOptions + $options)
     }
     if ($Task -in @('Build', 'Verify')) {

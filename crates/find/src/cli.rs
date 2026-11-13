@@ -828,15 +828,14 @@ fn parse_zone(digits: &str, west: bool) -> Option<i64> {
 
 /// Seconds from the Unix epoch for a wall clock read as UTC (no zone math).
 fn civil_to_epoch(wall: WallClock) -> Option<i64> {
-    let y = wall.year as i64;
-    let m = wall.month as i64;
-    let era = if y >= 0 { y } else { y - 399 } / 400;
-    let yoe = y - era * 400;
-    let mp = (m + 9) % 12;
-    let doy = (153 * mp + 2) / 5 + wall.day as i64 - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    let days = era * 146097 + doe - 719468;
-    Some(days * 86400 + wall.hour as i64 * 3600 + wall.minute as i64 * 60 + wall.second as i64)
+    Some(ruxcmd_core::timefmt::civil_to_epoch_seconds(
+        wall.year as i64,
+        wall.month as i64,
+        wall.day as i64,
+        wall.hour as i64,
+        wall.minute as i64,
+        wall.second as i64,
+    ))
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1043,13 +1042,7 @@ fn wall_to_system_time(wall: WallClock) -> Option<SystemTime> {
 /// only by the non-Windows fallback.
 #[cfg(not(windows))]
 fn days_from_civil(year: i32, month: u32, day: u32) -> i64 {
-    let year = year as i64 - i64::from(month <= 2);
-    let era = if year >= 0 { year } else { year - 399 } / 400;
-    let year_of_era = year - era * 400;
-    let month_of_year = (month as i64 + 9) % 12;
-    let day_of_year = (153 * month_of_year + 2) / 5 + day as i64 - 1;
-    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
-    era * 146_097 + day_of_era - 719_468
+    ruxcmd_core::timefmt::days_from_civil(year as i64, month as i64, day as i64)
 }
 
 #[cfg(windows)]

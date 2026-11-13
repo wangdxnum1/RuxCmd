@@ -128,6 +128,32 @@ pub fn strftime(format: &str, t: &LocalTime) -> String {
     out
 }
 
+/// Days from 1970-01-01 to the given civil date (Howard Hinnant's
+/// algorithm).  Works for any year/month/day combination, including dates
+/// before the epoch.
+pub fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = if y >= 0 { y } else { y - 399 } / 400;
+    let yoe = y - era * 400;
+    let mp = (m + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146097 + doe - 719468
+}
+
+/// Seconds from the Unix epoch for a civil wall clock read as UTC (no zone
+/// conversion).  Useful when a caller pins its own zone offset.
+pub fn civil_to_epoch_seconds(
+    year: i64,
+    month: i64,
+    day: i64,
+    hour: i64,
+    minute: i64,
+    second: i64,
+) -> i64 {
+    days_from_civil(year, month, day) * 86400 + hour * 3600 + minute * 60 + second
+}
+
 /// Renders the offset as `+0800` (`colon = false`) or `+08:00`.
 fn offset_text(t: &LocalTime, colon: bool) -> String {
     let (sign, minutes) = if t.offset_minutes >= 0 {
@@ -203,5 +229,15 @@ mod tests {
         assert_eq!(strftime("%s", &t), "1794031149");
         assert_eq!(strftime("a%Qb%n%t%%", &t), "a%Qb\n\t%");
         assert_eq!(strftime("trailing%", &t), "trailing%");
+    }
+
+    #[test]
+    fn civil_math_matches_known_dates() {
+        assert_eq!(days_from_civil(1970, 1, 1), 0);
+        assert_eq!(days_from_civil(1980, 1, 1), 3652);
+        assert_eq!(days_from_civil(2026, 11, 7), 20764);
+        assert_eq!(civil_to_epoch_seconds(1970, 1, 1, 0, 0, 0), 0);
+        assert_eq!(civil_to_epoch_seconds(1970, 1, 1, 0, 0, 1), 1);
+        assert_eq!(civil_to_epoch_seconds(2026, 11, 7, 0, 0, 0), 20764 * 86400);
     }
 }

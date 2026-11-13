@@ -192,19 +192,7 @@ fn parse_size(spec: &str, io_blocks: bool) -> Option<(Adjust, i128)> {
         None => (body, String::new()),
     };
     let num: i128 = num_part.parse().ok()?;
-    let multiplier: i128 = match suffix.as_str() {
-        "" => 1,
-        "K" => 1024,
-        "M" => 1024 * 1024,
-        "G" => 1024 * 1024 * 1024,
-        "T" => 1024i128 * 1024 * 1024 * 1024,
-        "P" => 1024i128 * 1024 * 1024 * 1024 * 1024,
-        "E" => 1024i128 * 1024 * 1024 * 1024 * 1024 * 1024,
-        "KB" => 1000,
-        "MB" => 1000 * 1000,
-        "GB" => 1000 * 1000 * 1000,
-        _ => return None,
-    };
+    let multiplier = ruxcmd_core::sizeword::multiplier_common(&suffix)? as i128;
     let mut amount = num.checked_mul(multiplier)?;
     if io_blocks {
         amount = amount.checked_mul(4096)?;

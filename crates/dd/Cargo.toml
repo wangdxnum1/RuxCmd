@@ -9,6 +9,7 @@ description = "A Windows dd clone - convert and copy a file block by block"
 authors = ["Tim"]
 
 [dependencies]
+ruxcmd-core = { path = "../ruxcmd-core" }
 
 [dev-dependencies]
 assert_cmd.workspace = true

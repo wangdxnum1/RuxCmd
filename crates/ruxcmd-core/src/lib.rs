@@ -15,6 +15,7 @@ pub mod disk;
 pub mod fsutil;
 pub mod lines;
 pub mod paths;
+pub mod sizeword;
 pub mod timefmt;
 
 // The [`bre`] translators emit patterns for this engine's back-reference

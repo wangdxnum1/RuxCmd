@@ -308,15 +308,9 @@ fn archived_mtime(archive_path: &Path, name: &str) -> Option<std::time::SystemTi
     std::time::UNIX_EPOCH.checked_add(std::time::Duration::from_secs(seconds.max(0) as u64))
 }
 
-/// Days from 1970-01-01 to the given civil date (Howard Hinnant's algorithm).
+/// Days from 1970-01-01 to the given civil date, from ruxcmd-core.
 fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
-    let y = if m <= 2 { y - 1 } else { y };
-    let era = if y >= 0 { y } else { y - 399 } / 400;
-    let yoe = y - era * 400;
-    let mp = (m + 9) % 12;
-    let doy = (153 * mp + 2) / 5 + d - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    era * 146097 + doe - 719468
+    ruxcmd_core::timefmt::days_from_civil(y, m, d)
 }
 
 fn datetime_from_system_time(when: std::time::SystemTime) -> DateTime {

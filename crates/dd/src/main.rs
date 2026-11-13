@@ -190,18 +190,7 @@ fn parse_size(raw: &str) -> u64 {
         }
     };
     let num: u64 = digits.parse().unwrap_or_else(|_| bad_size(raw));
-    let mult: u64 = match multiplier.as_str() {
-        "" | "c" => 1,
-        "w" => 2,
-        "b" => 512,
-        "k" | "kib" => 1024,
-        "kb" => 1000,
-        "m" | "mib" => 1024 * 1024,
-        "mb" => 1000 * 1000,
-        "g" | "gib" => 1024 * 1024 * 1024,
-        "gb" => 1000 * 1000 * 1000,
-        _ => bad_size(raw),
-    };
+    let mult = ruxcmd_core::sizeword::multiplier_dd(&multiplier).unwrap_or_else(|| bad_size(raw));
     num.checked_mul(mult).unwrap_or_else(|| bad_size(raw))
 }
 

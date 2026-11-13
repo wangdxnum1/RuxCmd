@@ -618,6 +618,7 @@ dependencies = [
  "assert_cmd",
  "predicates",
  "ruxcmd-build",
+ "ruxcmd-core",
  "tempfile",
 ]
 
@@ -3418,6 +3419,7 @@ dependencies = [
  "clap",
  "predicates",
  "ruxcmd-build",
+ "ruxcmd-core",
  "tempfile",
 ]
 
