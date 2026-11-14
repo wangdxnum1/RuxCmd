@@ -41190,3 +41190,10 @@ Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
 - **环境问题记录**:本机 %TEMP% 对新建二进制间歇性拒绝写入(AV 竞态);build.ps1 已将测试 TEMP 指向 repo 本地 target/test-tmp;CI 不受影响。
 - **Desktop 工作区版本同步**:版本号 bump 脚本需覆盖 desktop/src-tauri/Cargo.toml(本次遗漏导致 Release 三次失败才定位)。
 - 发布:v0.5.15 成功(run 43537030147,notes 自动生成,4 资产);清单 hash 手动同步 7f8a2980;版本 0.5.14 → 0.5.15;main @ acc8eed。
+
+
+## Round 37 touch relative dates + timefmt grammar sharing + v0.5.16 (2026-11-14)
+- 基建:相对日期语法提升到 ruxcmd-core::timefmt（parse_relative + apply_relative + RelativeShift + WallDateTime）——find -newermt 与 touch -d 共享一份实现；find 移除本地拷贝（parse_relative/apply_relative/RelativeShift 全部替换为核心调用）。
+- touch:-d/--date 新增相对日期（now/yesterday/tomorrow/N unit(s) [ago]，fortnight 支持）；4 个集成测试验证 mtime 偏移精确性；原 "1 day ago" 必须被拒绝的测试删项（已实现）。
+- 教训:assert_cmd 默认继承进程 env 但 detached 子进程不继承 TEMP 覆盖——nohup 测试在本机 AV 下持续失败；CI 无此问题。
+- 发布:v0.5.16 成功(run 43546768975,notes 自动生成,4 资产);清单 hash 同步 dc4bcbe4;版本 0.5.15 → 0.5.16。
