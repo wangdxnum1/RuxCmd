@@ -101,6 +101,31 @@ fn main() {
         }
     };
 
+    // -X/--exclude-from: read patterns from files and merge into excludes.
+    let mut excludes = args.exclude.clone();
+    for source in &args.exclude_from {
+        let content = if source == "-" {
+            use std::io::Read;
+            let mut buf = Vec::new();
+            std::io::stdin().read_to_end(&mut buf).unwrap_or_else(|e| {
+                eprintln!("du: error reading '-': {e}");
+                std::process::exit(1);
+            });
+            String::from_utf8_lossy(&buf).into_owned()
+        } else {
+            fs::read_to_string(source).unwrap_or_else(|e| {
+                eprintln!("du: cannot open '{}': {}", source, e);
+                std::process::exit(1);
+            })
+        };
+        for line in content.lines() {
+            let pattern = line.trim();
+            if !pattern.is_empty() {
+                excludes.push(pattern.to_string());
+            }
+        }
+    }
+
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
 
@@ -120,7 +145,8 @@ fn main() {
             max_depth.unwrap_or(u64::MAX)
         },
         one_file_system: args.one_file_system,
-        excludes: args.exclude.clone(),
+        excludes,
+        inodes: args.inodes,
         root_volume: None,
         volume_of: Box::new(volume_key),
         seen: HashSet::new(),
@@ -267,6 +293,8 @@ struct Counter {
     bytes: bool,
     /// Display scale from -k/-m/--block-size (1 = one block).
     block_scale: u64,
+    /// --inodes: count entries instead of block sizes.
+    inodes: bool,
     /// --time field, when requested.
     time_field: Option<TimeField>,
     /// strftime pattern for --time output.
@@ -324,15 +352,15 @@ impl Counter {
             if !self.seen_dirs.insert(identity) {
                 return None;
             }
-            let mut size = 0;
+            let mut size = 0u64;
             match fs::read_dir(path) {
                 Ok(entries) => {
                     for entry in entries.flatten() {
                         let child = format!("{}/{}", rel, entry.file_name().to_string_lossy());
-                        size += self
+                        let (child_size, _) = self
                             .total(&entry.path(), &child, depth + 1, out)
-                            .map(|(value, _)| value)
-                            .unwrap_or(0);
+                            .unwrap_or((0, None));
+                        size += child_size;
                     }
                 }
                 Err(e) => {
@@ -340,10 +368,11 @@ impl Counter {
                     self.had_error = true;
                 }
             }
+            let reported = if self.inodes { size + 1 } else { size };
             if depth > 0 && depth <= self.max_print {
-                let _ = writeln!(out, "{}", self.entry_line(size, time, rel));
+                let _ = writeln!(out, "{}", self.entry_line(reported, time, rel));
             }
-            return Some((size, time));
+            return Some((reported, time));
         }
 
         // GNU counts each hard-linked file once per invocation.
@@ -354,7 +383,9 @@ impl Counter {
         }
 
         let logical = metadata.len();
-        let size = if self.apparent {
+        let size = if self.inodes {
+            1
+        } else if self.apparent {
             logical
         } else {
             allocated_size(path).unwrap_or(logical)
@@ -414,7 +445,7 @@ impl Counter {
             } else {
                 human_size(size.div_ceil(1024) * 1024)
             }
-        } else if self.bytes {
+        } else if self.bytes || self.inodes {
             size.to_string()
         } else {
             size.div_ceil(self.block_scale).to_string()
@@ -714,6 +745,7 @@ mod tests {
             human: false,
             bytes: true,
             block_scale: 1024,
+            inodes: false,
             time_field: None,
             time_format: String::new(),
             all: true,

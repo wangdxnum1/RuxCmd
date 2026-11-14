@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.17 — du --inodes、-X/--exclude-from(2026-11-14)
+
+- du:新增 `--inodes`——计数子树条目数（文件+目录各算 1）替代块大小；与 -a 组合时文件行计数 1、目录行计子树总数。
+- du:新增 `-X/--exclude-from=FILE`——从文件读排除模式（每行一条，空行跳过），与 --exclude 模式合并；`-` 读 stdin。
+
 ## 0.5.16 — touch 相对日期、timefmt 语法共享(2026-11-14)
 
 - touch:`-d/--date` 新增相对日期——`now`/`yesterday`/`tomorrow`/`N unit(s) [ago]`（second/minute/hour/day/week/fortnight/month/year），语法与 find -newermt 一致（实测 GNU touch -d yesterday = now−1 天保留时钟）。

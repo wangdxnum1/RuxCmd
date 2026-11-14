@@ -20,6 +20,8 @@ pub struct Args {
     pub max_depth: Option<String>,
     pub one_file_system: bool,
     pub exclude: Vec<String>,
+    pub exclude_from: Vec<String>,
+    pub inodes: bool,
     pub total: bool,
     /// NUL-separated operand list from FILE ('-' = stdin).
     pub files0_from: Option<String>,
@@ -101,6 +103,20 @@ pub fn parse_args() -> Args {
                 .help("Exclude files that match PATTERN (repeatable)"),
         )
         .arg(
+            Arg::new("exclude-from")
+                .short('X')
+                .long("exclude-from")
+                .value_name("FILE")
+                .action(ArgAction::Append)
+                .help("Exclude files that match any pattern in FILE (repeatable)"),
+        )
+        .arg(
+            Arg::new("inodes")
+                .long("inodes")
+                .action(ArgAction::SetTrue)
+                .help("List inode usage information instead of block usage"),
+        )
+        .arg(
             Arg::new("total")
                 .short('c')
                 .long("total")
@@ -171,6 +187,11 @@ pub fn parse_args() -> Args {
             .get_many::<String>("exclude")
             .map(|v| v.cloned().collect())
             .unwrap_or_default(),
+        exclude_from: matches
+            .get_many::<String>("exclude-from")
+            .map(|v| v.cloned().collect())
+            .unwrap_or_default(),
+        inodes: matches.get_flag("inodes"),
         total: matches.get_flag("total"),
         files0_from: matches.get_one::<String>("files0-from").cloned(),
         time: if matches.value_source("time") == Some(ValueSource::CommandLine) {

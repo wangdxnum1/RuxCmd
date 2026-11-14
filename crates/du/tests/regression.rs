@@ -566,3 +566,50 @@ fn files0_from_missing_list_file_errors() {
         .failure()
         .stderr(predicates::str::contains("cannot open"));
 }
+
+// --- --inodes ---------------------------------------------------------------
+
+/// --inodes counts entries (files + directories) in the subtree.
+#[test]
+fn inodes_count_subtree_entries() {
+    let dir = nested_tree();
+    // a has: a, b, c, x, y, z = 6 entries
+    cargo_bin_cmd!("du")
+        .args(["--inodes", "-s", "a"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::starts_with("6	"));
+}
+
+/// --inodes -a shows individual file counts.
+#[test]
+fn inodes_all_shows_files() {
+    let dir = nested_tree();
+    cargo_bin_cmd!("du")
+        .args(["--inodes", "-a", "a/x"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::starts_with("1	"));
+}
+
+// --- -X/--exclude-from ------------------------------------------------------
+
+/// -X reads exclude patterns from a file.
+#[test]
+fn exclude_from_file() {
+    let dir = nested_tree();
+    fs::write(
+        dir.path().join("ex"),
+        "x
+",
+    )
+    .unwrap();
+    cargo_bin_cmd!("du")
+        .args(["--apparent-size", "-b", "-s", "-X", "ex", "a"])
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::starts_with("20	"));
+}
