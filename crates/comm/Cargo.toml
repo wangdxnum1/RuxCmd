@@ -12,6 +12,7 @@ ruxcmd-core = { path = "../ruxcmd-core" }
 clap = { version = "4", features = ["derive"] }
 
 [dev-dependencies]
+predicates.workspace = true
 assert_cmd.workspace = true
 tempfile.workspace = true
 

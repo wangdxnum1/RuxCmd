@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.18 — comm 排序校验(2026-11-14)
+
+- comm:新增排序输入校验——检测到乱序行时 stderr 报 `comm: file N is not in sorted order`（每文件首次），结尾报 `comm: input is not in sorted order`，退出码 1；比较输出照常。与 MSYS2 GNU comm 8.32 实测一致。
+
 ## 0.5.17 — du --inodes、-X/--exclude-from(2026-11-14)
 
 - du:新增 `--inodes`——计数子树条目数（文件+目录各算 1）替代块大小；与 -a 组合时文件行计数 1、目录行计子树总数。

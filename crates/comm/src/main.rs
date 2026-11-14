@@ -28,6 +28,10 @@ fn open_input(operand: &str, separator: u8) -> io::Result<ByteLines<Box<dyn BufR
 }
 
 fn run(args: &cli::Cli) -> io::Result<()> {
+    // Sortedness tracking: GNU comm reports the first out-of-order line per
+    // input and a general diagnostic at the end, exiting 1.
+    let mut prev: [Option<Vec<u8>>; 2] = [None, None];
+    let mut unsorted: [bool; 2] = [false, false];
     let first = args
         .file1
         .as_deref()
@@ -46,35 +50,50 @@ fn run(args: &cli::Cli) -> io::Result<()> {
     let mut b = reader2.next().transpose()?;
     let hidden = [args.hide_col1, args.hide_col2, args.hide_col3];
     let mut total = [0u64; 3];
+    let mut err = io::BufWriter::new(io::stderr().lock());
     let mut out = io::BufWriter::new(io::stdout().lock());
     loop {
         match (a.as_ref(), b.as_ref()) {
-            (Some(first), Some(second)) => match first.cmp(second) {
-                std::cmp::Ordering::Less => {
-                    print_record(&mut out, first, 0, hidden, separator, &mut total)?;
-                    a = reader1.next().transpose()?;
+            (Some(first), Some(second)) => {
+                check_order(&mut err, 1, first, &mut prev[0], &mut unsorted[0])?;
+                check_order(&mut err, 2, second, &mut prev[1], &mut unsorted[1])?;
+                match first.cmp(second) {
+                    std::cmp::Ordering::Less => {
+                        print_record(&mut out, first, 0, hidden, separator, &mut total)?;
+                        a = reader1.next().transpose()?;
+                    }
+                    std::cmp::Ordering::Greater => {
+                        print_record(&mut out, second, 1, hidden, separator, &mut total)?;
+                        b = reader2.next().transpose()?;
+                    }
+                    std::cmp::Ordering::Equal => {
+                        print_record(&mut out, first, 2, hidden, separator, &mut total)?;
+                        a = reader1.next().transpose()?;
+                        b = reader2.next().transpose()?;
+                    }
                 }
-                std::cmp::Ordering::Greater => {
-                    print_record(&mut out, second, 1, hidden, separator, &mut total)?;
-                    b = reader2.next().transpose()?;
-                }
-                std::cmp::Ordering::Equal => {
-                    print_record(&mut out, first, 2, hidden, separator, &mut total)?;
-                    a = reader1.next().transpose()?;
-                    b = reader2.next().transpose()?;
-                }
-            },
+            }
             (Some(first), None) => {
+                check_order(&mut err, 1, first, &mut prev[0], &mut unsorted[0])?;
                 print_record(&mut out, first, 0, hidden, separator, &mut total)?;
                 a = reader1.next().transpose()?;
             }
             (None, Some(second)) => {
+                check_order(&mut err, 2, second, &mut prev[1], &mut unsorted[1])?;
                 print_record(&mut out, second, 1, hidden, separator, &mut total)?;
                 b = reader2.next().transpose()?;
             }
             (None, None) => break,
         }
     }
+    err.flush()?;
+
+    // GNU: after processing, if either input was unsorted, print the general
+    // diagnostic (via main's error handler) and exit 1.
+    if unsorted[0] || unsorted[1] {
+        return Err(io::Error::other("input is not in sorted order"));
+    }
+
     // GNU `--total` prints the unsuppressed per-column counts (counters are
     // incremented even for hidden columns) and is emitted even for empty
     // inputs; the numbers keep their literal `\t` separators in `-z` mode and
@@ -84,6 +103,25 @@ fn run(args: &cli::Cli) -> io::Result<()> {
         out.write_all(&[separator])?;
     }
     out.flush()
+}
+
+/// Checks one line against the previous line from the same input; reports
+/// the first out-of-order line per file (GNU) and marks the input unsorted.
+fn check_order<W: Write>(
+    err: &mut W,
+    file_no: usize,
+    line: &[u8],
+    prev: &mut Option<Vec<u8>>,
+    unsorted: &mut bool,
+) -> io::Result<()> {
+    if let Some(previous) = prev {
+        if line < previous.as_slice() && !*unsorted {
+            writeln!(err, "comm: file {file_no} is not in sorted order")?;
+            *unsorted = true;
+        }
+    }
+    *prev = Some(line.to_vec());
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
