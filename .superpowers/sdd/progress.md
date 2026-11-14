@@ -41182,3 +41182,11 @@ Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
 - 发布自动化:scripts/sync-manifest-hash.ps1——正则替换清单中任意现有 hash(无需知道旧值)+ check-manifests 复核;release.yml 发布步骤后追加"Sync manifest hashes after publish"步骤,自动 commit+push,消灭手动 hash 同步环节。
 - **环境问题**:本机 %TEMP% 对新建二进制间歇性拒绝写入(AV/Defender 竞态),dd/nohup 测试的 TempDir::new() 间歇失败;build.ps1 已将测试 TEMP 指向 repo 本地 target/test-tmp 缓解;nohup 的 detached_child 测试因 detached 子进程不继承 TEMP 覆盖而持续失败;CI(GitHub runners)不受影响。
 - 版本 0.5.14 → 0.5.15(待发布;本地 Verify 因环境 flakiness 需 CI 确认)。
+
+
+## Round 36 sizeword/civil-math consolidation + v0.5.15 release (2026-11-14)
+- 基建:ruxcmd-core 新增 sizeword(K/KB/M/MB/…双底表 + dd 的 c/w/b/kib/mib/gib 扩展);du/truncate/dd 三处后缀表统一;dd 补齐 GNU 对齐的 T/TB/P/PB/E/EB;timefmt 新增 days_from_civil + civil_to_epoch_seconds(find/zip 两份拷贝统一)。
+- 发布自动化:scripts/sync-manifest-hash.ps1(正则替换任意现有 hash + check-manifests);release.yml 追加 "Sync manifest hashes after publish" 步骤(首次实跑:hash 正确写入 7f8a2980,但 check-manifests 的 $LASTEXITCODE 未重置导致误报失败——脚本已修)。
+- **环境问题记录**:本机 %TEMP% 对新建二进制间歇性拒绝写入(AV 竞态);build.ps1 已将测试 TEMP 指向 repo 本地 target/test-tmp;CI 不受影响。
+- **Desktop 工作区版本同步**:版本号 bump 脚本需覆盖 desktop/src-tauri/Cargo.toml(本次遗漏导致 Release 三次失败才定位)。
+- 发布:v0.5.15 成功(run 43537030147,notes 自动生成,4 资产);清单 hash 手动同步 7f8a2980;版本 0.5.14 → 0.5.15;main @ acc8eed。
