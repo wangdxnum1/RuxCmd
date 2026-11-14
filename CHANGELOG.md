@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.20 — sort -b/-s/-C 新选项(2026-11-14)
+
+- sort:新增 `-b/--ignore-leading-blanks`（比较前跳过前导空格）、`-s/--stable`（等值行保留输入顺序，禁用末行逐字节后备比较）、`-C/--check-silent`（类似 -c 但无诊断输出，仅退出码）。
+
 ## 0.5.19 — 版本号自动化脚本、兼容表纠偏(2026-11-14)
 
 - 基建:新增 scripts/bump-version.ps1——一条命令完成版本号推进（Cargo.toml、desktop/src-tauri/Cargo.toml + Cargo.lock、README ×2、scoop/winget 清单）并自动运行 check-manifests 校验；根治手工 bump 遗漏 desktop 版本号和 Cargo.lock 的重复事故。

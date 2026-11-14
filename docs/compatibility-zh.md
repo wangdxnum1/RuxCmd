@@ -106,7 +106,7 @@
 | shred | --force, --iterations, --remove, --verbose, --version | 冒烟 + 行为测试 | 原地覆写（伪随机轮次后末轮清零），仅 -u 才删除；失败传播退出码 1。 |
 | shuf | --head-count, --input-range, --output, --random-source, --version, --zero-terminated | 冒烟 + 行为测试 | 支持 -z NUL 记录、-n/-i/-o 和原始字节。--random-source 读取前 64 KiB 后以 FNV 播种，相同字节可复现，但排列不保证与 GNU 相同；随机源不可读时报错。随机行为以记录多重集合校验，不按 GNU 排列逐字节比较。 |
 | sleep | --version | 冒烟 + 行为测试 | 接受多个操作数求和，后缀为小写 s/m/h/d；大写后缀与负数退出 1。支持 --help/--version。 |
-| sort | --check, --field-separator, --human-numeric-sort, --ignore-case, --key, --numeric-sort, --reverse, --unique, --zero-terminated | 冒烟 + 行为测试 | 支持 -z/--zero-terminated 的原始 NUL 记录；默认 LF 模式保留 CRLF 处理。键、-u/-r/-c/-n/-h 可用于 NUL 记录，默认字段空白包含 space/TAB/LF，CR 仍为内容。比较区分不同非法字节；有效 UTF-8 的大小写折叠保留既有 Unicode 小写规则。不提供完整 locale 排序、外排、字符级键偏移或每键修饰符。 |
+| sort | --check, --check-silent, --field-separator, --human-numeric-sort, --ignore-case, --ignore-leading-blanks, --key, --numeric-sort, --reverse, --stable, --unique, --zero-terminated | 冒烟 + 行为测试 | 支持 -z/--zero-terminated 的原始 NUL 记录；默认 LF 模式保留 CRLF 处理。键、-u/-r/-c/-n/-h 可用于 NUL 记录，默认字段空白包含 space/TAB/LF，CR 仍为内容。比较区分不同非法字节；有效 UTF-8 的大小写折叠保留既有 Unicode 小写规则。不提供完整 locale 排序、外排、字符级键偏移或每键修饰符。 |
 | split | --bytes, --lines, --number, --numeric-suffixes, --output, --suffix-length | 冒烟 + 行为测试 | 字母后缀遵循 GNU 顺序（aa..az、ba..）；后缀耗尽报错退出 1；-l 0 被拒绝；行模式字节透明。 |
 | stat | --file-system, --format, --terse, --version | 冒烟 + 行为测试 | -c 指令遵循 GNU 语义；设备号/inode/uid/gid/链接数为 0/1 占位，%b 为 ceil(size/512) 近似，%Z 近似 mtime，时间为本地时区秒级，-f 仅输出块与空间行。未知指令报错退出 1。 |
 | strings | --all, --bytes, --encoding, --print-file-name, --radix, --version | 冒烟 + 行为测试 | TAB 计入可打印（binutils 规则）；-t 偏移为 7 宽空格填充；8 位模式原样输出高位字节；-f 按书写形式打印路径；编码名大小写敏感。 |

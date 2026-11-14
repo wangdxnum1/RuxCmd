@@ -48,9 +48,11 @@ fn main() {
         }
     }
 
-    if args.check {
+    if args.check || args.check_silent {
         if !is_sorted(&lines, key, separator, &args) {
-            eprintln!("sort: disorder detected");
+            if !args.check_silent {
+                eprintln!("sort: disorder detected");
+            }
             std::process::exit(1);
         }
     } else {
@@ -243,6 +245,11 @@ fn compare_keys(
 ) -> Ordering {
     let ka = extract_key(a, key, separator);
     let kb = extract_key(b, key, separator);
+    let (ka, kb) = if args.ignore_blanks {
+        (trim_leading_blanks(ka), trim_leading_blanks(kb))
+    } else {
+        (ka, kb)
+    };
     if args.numeric {
         leading_number(&String::from_utf8_lossy(ka))
             .partial_cmp(&leading_number(&String::from_utf8_lossy(kb)))
@@ -270,9 +277,26 @@ fn compare_lines(
 ) -> Ordering {
     let ord = compare_keys(a, b, key, separator, args);
     if ord == Ordering::Equal && !args.unique {
-        return a.cmp(b);
+        // -s disables the last-resort whole-line comparison; Rust's stable
+        // sort preserves input order for equal keys.
+        if !args.stable {
+            if args.ignore_blanks {
+                let (a_trim, b_trim) = (trim_leading_blanks(a), trim_leading_blanks(b));
+                return a_trim.cmp(b_trim);
+            }
+            return a.cmp(b);
+        }
     }
     ord
+}
+
+/// Strips leading spaces and tabs, like GNU sort -b.
+fn trim_leading_blanks(bytes: &[u8]) -> &[u8] {
+    let start = bytes
+        .iter()
+        .position(|b| *b != b' ' && *b != 9)
+        .unwrap_or(bytes.len());
+    &bytes[start..]
 }
 
 fn is_sorted(

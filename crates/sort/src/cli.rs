@@ -38,6 +38,18 @@ pub struct Args {
     #[arg(short = 'c', long = "check")]
     pub check: bool,
 
+    /// Check that input is sorted silently (no diagnostic, exit code only)
+    #[arg(short = 'C', long = "check-silent")]
+    pub check_silent: bool,
+
+    /// Ignore leading blanks when comparing
+    #[arg(short = 'b', long = "ignore-leading-blanks")]
+    pub ignore_blanks: bool,
+
+    /// Use a stable sort (Rust sort_by is always stable; accepted for GNU compatibility)
+    #[arg(short = 's', long = "stable")]
+    pub stable: bool,
+
     /// Sort using key fields F1 through F2 (1-indexed, inclusive); without
     /// `,F2` the key runs from field F1 to end of line. Field-character
     /// offsets and per-key modifiers are not supported.

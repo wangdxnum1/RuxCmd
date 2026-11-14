@@ -287,3 +287,54 @@ fn unopenable_file_exits_2() {
 fn dash_operand_reads_stdin() {
     sort_args(&["-"], "b\na\nc\n").success().stdout("a\nb\nc\n");
 }
+
+// --- -b (ignore leading blanks) ----------------------------------------------
+
+/// -b ignores leading blanks: "  b" sorts after "a" as if the blanks were absent.
+#[test]
+fn ignore_leading_blanks() {
+    cargo_bin_cmd!("sort")
+        .args(["-b"])
+        .write_stdin("  b\na\n")
+        .assert()
+        .success()
+        .stdout("a\n  b\n");
+}
+
+// --- -s (stable sort) --------------------------------------------------------
+
+/// -s preserves the original order for lines with equal sort keys.
+#[test]
+fn stable_sort_preserves_equal_order() {
+    cargo_bin_cmd!("sort")
+        .args(["-s", "-n"])
+        .write_stdin("2\n02\n1\n")
+        .assert()
+        .success()
+        .stdout("1\n2\n02\n");
+}
+
+// --- -C (check silently) -----------------------------------------------------
+
+/// -C exits 0 for sorted input without any output.
+#[test]
+fn check_silent_sorted() {
+    cargo_bin_cmd!("sort")
+        .args(["-C"])
+        .write_stdin("a\nb\n")
+        .assert()
+        .success()
+        .stdout("");
+}
+
+/// -C exits 1 for unsorted input without a diagnostic.
+#[test]
+fn check_silent_unsorted() {
+    cargo_bin_cmd!("sort")
+        .args(["-C"])
+        .write_stdin("b\na\n")
+        .assert()
+        .failure()
+        .stdout("")
+        .stderr("");
+}
