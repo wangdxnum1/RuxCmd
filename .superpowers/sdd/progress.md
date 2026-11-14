@@ -41197,3 +41197,10 @@ Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
 - touch:-d/--date 新增相对日期（now/yesterday/tomorrow/N unit(s) [ago]，fortnight 支持）；4 个集成测试验证 mtime 偏移精确性；原 "1 day ago" 必须被拒绝的测试删项（已实现）。
 - 教训:assert_cmd 默认继承进程 env 但 detached 子进程不继承 TEMP 覆盖——nohup 测试在本机 AV 下持续失败；CI 无此问题。
 - 发布:v0.5.16 成功(run 43546768975,notes 自动生成,4 资产);清单 hash 同步 dc4bcbe4;版本 0.5.15 → 0.5.16。
+
+
+## Round 38 du --inodes/-X + v0.5.17 release (2026-11-14)
+- du:新增 --inodes(计数子树条目数替代块大小;-a 时文件行计数 1;display 跳过 block_scale 除法)与 -X/--exclude-from(从文件读排除模式,与 --exclude 合并,- 读 stdin)。--inodes 计数逻辑:目录行 = size(子树累计) + 1(自身);首次实现的 entry_count 方案错误(只计直接子项),已修正为 size+1。
+- 发布:v0.5.17 经三次 CI 重试后成功——tag 指错旧提交(缺 compat 修正与 Cargo.lock 更新)两次、Desktop Cargo.lock 未更新一次;最终修正 tag → 64d6be2 后成功(run 43554618221,notes 自动生成,4 资产)。
+- 教训:tag 必须在所有修正(版本 bump + Cargo.lock + compat 表)全部 amend 后才创建;force push tag 用 `git push --force origin refs/tags/vX` 而非 `git push --force origin vX`(后者在 tag 已移动时报 cannot lock ref)。
+- 清单 hash 同步 c102bfda;版本 0.5.16 → 0.5.17。
