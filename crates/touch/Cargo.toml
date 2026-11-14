@@ -9,6 +9,7 @@ description = "A Windows touch clone — create empty files or update file times
 authors = ["Tim"]
 
 [dependencies]
+ruxcmd-core = { path = "../ruxcmd-core" }
 clap = { version = "4", features = ["derive"] }
 windows = { workspace = true }
 [dev-dependencies]

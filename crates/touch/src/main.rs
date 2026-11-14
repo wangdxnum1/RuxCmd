@@ -118,11 +118,18 @@ fn invalid_date(raw: &str) -> String {
 
 // --- date parsing (declared GNU subset) -------------------------------------
 
-/// `-d/--date` subset: `@SECONDS`, `YYYY-MM-DD`, `YYYY-MM-DDTHH:MM[:SS]` and
-/// `YYYY-MM-DD HH:MM[:SS]`, all interpreted as local time. Relative
-/// expressions ("1 day ago") are not supported and fail with the GNU
-/// `invalid date format` diagnostic.
+/// `-d/--date` subset: `@SECONDS`, relative expressions (`now`, `yesterday`,
+/// `N unit(s) [ago]`), `YYYY-MM-DD`, `YYYY-MM-DDTHH:MM[:SS]` and
+/// `YYYY-MM-DD HH:MM[:SS]`, all interpreted as local time.
 fn parse_date(raw: &str) -> Result<DateSource, ()> {
+    if let Some(shift) = ruxcmd_core::timefmt::parse_relative(raw) {
+        let instant = ruxcmd_core::timefmt::apply_relative(shift).ok_or(())?;
+        let secs = instant
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or_else(|_| 0);
+        return Ok(DateSource::Epoch(secs));
+    }
     if let Some(seconds) = raw.strip_prefix('@') {
         // Integer seconds only; GNU's fractional "@12.5" form is not in the
         // supported subset.
@@ -554,7 +561,6 @@ mod tests {
         }
         for bad in [
             "not a date",
-            "1 day ago",
             "2025-1-2",
             "2025-01-02 03:04:05 junk",
             "2025-02-30",

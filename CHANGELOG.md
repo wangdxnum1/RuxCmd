@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.16 — touch 相对日期、timefmt 语法共享(2026-11-14)
+
+- touch:`-d/--date` 新增相对日期——`now`/`yesterday`/`tomorrow`/`N unit(s) [ago]`（second/minute/hour/day/week/fortnight/month/year），语法与 find -newermt 一致（实测 GNU touch -d yesterday = now−1 天保留时钟）。
+- 基建:相对日期语法提升到 ruxcmd-core::timefmt（parse_relative + apply_relative + RelativeShift），find -newermt 与 touch -d 共享一份实现；find 移除本地拷贝。
+
 ## 0.5.15 — sizeword/纪元换算统一、发布后清单自动同步(2026-11-14)
 
 - 基建:ruxcmd-core 新增 `sizeword` 模块——GNU 尺寸后缀双底表（K/KB/M/MB/… 到 E/EB，1024/1000 进制）+ dd 的 c/w/b/kib/mib/gib 扩展；du `--block-size`、truncate `-s`、dd 数字操作数三处后缀表统一为一份；dd 顺带补齐 GNU 对齐的 T/TB/P/PB/E/EB（此前缺失，GNU 8.32 支持）。

@@ -3302,6 +3302,7 @@ dependencies = [
  "clap",
  "predicates",
  "ruxcmd-build",
+ "ruxcmd-core",
  "tempfile",
  "windows",
 ]

@@ -6,7 +6,7 @@
 //! apply exactly like the system time functions) and formats it with the
 //! GNU strftime subset coreutils consumers rely on.
 
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use windows_sys::Win32::Foundation::{FILETIME, SYSTEMTIME};
 use windows_sys::Win32::System::Time::{
     FileTimeToSystemTime, GetTimeZoneInformation, SystemTimeToTzSpecificLocalTime,
@@ -126,6 +126,160 @@ pub fn strftime(format: &str, t: &LocalTime) -> String {
         }
     }
     out
+}
+
+/// A relative date shift parsed from GNU's `N unit(s) [ago]` grammar:
+/// calendar months move the wall clock (clamping the day), then the
+/// duration part (days + seconds) shifts the instant.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RelativeShift {
+    pub months: i64,
+    pub days: i64,
+    pub seconds: i64,
+}
+
+/// Recognizes GNU's relative-date grammar: `now`, `yesterday`, `tomorrow`,
+/// `N unit(s) [ago]` with units second/minute/hour/day/week/fortnight/
+/// month/year (case-insensitive, optional plural), and `a`/`an` as the
+/// count.  Returns `None` when the text is not a relative expression.
+pub fn parse_relative(raw: &str) -> Option<RelativeShift> {
+    let lower = raw.trim().to_ascii_lowercase();
+    if lower == "now" {
+        return Some(RelativeShift {
+            months: 0,
+            days: 0,
+            seconds: 0,
+        });
+    }
+    if lower == "yesterday" {
+        return Some(RelativeShift {
+            months: 0,
+            days: -1,
+            seconds: 0,
+        });
+    }
+    if lower == "tomorrow" {
+        return Some(RelativeShift {
+            months: 0,
+            days: 1,
+            seconds: 0,
+        });
+    }
+    let mut parts = lower.split_whitespace();
+    let count_part = parts.next()?;
+    let count: i64 = match count_part {
+        "a" | "an" => 1,
+        digits if digits.bytes().all(|b| b.is_ascii_digit()) => digits.parse().ok()?,
+        _ => return None,
+    };
+    let unit = parts.next()?;
+    let unit = unit.strip_suffix('s').unwrap_or(unit);
+    let unit_seconds = match unit {
+        "second" | "sec" => 1i64,
+        "minute" | "min" => 60,
+        "hour" => 3600,
+        "day" => 86400,
+        "week" => 7 * 86400,
+        "fortnight" => 14 * 86400,
+        "month" | "mon" => 0,
+        "year" => 0,
+        _ => return None,
+    };
+    let mut shift = RelativeShift {
+        months: 0,
+        days: 0,
+        seconds: 0,
+    };
+    match unit {
+        "month" | "mon" => shift.months = count,
+        "year" => shift.months = count * 12,
+        _ => shift.seconds += count * unit_seconds,
+    }
+    match parts.next() {
+        None => {}
+        Some("ago") => {
+            shift.months = -shift.months;
+            shift.seconds = -shift.seconds;
+            shift.days = -shift.days;
+        }
+        _ => return None,
+    }
+    if parts.next().is_some() {
+        return None;
+    }
+    Some(shift)
+}
+
+/// Applies a relative shift to the current instant: calendar months move on
+/// the local wall clock (clamping the day, like GNU), then the duration part
+/// shifts the resulting instant.  Returns `None` when pre-1970 or the
+/// FILETIME range cannot hold the result.
+pub fn apply_relative(shift: RelativeShift) -> Option<SystemTime> {
+    let now = SystemTime::now();
+    let total_seconds = shift.days * 86400 + shift.seconds;
+    if shift.months == 0 {
+        return shift_instant(now, total_seconds);
+    }
+    let local = local_time(now)?;
+    let total_months = local.year as i64 * 12 + local.month as i64 - 1 + shift.months;
+    let year = total_months.div_euclid(12) as u16;
+    let month = (total_months.rem_euclid(12) + 1) as u16;
+    let day = local.day.min(days_in_month_of(year, month)) as u32;
+    let wall = WallDateTime {
+        year,
+        month,
+        day,
+        hour: local.hour as u32,
+        minute: local.minute as u32,
+        second: local.second as u32,
+    };
+    let base = wall_datetime_to_epoch(&wall)?;
+    epoch_to_system_time(base + total_seconds)
+}
+
+/// Shifts an instant by a signed number of seconds.
+pub fn shift_instant(instant: SystemTime, seconds: i64) -> Option<SystemTime> {
+    if seconds >= 0 {
+        instant.checked_add(Duration::from_secs(seconds as u64))
+    } else {
+        instant.checked_sub(Duration::from_secs(seconds.unsigned_abs()))
+    }
+}
+
+/// Epoch seconds from a local wall clock read as UTC (no zone conversion).
+pub fn wall_datetime_to_epoch(wall: &WallDateTime) -> Option<i64> {
+    let days = days_from_civil(wall.year as i64, wall.month as i64, wall.day as i64);
+    Some(days * 86400 + wall.hour as i64 * 3600 + wall.minute as i64 * 60 + wall.second as i64)
+}
+
+fn epoch_to_system_time(seconds: i64) -> Option<SystemTime> {
+    if seconds >= 0 {
+        SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(seconds as u64))
+    } else {
+        SystemTime::UNIX_EPOCH.checked_sub(Duration::from_secs(seconds.unsigned_abs()))
+    }
+}
+
+/// Local wall-clock fields for the calendar math above.
+pub struct WallDateTime {
+    pub year: u16,
+    pub month: u16,
+    pub day: u32,
+    pub hour: u32,
+    pub minute: u32,
+    pub second: u32,
+}
+
+fn days_in_month_of(year: u16, month: u16) -> u16 {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400)) => {
+            29
+        }
+        2 => 28,
+        _ => 0,
+    }
 }
 
 /// Days from 1970-01-01 to the given civil date (Howard Hinnant's

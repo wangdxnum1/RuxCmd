@@ -632,33 +632,27 @@ fn parse_date(raw: &str) -> Option<SystemTime> {
 
 /// A relative shift broken into calendar months (whole months move the same
 /// wall-clock day) plus a duration part.
-struct RelativeShift {
-    months: i64,
-    days: i64,
-    seconds: i64,
-}
-
 /// Recognizes GNU's `N unit(s) [ago]` grammar: units second/minute/hour/
 /// day/week/month/year (case-insensitive, optional plural), optional `a`/`an`
 /// as the count.
-fn parse_relative(raw: &str) -> Option<RelativeShift> {
+fn parse_relative(raw: &str) -> Option<ruxcmd_core::timefmt::RelativeShift> {
     let lower = raw.trim().to_ascii_lowercase();
     if lower == "now" {
-        return Some(RelativeShift {
+        return Some(ruxcmd_core::timefmt::RelativeShift {
             months: 0,
             days: 0,
             seconds: 0,
         });
     }
     if lower == "yesterday" {
-        return Some(RelativeShift {
+        return Some(ruxcmd_core::timefmt::RelativeShift {
             months: 0,
             days: -1,
             seconds: 0,
         });
     }
     if lower == "tomorrow" {
-        return Some(RelativeShift {
+        return Some(ruxcmd_core::timefmt::RelativeShift {
             months: 0,
             days: 1,
             seconds: 0,
@@ -685,7 +679,7 @@ fn parse_relative(raw: &str) -> Option<RelativeShift> {
         "year" => 0,
         _ => return None,
     };
-    let mut shift = RelativeShift {
+    let mut shift = ruxcmd_core::timefmt::RelativeShift {
         months: 0,
         days: 0,
         seconds: 0,
@@ -710,36 +704,9 @@ fn parse_relative(raw: &str) -> Option<RelativeShift> {
     Some(shift)
 }
 
-/// Applies a relative shift to the current instant: calendar months move on
-/// the local wall clock (clamping the day, like GNU), then the duration part.
-fn apply_relative(shift: RelativeShift) -> Option<SystemTime> {
-    let now = SystemTime::now();
-    if shift.months == 0 {
-        return shift_by_seconds(now, shift.days * 86400 + shift.seconds);
-    }
-    let local = ruxcmd_core::timefmt::local_time(now)?;
-    let total_months = local.year as i64 * 12 + local.month as i64 - 1 + shift.months;
-    let year = total_months.div_euclid(12) as i32;
-    let month = (total_months.rem_euclid(12) + 1) as u32;
-    let day = local.day.min(days_in_month(year, month) as u16) as u32;
-    let wall = WallClock {
-        year,
-        month,
-        day,
-        hour: local.hour as u32,
-        minute: local.minute as u32,
-        second: local.second as u32,
-    };
-    let base = wall_to_system_time(wall)?;
-    shift_by_seconds(base, shift.days * 86400 + shift.seconds)
-}
-
-fn shift_by_seconds(instant: SystemTime, seconds: i64) -> Option<SystemTime> {
-    if seconds >= 0 {
-        instant.checked_add(Duration::from_secs(seconds as u64))
-    } else {
-        instant.checked_sub(Duration::from_secs(seconds.unsigned_abs()))
-    }
+/// Applies a relative shift to the current instant, delegating to core.
+fn apply_relative(shift: ruxcmd_core::timefmt::RelativeShift) -> Option<SystemTime> {
+    ruxcmd_core::timefmt::apply_relative(shift)
 }
 
 /// `YYYYMMDD` (8 digits), the compact form GNU also accepts.

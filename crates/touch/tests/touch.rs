@@ -660,7 +660,7 @@ fn invalid_dates_report_gnu_message_exit_1() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("bad.txt");
 
-    for bad in ["not a date", "1 day ago", "yesterday", "2025-02-30"] {
+    for bad in ["not a date", "2025-02-30"] {
         cargo_bin_cmd!("touch")
             .arg("-d")
             .arg(bad)
