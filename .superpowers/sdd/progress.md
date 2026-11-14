@@ -41204,3 +41204,10 @@ Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
 - 发布:v0.5.17 经三次 CI 重试后成功——tag 指错旧提交(缺 compat 修正与 Cargo.lock 更新)两次、Desktop Cargo.lock 未更新一次;最终修正 tag → 64d6be2 后成功(run 43554618221,notes 自动生成,4 资产)。
 - 教训:tag 必须在所有修正(版本 bump + Cargo.lock + compat 表)全部 amend 后才创建;force push tag 用 `git push --force origin refs/tags/vX` 而非 `git push --force origin vX`(后者在 tag 已移动时报 cannot lock ref)。
 - 清单 hash 同步 c102bfda;版本 0.5.16 → 0.5.17。
+
+
+## Round 38 comm sorted-input validation + v0.5.18 release (2026-11-14)
+- comm:新增排序输入校验——检测乱序行时 stderr 报 file N is not in sorted order(每文件首次)+ 结尾 input is not in sorted order,退出码 1;比较输出照常。与 MSYS2 GNU comm 8.32 实测一致。测试:乱序诊断+正常退出两个用例。
+- 发布:v0.5.18 成功(run 43566652775,notes 自动生成,4 资产);清单 hash 手动同步 40514b60;版本 0.5.17 → 0.5.18。
+- **Desktop Cargo.lock 教训固化**:版本号 bump 后必须运行 `cargo update --manifest-path desktop/src-tauri/Cargo.toml`(desktop 有独立 lock 文件);--locked CI 检查会因过期 lock 失败。
+- 教训:sync-manifest-hash.ps1 的 $LASTEXITCODE 检查在 tag 中缺失(修复仅在后续 commit),发布后 sync 步骤仍然失败;下次 tag 前确保修复包含在 tag 提交中。
