@@ -41175,3 +41175,10 @@ Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
 - 发布:v0.5.11 成功(run 42384943635,notes 自动生成,4 资产);两个 push CI(42383742043 / 42383815911)全绿;清单 hash 同步 e90ab189;版本 0.5.10 → 0.5.11;tag a8fb923。
 - 收尾核对:ZIP .sha256 sidecar 内容 e90ab1897a9c... 与 GitHub asset digest=sha256:e90ab189... 一致;setup EXE digest a7b30d64...。
 - 教训(经后续排查更正):Windows Agent 沙盒(DSH / Codex / Claude sandbox-runtime / Muse 等)以受限令牌启动子进程,SChannel 的 AcquireCredentialsHandle 取不到用户凭据上下文(SEC_E_NO_CREDENTIALS 0x8009030e),凡走 Windows 原生 TLS 的工具(git schannel 后端、系统 curl.exe、.NET/Invoke-WebRequest)在沙盒内 HTTPS 皆失败;自带 TLS 栈的(gh、Node、浏览器、git openssl 后端)正常。同一 curl.exe 在沙盒外普通 PowerShell 成功(GitHub 公开 issue 209 条同款报告)。最小绕行为 `git -c http.sslbackend=openssl`;代理配置无需改动。认证需求按操作区分:无需认证的只读操作(ls-remote 等)靠 credential.helper manager 的 cmdkey 缓存即可;需要认证的写操作(push)在沙盒内 GCM 同样无法启动(sh.exe signal pipe Win32 error 5),须补 `-c credential.helper= -c http.extraheader="AUTHORIZATION: basic <b64(x-access-token:gh auth token)>"`。此前记录的「清 github.com 代理」是误判后的冗余动作(代理当时只是未启动),但 token 注入对 push 并非多余——只是不该归因于 SChannel。此为沙盒运行时已知限制,非本机 git 配置或 Windows 系统缺陷。
+
+
+## Round 35 sizeword/civil-math consolidation + release automation (2026-11-14)
+- 基建:ruxcmd-core 新增 sizeword 模块(K/KB/M/MB/…双底表 + dd 的 c/w/b/kib/mib/gib 扩展),du/truncate/dd 三处后缀表统一;dd 顺带补齐 GNU 对齐的 T/TB/P/PB/E/EB;timefmt 新增 days_from_civil + civil_to_epoch_seconds,find/zip 两份 Howard-Hinnant 拷贝统一。
+- 发布自动化:scripts/sync-manifest-hash.ps1——正则替换清单中任意现有 hash(无需知道旧值)+ check-manifests 复核;release.yml 发布步骤后追加"Sync manifest hashes after publish"步骤,自动 commit+push,消灭手动 hash 同步环节。
+- **环境问题**:本机 %TEMP% 对新建二进制间歇性拒绝写入(AV/Defender 竞态),dd/nohup 测试的 TempDir::new() 间歇失败;build.ps1 已将测试 TEMP 指向 repo 本地 target/test-tmp 缓解;nohup 的 detached_child 测试因 detached 子进程不继承 TEMP 覆盖而持续失败;CI(GitHub runners)不受影响。
+- 版本 0.5.14 → 0.5.15(待发布;本地 Verify 因环境 flakiness 需 CI 确认)。

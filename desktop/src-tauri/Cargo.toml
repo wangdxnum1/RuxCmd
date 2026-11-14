@@ -1,7 +1,7 @@
 [package]
 name = "ruxcmd-desktop"
 # Mirrors workspace.metadata.ruxcmd.version; build.rs fails on any mismatch.
-version = "0.5.14"
+version = "0.5.15"
 description = "RuxCmd Desktop: installation lifecycle front end"
 edition = "2024"
 license = "MIT"

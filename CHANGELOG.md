@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.15 — sizeword/纪元换算统一、发布后清单自动同步(2026-11-14)
+
+- 基建:ruxcmd-core 新增 `sizeword` 模块——GNU 尺寸后缀双底表（K/KB/M/MB/… 到 E/EB，1024/1000 进制）+ dd 的 c/w/b/kib/mib/gib 扩展；du `--block-size`、truncate `-s`、dd 数字操作数三处后缀表统一为一份；dd 顺带补齐 GNU 对齐的 T/TB/P/PB/E/EB（此前缺失，GNU 8.32 支持）。
+- 基建:timefmt 新增 `days_from_civil` 与 `civil_to_epoch_seconds`——find 与 zip 的 Howard-Hinnant 算法拷贝统一为一份共享实现。
+- 发布自动化:新增 scripts/sync-manifest-hash.ps1（正则替换清单中任意现有 SHA256 哈希 + check-manifests 复核）；release.yml 发布步骤后追加 "Sync manifest hashes after publish" 自动提交推送——消灭手动 hash 同步环节。
+
 ## 0.5.14 — 升级链路稳定性与安装结构整理(2026-11-10)
 
 CLI 命令无变更；本版集中修复实测中暴露的升级问题并整理安装目录。
