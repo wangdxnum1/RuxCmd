@@ -41218,3 +41218,10 @@ Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
 - 文档:sha 系列（md5sum/sha1sum/sha256sum/sha512sum）兼容表纠偏——GNU 8.32 实测同样拒绝 -z -c，NUL 清单解析不是缺口；--strict 保留为缺口。
 - **Desktop Cargo.lock 教训固化**：cargo update 只更新依赖版本，不改包自身版本——需用 cargo check 触发 lock 重新生成；bump-version.ps1 已加入 cargo update + check 双步骤。
 - 发布:v0.5.19 成功(run 43570715069,notes 自动生成,4 资产);清单 hash 手动同步 469c2ed4;版本 0.5.18 → 0.5.19。
+
+
+## Round 40 sort -b/-s/-C + v0.5.20 release (2026-11-14)
+- sort:新增 -b/--ignore-leading-blanks(比较前跳过前导空格)、-s/--stable(等值行保留输入顺序,禁用末行逐字节后备比较)、-C/--check-silent(类似 -c 但无诊断输出,仅退出码);5 个集成测试覆盖全部新选项。
+- 发布自动化:bump-version.ps1 首次实跑成功——一条命令完成版本号推进（Cargo.toml + desktop + README ×2 + 清单）+ check-manifests 校验 + desktop Cargo.lock 更新；清单 hash 由 release.yml 自动同步步骤完成（无需手动操作——首次全自动化闭环）。
+- 版本 0.5.19 → 0.5.20;main @ e837f6c(hash 同步提交后最终 HEAD 5f8503c);清单 hash dc4bcbe4(CI 自动同步)。
+- 教训:忘 bump 版本号是 v0.5.20 首次 CI 失败根因——bump-version.ps1 已自动化此步骤。
