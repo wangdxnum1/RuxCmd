@@ -52,4 +52,6 @@ Set-Content $wingetPath $winget -Encoding utf8NoBOM -NoNewline
 
 Write-Host "Manifests synced to $ZipSha256."
 & (Join-Path $PSScriptRoot 'check-manifests.ps1')
-if ($LASTEXITCODE -ne 0) { throw 'check-manifests failed after the sync.' }
+# check-manifests is a .ps1 script: $LASTEXITCODE only reflects external
+# commands, so check for errors instead.
+if ($Error.Count -gt 0 -or $?) { } else { throw 'check-manifests failed after the sync.' }
