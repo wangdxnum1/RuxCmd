@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.19 — 版本号自动化脚本、兼容表纠偏(2026-11-14)
+
+- 基建:新增 scripts/bump-version.ps1——一条命令完成版本号推进（Cargo.toml、desktop/src-tauri/Cargo.toml + Cargo.lock、README ×2、scoop/winget 清单）并自动运行 check-manifests 校验；根治手工 bump 遗漏 desktop 版本号和 Cargo.lock 的重复事故。
+- 文档:sha 系列（md5sum/sha1sum/sha256sum/sha512sum）兼容表纠偏——GNU 8.32 实测同样拒绝 （--zero 在校验模式下不受支持），NUL 清单解析不是缺口而是与参照一致；不支持 --strict 保留。
+
 ## 0.5.18 — comm 排序校验(2026-11-14)
 
 - comm:新增排序输入校验——检测到乱序行时 stderr 报 `comm: file N is not in sorted order`（每文件首次），结尾报 `comm: input is not in sorted order`，退出码 1；比较输出照常。与 MSYS2 GNU comm 8.32 实测一致。
