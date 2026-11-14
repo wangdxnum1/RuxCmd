@@ -41211,3 +41211,10 @@ Plan：docs/superpowers/plans/2026-10-25-round16-zero-terminated.md。
 - 发布:v0.5.18 成功(run 43566652775,notes 自动生成,4 资产);清单 hash 手动同步 40514b60;版本 0.5.17 → 0.5.18。
 - **Desktop Cargo.lock 教训固化**:版本号 bump 后必须运行 `cargo update --manifest-path desktop/src-tauri/Cargo.toml`(desktop 有独立 lock 文件);--locked CI 检查会因过期 lock 失败。
 - 教训:sync-manifest-hash.ps1 的 $LASTEXITCODE 检查在 tag 中缺失(修复仅在后续 commit),发布后 sync 步骤仍然失败;下次 tag 前确保修复包含在 tag 提交中。
+
+
+## Round 39 bump-version.ps1 + sha*sum compat correction + v0.5.19 (2026-11-14)
+- 基建:scripts/bump-version.ps1——一条命令完成版本号推进（Cargo.toml + desktop Cargo.toml + desktop Cargo.lock + README ×2 + scoop/winget）+ check-manifests 校验；根治手工 bump 遗漏。
+- 文档:sha 系列（md5sum/sha1sum/sha256sum/sha512sum）兼容表纠偏——GNU 8.32 实测同样拒绝 -z -c，NUL 清单解析不是缺口；--strict 保留为缺口。
+- **Desktop Cargo.lock 教训固化**：cargo update 只更新依赖版本，不改包自身版本——需用 cargo check 触发 lock 重新生成；bump-version.ps1 已加入 cargo update + check 双步骤。
+- 发布:v0.5.19 成功(run 43570715069,notes 自动生成,4 资产);清单 hash 手动同步 469c2ed4;版本 0.5.18 → 0.5.19。
